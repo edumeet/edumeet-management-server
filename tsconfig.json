@@ -1,0 +1,14 @@
+{
+	"extends": "@tsconfig/node18/tsconfig.json",
+	"ts-node": {
+		"files": true
+	},
+	"compilerOptions": {
+		"experimentalDecorators": true,
+		"resolveJsonModule": true,
+		"outDir": "dist",
+		"esModuleInterop": true,
+	},
+	"include": [ "src", "test", "knexfile.ts" ],
+	"exclude": [ "migrations" ]
+}

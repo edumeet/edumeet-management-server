@@ -1,0 +1,12 @@
+/node_modules/
+/coverage/
+
+/config/**
+!/config/config.example.json
+
+/dist/**/*
+
+.vscode
+yarn-error.log
+
+*.code-workspace
