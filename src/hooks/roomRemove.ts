@@ -7,12 +7,21 @@ export const roomRemove = async (context: HookContext, next: NextFunction) => {
 	// The removed room
 	const { id } = context.result as Room;
 
-	// Remove all coHost relations
-	const coHosts = await context.app.service('coHosts').find({
+	// Remove all group roles for this room
+	const groupRoles = await context.app.service('roomGroupRoles').find({
 		query: {
 			roomId: id
 		}
 	});
 
-	await Promise.all(coHosts.data.map((coHost) => context.app.service('coHosts').remove(coHost.id)));
+	await Promise.all(groupRoles.data.map((groupRole) => context.app.service('roomGroupRoles').remove(groupRole.id)));
+
+	// Remove all user roles for this room
+	const userRoles = await context.app.service('roomUserRoles').find({
+		query: {
+			roomId: id
+		}
+	});
+
+	await Promise.all(userRoles.data.map((userRole) => context.app.service('roomUserRoles').remove(userRole.id)));
 };

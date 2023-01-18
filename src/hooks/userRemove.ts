@@ -7,19 +7,28 @@ export const userRemove = async (context: HookContext, next: NextFunction) => {
 	// The removed user
 	const { id } = context.result as User;
 
-	// Remove all coHost relations
-	const coHosts = await context.app.service('coHosts').find({
+	// Remove all group relations
+	const groupUsers = await context.app.service('groupUsers').find({
 		query: {
 			userId: id
 		}
 	});
 
-	await Promise.all(coHosts.data.map((coHost) => context.app.service('coHosts').remove(coHost.id)));
+	await Promise.all(groupUsers.data.map((groupUser) => context.app.service('groupUsers').remove(groupUser.id)));
 
-	// Remove all room relations
+	// Remove all room user role relations
+	const roomUserRoles = await context.app.service('roomUserRoles').find({
+		query: {
+			userId: id
+		}
+	});
+
+	await Promise.all(roomUserRoles.data.map((roomUserRole) => context.app.service('roomUserRoles').remove(roomUserRole.id)));
+
+	// Remove all personal rooms
 	const rooms = await context.app.service('rooms').find({
 		query: {
-			roomOwnerId: id
+			personalId: id
 		}
 	});
 
@@ -33,4 +42,13 @@ export const userRemove = async (context: HookContext, next: NextFunction) => {
 	});
 
 	await Promise.all(orgAdmins.data.map((orgAdmin) => context.app.service('organizationAdmins').remove(orgAdmin.id)));
+
+	// Remove all organization owner relations
+	const orgOwners = await context.app.service('organizationOwners').find({
+		query: {
+			userId: id
+		}
+	});
+
+	await Promise.all(orgOwners.data.map((orgOwner) => context.app.service('organizationOwners').remove(orgOwner.id)));
 };

@@ -5,60 +5,59 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { CoHost } from '../coHosts/coHosts.schema';
+import { roomGroupRoleSchema } from '../roomGroupRoles/roomGroupRoles.schema';
+import { roomUserRoleSchema } from '../roomUserRoles/roomUserRoles.schema';
 
 // Main data model schema
 export const roomSchema = Type.Object(
 	{
 		id: Type.Number(),
-		createdAt: Type.Number(),
-		updatedAt: Type.Number(),
 		name: Type.String(),
 		description: Type.String(),
-		background: Type.Optional(Type.String()),
+		createdAt: Type.Number(),
+		updatedAt: Type.Number(),
+		creatorId: Type.Number(), // User ID of the creator
+		personalId: Type.Optional(Type.Number()), // User ID if that user has this room as their personal room
+		organizationId: Type.Number(),
+
+		// Roles and permissions
+		groupRoles: Type.Array(Type.Ref(roomGroupRoleSchema)), // Group roles in this room
+		userRoles: Type.Array(Type.Ref(roomUserRoleSchema)), // User roles in this room
+
+		// Look and feel
 		logo: Type.Optional(Type.String()),
+		background: Type.Optional(Type.String()),
+
+		// Features of the room
+		maxActiveVideos: Type.Number(),
 		locked: Type.Boolean(),
-		activateOnHostJoin: Type.Boolean(),
 		chatEnabled: Type.Boolean(),
 		raiseHandEnabled: Type.Boolean(),
 		filesharingEnabled: Type.Boolean(),
-		autoGainControlEnabled: Type.Boolean(),
-		echoCancellationEnabled: Type.Boolean(),
-		noiseSuppressionEnabled: Type.Boolean(),
 		localRecordingEnabled: Type.Boolean(),
-		maxActiveVideos: Type.Number(),
-		aspectRatio: Type.String(),
-		videoResolution: Type.String(),
-		videoFrameRate: Type.Number(),
-		screenShareResolution: Type.String(),
-		screenShareFrameRate: Type.Number(),
-		sampleRate: Type.Number(),
-		channelCount: Type.Number(),
-		sampleSize: Type.Number(),
-		opusStereo: Type.Boolean(),
-		opusDtx: Type.Boolean(),
-		opusFec: Type.Boolean(),
-		opusPtime: Type.Number(),
-		opusMaxPlaybackRate: Type.Number(),
-		personalRoom: Type.Boolean(),
-		coHosts: Type.Optional(Type.Array(Type.Number())),
-		roomOwnerId: Type.Number(),
-		organizationId: Type.Number(),
 	},
 	{ $id: 'Room', additionalProperties: false }
 );
 export type Room = Static<typeof roomSchema>
 export const roomResolver = resolve<Room, HookContext>({
-	coHosts: virtual(async (room, context) => {
-		const { data } = await context.app.service('coHosts').find({
+	groupRoles: virtual(async (room, context) => {
+		const { data } = await context.app.service('roomGroupRoles').find({
 			query: {
-				roomId: room.id,
-				$limit: 0
+				roomId: room.id
 			}
 		});
 
-		return data.map((coHost: CoHost) => coHost.userId);
-	})
+		return data;
+	}),
+	userRoles: virtual(async (room, context) => {
+		const { data } = await context.app.service('roomUserRoles').find({
+			query: {
+				roomId: room.id
+			}
+		});
+
+		return data;
+	}),
 });
 
 export const roomExternalResolver = resolve<Room, HookContext>({});
@@ -79,8 +78,7 @@ export const roomDataResolver = resolve<Room, HookContext>({
 		const { total } = await context.app.service('rooms').find({
 			query: {
 				name: value,
-				organizationId: room.organizationId,
-				$limit: 0
+				organizationId: room.organizationId
 			}
 		});
 
@@ -91,44 +89,14 @@ export const roomDataResolver = resolve<Room, HookContext>({
 	},
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now(),
+	creatorId: async (value, room, context) => context.params.user?.id,
+	organizationId: async (value, room, context) => context.params.user?.organizationId,
+	maxActiveVideos: async (value = 12) => value,
 	locked: async (value = true) => value,
-	activateOnHostJoin: async (value = false) => value,
 	chatEnabled: async (value = true) => value,
 	raiseHandEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
-	autoGainControlEnabled: async (value = true) => value,
-	echoCancellationEnabled: async (value = true) => value,
-	noiseSuppressionEnabled: async (value = true) => value,
 	localRecordingEnabled: async (value = true) => value,
-	maxActiveVideos: async (value = 12) => value,
-	aspectRatio: async (value = '1.778') => value,
-	videoResolution: async (value = 'medium') => {
-		if (![ 'low', 'medium', 'high', 'veryhigh', 'ultra' ].includes(value)) {
-			throw new Error('Invalid video resolution');
-		}
-
-		return value;
-	},
-	videoFrameRate: async (value = 30) => value,
-	screenShareResolution: async (value = 'veryhigh') => {
-		if (![ 'low', 'medium', 'high', 'veryhigh', 'ultra' ].includes(value)) {
-			throw new Error('Invalid screen share resolution');
-		}
-
-		return value;
-	},
-	screenShareFrameRate: async (value = 30) => value,
-	sampleRate: async (value = 48000) => value,
-	channelCount: async (value = 2) => value,
-	sampleSize: async (value = 16) => value,
-	opusStereo: async (value = true) => value,
-	opusDtx: async (value = true) => value,
-	opusFec: async (value = true) => value,
-	opusPtime: async (value = 20) => value,
-	opusMaxPlaybackRate: async (value = 48000) => value,
-	personalRoom: async (value = true) => value,
-	roomOwnerId: async (value, room, context) => context.params.user.id,
-	organizationId: async (value, room, context) => context.params.user.organizationId
 });
 
 // Schema for updating existing entries
@@ -138,14 +106,11 @@ export const roomPatchSchema = Type.Partial(roomDataSchema, {
 export type RoomPatch = Static<typeof roomPatchSchema>
 export const roomPatchValidator = getDataValidator(roomPatchSchema, dataValidator);
 export const roomPatchResolver = resolve<Room, HookContext>({
-	updatedAt: async () => {
-		// Return the current date
-		return Date.now();
-	}
+	updatedAt: async () => Date.now()
 });
 
 // Schema for allowed query properties
-export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'organizationId', 'name', 'roomOwnerId' ]);
+export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'organizationId', 'name', 'personalId' ]);
 export const roomQuerySchema = Type.Intersect(
 	[
 		querySyntax(roomQueryProperties),

@@ -10,7 +10,8 @@ import { dataValidator, queryValidator } from '../../validators';
 export const organizationSchema = Type.Object(
 	{
 		id: Type.Number(),
-		text: Type.String()
+		name: Type.String(),
+		description: Type.Optional(Type.String()),
 	},
 	{ $id: 'Organization', additionalProperties: false }
 );
@@ -20,7 +21,7 @@ export const organizationResolver = resolve<Organization, HookContext>({});
 export const organizationExternalResolver = resolve<Organization, HookContext>({});
 
 // Schema for creating new entries
-export const organizationDataSchema = Type.Pick(organizationSchema, [ 'text' ], {
+export const organizationDataSchema = Type.Pick(organizationSchema, [ 'name' ], {
 	$id: 'OrganizationData'
 });
 export type OrganizationData = Static<typeof organizationDataSchema>
@@ -36,7 +37,7 @@ export const organizationPatchValidator = getDataValidator(organizationPatchSche
 export const organizationPatchResolver = resolve<Organization, HookContext>({});
 
 // Schema for allowed query properties
-export const organizationQueryProperties = Type.Pick(organizationSchema, [ 'id', 'text' ]);
+export const organizationQueryProperties = Type.Pick(organizationSchema, [ 'id', 'name' ]);
 export const organizationQuerySchema = Type.Intersect(
 	[
 		querySyntax(organizationQueryProperties),

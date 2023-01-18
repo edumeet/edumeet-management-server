@@ -48,4 +48,23 @@ export const organizationAdminQuerySchema = Type.Intersect(
 );
 export type OrganizationAdminQuery = Static<typeof organizationAdminQuerySchema>
 export const organizationAdminQueryValidator = getValidator(organizationAdminQuerySchema, queryValidator);
-export const organizationAdminQueryResolver = resolve<OrganizationAdminQuery, HookContext>({});
+export const organizationAdminQueryResolver = resolve<OrganizationAdminQuery, HookContext>({
+	organizationId: async (value, query, context) => {
+		// Make sure the user is limited to their own organization
+		if (context.params.user)
+			return context.params.user.organizationId;
+
+		return value;
+	},
+	userId: async (value, query, context) => {
+		if (typeof value === 'number' && context.params.user) {
+			const existingUser = await context.app.service('users').get(value);
+
+			// Make sure the user belongs to the same organization as the user
+			if (!existingUser || existingUser.organizationId !== context.params.user.organizationId)
+				throw new Error('userId is invalid');
+		}
+
+		return value;
+	},
+});

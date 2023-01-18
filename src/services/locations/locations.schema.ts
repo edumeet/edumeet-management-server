@@ -32,8 +32,7 @@ export const locationDataResolver = resolve<Location, HookContext>({
 	name: async (value, location, context) => {
 		const { total } = await context.app.service('locations').find({
 			query: {
-				name: value,
-				$limit: 0
+				name: value
 			}
 		});
 

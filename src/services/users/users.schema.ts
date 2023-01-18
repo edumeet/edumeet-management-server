@@ -15,6 +15,8 @@ export const userSchema = Type.Object(
 		email: Type.String(),
 		password: Type.Optional(Type.String()),
 		auth0Id: Type.Optional(Type.String()),
+		name: Type.Optional(Type.String()),
+		avatar: Type.Optional(Type.String()),
 	},
 	{ $id: 'User', additionalProperties: false }
 );
@@ -27,7 +29,7 @@ export const userExternalResolver = resolve<User, HookContext>({
 });
 
 // Schema for creating new users
-export const userDataSchema = Type.Pick(userSchema, [ 'organizationId', 'email', 'password', 'auth0Id' ], {
+export const userDataSchema = Type.Pick(userSchema, [ 'organizationId', 'email', 'password', 'auth0Id', 'name', 'avatar' ], {
 	$id: 'UserData',
 	additionalProperties: false
 });
@@ -61,7 +63,7 @@ export type UserQuery = Static<typeof userQuerySchema>
 export const userQueryValidator = getValidator(userQuerySchema, queryValidator);
 export const userQueryResolver = resolve<UserQuery, HookContext>({
 	// If there is a user (e.g. with authentication), they are only allowed to see their own data
-	id: async (value, user, context) => {
+	id: async (value, query, context) => {
 		if (context.params.user)
 			return context.params.user.id;
 

@@ -15,7 +15,6 @@ export const mediaNodeSchema = Type.Object(
 		hostname: Type.String(),
 		port: Type.Number(),
 		secret: Type.String(),
-		organizationOwnerId: Type.Optional(Type.Number()),
 		locationId: Type.Number(),
 	},
 	{ $id: 'MediaNode', additionalProperties: false }
@@ -26,17 +25,18 @@ export const mediaNodeResolver = resolve<MediaNode, HookContext>({});
 export const mediaNodeExternalResolver = resolve<MediaNode, HookContext>({});
 
 // Schema for creating new entries
-export const mediaNodeDataSchema = Type.Pick(mediaNodeSchema, [ 'hostname', 'port', 'secret', 'organizationOwnerId', 'locationId' ], {
+export const mediaNodeDataSchema = Type.Pick(mediaNodeSchema, [ 'hostname', 'port', 'secret', 'locationId' ], {
 	$id: 'MediaNodeData'
 });
 export type MediaNodeData = Static<typeof mediaNodeDataSchema>
 export const mediaNodeDataValidator = getDataValidator(mediaNodeDataSchema, dataValidator);
 export const mediaNodeDataResolver = resolve<MediaNode, HookContext>({
+	createdAt: async () => Date.now(),
+	updatedAt: async () => Date.now(),
 	hostname: async (value, mediaNode, context) => {
 		const { total } = await context.app.service('mediaNodes').find({
 			query: {
-				hostname: value,
-				$limit: 0
+				hostname: value
 			}
 		});
 
@@ -53,10 +53,12 @@ export const mediaNodePatchSchema = Type.Partial(mediaNodeDataSchema, {
 });
 export type MediaNodePatch = Static<typeof mediaNodePatchSchema>
 export const mediaNodePatchValidator = getDataValidator(mediaNodePatchSchema, dataValidator);
-export const mediaNodePatchResolver = resolve<MediaNode, HookContext>({});
+export const mediaNodePatchResolver = resolve<MediaNode, HookContext>({
+	updatedAt: async () => Date.now()
+});
 
 // Schema for allowed query properties
-export const mediaNodeQueryProperties = Type.Pick(mediaNodeSchema, [ 'id', 'hostname', 'organizationOwnerId', 'locationId' ]);
+export const mediaNodeQueryProperties = Type.Pick(mediaNodeSchema, [ 'id', 'hostname', 'locationId' ]);
 export const mediaNodeQuerySchema = Type.Intersect(
 	[
 		querySyntax(mediaNodeQueryProperties),
