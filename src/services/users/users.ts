@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { UserService, getOptions } from './users.class';
-import { userRemove } from '../../hooks/userRemove';
 
 export * from './users.class';
 export * from './users.schema';
@@ -39,7 +38,7 @@ export const user = (app: Application) => {
 			create: [],
 			update: [ authenticate('jwt') ],
 			patch: [ authenticate('jwt') ],
-			remove: [ authenticate('jwt'), userRemove ]
+			remove: [ authenticate('jwt') ]
 		},
 		before: {
 			all: [ schemaHooks.validateQuery(userQueryValidator), schemaHooks.resolveQuery(userQueryResolver) ],

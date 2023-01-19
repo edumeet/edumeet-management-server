@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { LocationService, getOptions } from './locations.class';
-import { locationRemove } from '../../hooks/locationRemove';
 
 export * from './locations.class';
 export * from './locations.schema';
@@ -37,8 +36,7 @@ export const location = (app: Application) => {
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(locationExternalResolver),
 				schemaHooks.resolveResult(locationResolver)
-			],
-			remove: [ locationRemove ]
+			]
 		},
 		before: {
 			all: [

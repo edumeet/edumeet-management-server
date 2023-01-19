@@ -67,6 +67,7 @@ export const roomDataSchema = Type.Pick(
 	roomSchema, [
 		'name',
 		'description',
+		'maxActiveVideos',
 	], {
 		$id: 'RoomData'
 	}

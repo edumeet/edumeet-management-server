@@ -26,17 +26,25 @@ describe('application client tests', () => {
 	});
 
 	it('creates and authenticates a user with email and password', async () => {
+		const organizationData = {
+			name: 'Test Organization',
+			description: 'Test organization for testing',
+		};
+
+		// Need to create an organization first, and can't use the client to do it because it's not authenticated
+		const organization = await app.service('organizations').create(organizationData);
+
 		const userData: UserData = {
 			email: 'someone@example.com',
 			password: 'supersecret',
-			organizationId: 1
 		};
 
 		await client.service('users').create(userData);
 
 		const { user, accessToken } = await client.authenticate({
 			strategy: 'local',
-			...userData
+			email: userData.email,
+			password: userData.password,
 		});
 
 		assert.ok(accessToken, 'Created access token for user');
@@ -45,7 +53,8 @@ describe('application client tests', () => {
 
 		await client.logout();
 
-		// Remove the test user on the server
-		await app.service('users').remove(user.id);
+		// Remove the test organization. This will also remove the user.
+		await app.service('organizations').remove(organization.id);
+		// await app.service('users').remove(user.id);
 	});
 });

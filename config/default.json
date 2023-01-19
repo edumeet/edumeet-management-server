@@ -1,0 +1,44 @@
+{
+	"host": "localhost",
+	"port": 3030,
+	"public": "./public/",
+	"origins": [
+		"http://localhost:3030"
+	],
+	"paginate": {
+		"default": 10,
+		"max": 50
+	},
+	"postgresql": {
+		"client": "pg",
+		"connection": "postgres://postgres:edumeet@localhost:5432/edumeet"
+	},
+	"authentication": {
+		"entity": "user",
+		"service": "users",
+		"secret": "8JTVnr/b/l13DwXmPufBcAEwxylZxuN+",
+		"authStrategies": [
+			"jwt",
+			"local",
+			"oauth"
+		],
+		"jwtOptions": {
+			"header": {
+				"typ": "access"
+			},
+			"audience": "http://localhost:3030",
+			"algorithm": "HS256",
+			"expiresIn": "1d"
+		},
+		"local": {
+			"usernameField": "email",
+			"passwordField": "password"
+		},
+		"oauth": {
+			"auth0": {
+				"key": "<Client ID>",
+				"secret": "<Client secret>"
+			}
+		}
+	}
+}

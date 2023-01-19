@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { OrganizationService, getOptions } from './organizations.class';
-import { organizationRemove } from '../../hooks/organizationRemove';
 
 export * from './organizations.class';
 export * from './organizations.schema';
@@ -37,8 +36,7 @@ export const organization = (app: Application) => {
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(organizationExternalResolver),
 				schemaHooks.resolveResult(organizationResolver)
-			],
-			remove: [ organizationRemove ]
+			]
 		},
 		before: {
 			all: [

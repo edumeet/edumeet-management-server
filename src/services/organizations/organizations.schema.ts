@@ -21,7 +21,7 @@ export const organizationResolver = resolve<Organization, HookContext>({});
 export const organizationExternalResolver = resolve<Organization, HookContext>({});
 
 // Schema for creating new entries
-export const organizationDataSchema = Type.Pick(organizationSchema, [ 'name' ], {
+export const organizationDataSchema = Type.Pick(organizationSchema, [ 'name', 'description' ], {
 	$id: 'OrganizationData'
 });
 export type OrganizationData = Static<typeof organizationDataSchema>

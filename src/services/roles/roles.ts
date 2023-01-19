@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoleService, getOptions } from './roles.class';
-import { roleRemove } from '../../hooks/roleRemove';
 
 export * from './roles.class';
 export * from './roles.schema';
@@ -37,8 +36,7 @@ export const role = (app: Application) => {
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(roleExternalResolver),
 				schemaHooks.resolveResult(roleResolver)
-			],
-			remove: [ roleRemove ]
+			]
 		},
 		before: {
 			all: [ schemaHooks.validateQuery(roleQueryValidator), schemaHooks.resolveQuery(roleQueryResolver) ],

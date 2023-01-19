@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoomService, getOptions } from './rooms.class';
-import { roomRemove } from '../../hooks/roomRemove';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -37,8 +36,7 @@ export const room = (app: Application) => {
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(roomExternalResolver),
 				schemaHooks.resolveResult(roomResolver)
-			],
-			remove: [ roomRemove ]
+			]
 		},
 		before: {
 			all: [ schemaHooks.validateQuery(roomQueryValidator), schemaHooks.resolveQuery(roomQueryResolver) ],

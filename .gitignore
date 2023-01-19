@@ -2,7 +2,7 @@
 /coverage/
 
 /config/**
-!/config/config.example.json
+!/config/default.json
 
 /dist/**/*
 

@@ -16,7 +16,6 @@ import {
 
 import type { Application } from '../../declarations';
 import { GroupService, getOptions } from './groups.class';
-import { groupRemove } from '../../hooks/groupRemove';
 
 export * from './groups.class';
 export * from './groups.schema';
@@ -37,8 +36,7 @@ export const group = (app: Application) => {
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(groupExternalResolver),
 				schemaHooks.resolveResult(groupResolver)
-			],
-			remove: [ groupRemove ]
+			]
 		},
 		before: {
 			all: [ schemaHooks.validateQuery(groupQueryValidator), schemaHooks.resolveQuery(groupQueryResolver) ],

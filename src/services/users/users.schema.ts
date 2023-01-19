@@ -29,7 +29,7 @@ export const userExternalResolver = resolve<User, HookContext>({
 });
 
 // Schema for creating new users
-export const userDataSchema = Type.Pick(userSchema, [ 'organizationId', 'email', 'password', 'auth0Id', 'name', 'avatar' ], {
+export const userDataSchema = Type.Pick(userSchema, [ 'email', 'password' ], {
 	$id: 'UserData',
 	additionalProperties: false
 });
