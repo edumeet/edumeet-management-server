@@ -1,6 +1,6 @@
-# edumeet-management-server
+# Edumeet management server
 
-> This is the management service for the edumeet service
+> This is the management service for the edumeet service.
 
 ## About
 
@@ -16,7 +16,7 @@ This project uses [Feathers](http://feathersjs.com). An open source framework fo
     npm install
     ```
 
-3. Start your app
+3. Start the service
 
     ```
     npm run compile # Compile TypeScript source
