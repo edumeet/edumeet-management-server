@@ -1,15 +1,16 @@
 import { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
-	await knex.schema.createTable('organizations', (table) => {
+	await knex.schema.createTable('tenants', (table) => {
 		table.increments('id');
 		table.string('name');
 		table.string('description');
+		table.bigint('superTenantId').references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('users', (table) => {
 		table.increments('id');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('email').unique();
 		table.string('password');
 		table.string('auth0Id');
@@ -21,7 +22,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.increments('id');
 		table.string('name');
 		table.string('description');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('groupUsers', (table) => {
@@ -30,21 +31,21 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
 	});
 
-	await knex.schema.createTable('organizationOwners', (table) => {
+	await knex.schema.createTable('tenantOwners', (table) => {
 		table.increments('id');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
 	});
 
-	await knex.schema.createTable('organizationAdmins', (table) => {
+	await knex.schema.createTable('tenantAdmins', (table) => {
 		table.increments('id');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
 	});
 
-	await knex.schema.createTable('organizationFDQNs', (table) => {
+	await knex.schema.createTable('tenantFDQNs', (table) => {
 		table.increments('id');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('fqdn');
 		table.string('description');
 	});
@@ -53,7 +54,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.increments('id');
 		table.string('name');
 		table.string('description');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('permissions', (table) => {
@@ -94,9 +95,8 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('description');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
-		table.bigint('creatorId').references('id').inTable('users').onDelete('CASCADE');
-		table.bigint('personalId').references('id').inTable('users').onDelete('CASCADE');
-		table.bigint('organizationId').references('id').inTable('organizations').onDelete('CASCADE');
+		table.bigint('creatorId').references('id').inTable('users');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('logo');
 		table.string('background');
 		table.integer('maxActiveVideos');
@@ -105,6 +105,12 @@ export async function up(knex: Knex): Promise<void> {
 		table.boolean('raiseHandEnabled');
 		table.boolean('filesharingEnabled');
 		table.boolean('localRecordingEnabled');
+	});
+
+	await knex.schema.createTable('roomOwners', (table) => {
+		table.increments('id');
+		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
+		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('roomGroupRoles', (table) => {
@@ -164,14 +170,15 @@ export async function down(knex: Knex): Promise<void> {
 	await knex.schema.dropTable('users');
 	await knex.schema.dropTable('groups');
 	await knex.schema.dropTable('groupUsers');
-	await knex.schema.dropTable('organizations');
-	await knex.schema.dropTable('organizationOwners');
-	await knex.schema.dropTable('organizationAdmins');
-	await knex.schema.dropTable('organizationFQDNs');
+	await knex.schema.dropTable('tenants');
+	await knex.schema.dropTable('tenantOwners');
+	await knex.schema.dropTable('tenantAdmins');
+	await knex.schema.dropTable('tenantFQDNs');
 	await knex.schema.dropTable('roles');
 	await knex.schema.dropTable('permissions');
 	await knex.schema.dropTable('rolePermissions');
 	await knex.schema.dropTable('rooms');
+	await knex.schema.dropTable('roomOwners');
 	await knex.schema.dropTable('roomGroupRoles');
 	await knex.schema.dropTable('roomUserRoles');
 	await knex.schema.dropTable('recorders');

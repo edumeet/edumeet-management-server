@@ -13,7 +13,7 @@ export const groupSchema = Type.Object(
 		id: Type.Number(),
 		name: Type.String(),
 		description: Type.String(),
-		organizationId: Type.Optional(Type.Number()),
+		tenantId: Type.Optional(Type.Number()),
 		users: Type.Array(Type.Ref(userSchema)),
 	},
 	{ $id: 'Group', additionalProperties: false }
@@ -50,7 +50,7 @@ export const groupPatchValidator = getDataValidator(groupPatchSchema, dataValida
 export const groupPatchResolver = resolve<Group, HookContext>({});
 
 // Schema for allowed query properties
-export const groupQueryProperties = Type.Pick(groupSchema, [ 'id', 'name', 'organizationId' ]);
+export const groupQueryProperties = Type.Pick(groupSchema, [ 'id', 'name', 'tenantId' ]);
 export const groupQuerySchema = Type.Intersect(
 	[
 		querySyntax(groupQueryProperties),
@@ -62,10 +62,10 @@ export const groupQuerySchema = Type.Intersect(
 export type GroupQuery = Static<typeof groupQuerySchema>
 export const groupQueryValidator = getValidator(groupQuerySchema, queryValidator);
 export const groupQueryResolver = resolve<GroupQuery, HookContext>({
-	organizationId: async (value, query, context) => {
-		// Make sure the user is limited to their own organization
+	tenantId: async (value, query, context) => {
+		// Make sure the user is limited to their own tenant
 		if (context.params.user)
-			return context.params.user.organizationId;
+			return context.params.user.tenantId;
 
 		return value;
 	}

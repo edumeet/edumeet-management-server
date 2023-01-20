@@ -59,8 +59,8 @@ export const groupUserQueryResolver = resolve<GroupUserQuery, HookContext>({
 		if (typeof value === 'number' && context.params.user) {
 			const existingGroup = await context.app.service('groups').get(value);
 
-			// Make sure the group belongs to the same organization as the user
-			if (!existingGroup || existingGroup.organizationId !== context.params.user.organizationId)
+			// Make sure the group belongs to the same tenant as the user
+			if (!existingGroup || existingGroup.tenantId !== context.params.user.tenantId)
 				throw new Error('groupId is invalid');
 		}
 
@@ -70,8 +70,8 @@ export const groupUserQueryResolver = resolve<GroupUserQuery, HookContext>({
 		if (typeof value === 'number' && context.params.user) {
 			const existingUser = await context.app.service('users').get(value);
 
-			// Make sure the user belongs to the same organization as the user
-			if (!existingUser || existingUser.organizationId !== context.params.user.organizationId)
+			// Make sure the user belongs to the same tenant as the user
+			if (!existingUser || existingUser.tenantId !== context.params.user.tenantId)
 				throw new Error('userId is invalid');
 		}
 

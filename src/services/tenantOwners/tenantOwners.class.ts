@@ -5,23 +5,23 @@ import type { KnexAdapterParams, KnexAdapterOptions } from '@feathersjs/knex';
 
 import type { Application } from '../../declarations';
 import type {
-	OrganizationFqdn,
-	OrganizationFqdnData,
-	OrganizationFqdnPatch,
-	OrganizationFqdnQuery
-} from './organizationFQDNs.schema';
+	TenantOwner,
+	TenantOwnerData,
+	TenantOwnerPatch,
+	TenantOwnerQuery
+} from './tenantOwners.schema';
 
-export type OrganizationFqdnParams = KnexAdapterParams<OrganizationFqdnQuery>
+export type TenantOwnerParams = KnexAdapterParams<TenantOwnerQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class OrganizationFqdnService<
-	ServiceParams extends Params = OrganizationFqdnParams
-> extends KnexService<OrganizationFqdn, OrganizationFqdnData, ServiceParams, OrganizationFqdnPatch> {}
+export class TenantOwnerService<
+	ServiceParams extends Params = TenantOwnerParams
+> extends KnexService<TenantOwner, TenantOwnerData, ServiceParams, TenantOwnerPatch> {}
 
 export const getOptions = (app: Application): KnexAdapterOptions => {
 	return {
 		paginate: false,
 		Model: app.get('postgresqlClient'),
-		name: 'organizationFQDNs'
+		name: 'tenantOwners'
 	};
 };

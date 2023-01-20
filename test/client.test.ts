@@ -26,13 +26,13 @@ describe('application client tests', () => {
 	});
 
 	it('creates and authenticates a user with email and password', async () => {
-		const organizationData = {
-			name: 'Test Organization',
-			description: 'Test organization for testing',
+		const tenantData = {
+			name: 'Test Tenant',
+			description: 'Test tenant for testing',
 		};
 
-		// Need to create an organization first, and can't use the client to do it because it's not authenticated
-		const organization = await app.service('organizations').create(organizationData);
+		// Need to create an tenant first, and can't use the client to do it because it's not authenticated
+		const tenant = await app.service('tenants').create(tenantData);
 
 		const userData: UserData = {
 			email: 'someone@example.com',
@@ -53,8 +53,8 @@ describe('application client tests', () => {
 
 		await client.logout();
 
-		// Remove the test organization. This will also remove the user.
-		await app.service('organizations').remove(organization.id);
+		// Remove the test tenant. This will also remove the user.
+		await app.service('tenants').remove(tenant.id);
 		// await app.service('users').remove(user.id);
 	});
 });

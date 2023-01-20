@@ -59,8 +59,8 @@ export const rolePermissionQueryResolver = resolve<RolePermissionQuery, HookCont
 		if (typeof value === 'number' && context.params.user) {
 			const existingRole = await context.app.service('roles').get(value);
 
-			// Make sure the role belongs to the same organization as the user
-			if (!existingRole || existingRole.organizationId !== context.params.user.organizationId)
+			// Make sure the role belongs to the same tenant as the user
+			if (!existingRole || existingRole.tenantId !== context.params.user.tenantId)
 				throw new Error('roleId is invalid');
 		}
 

@@ -4,6 +4,19 @@ import type { TransportConnection, Params } from '@feathersjs/feathers';
 import authenticationClient from '@feathersjs/authentication-client';
 import type { AuthenticationClientOptions } from '@feathersjs/authentication-client';
 import type {
+	RoomOwner,
+	RoomOwnerData,
+	RoomOwnerQuery,
+	RoomOwnerService
+} from './services/roomOwners/roomOwners';
+export type { RoomOwner, RoomOwnerData, RoomOwnerQuery };
+export const roomOwnerServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type RoomOwnerClientService = Pick<
+	RoomOwnerService<Params<RoomOwnerQuery>>,
+	(typeof roomOwnerServiceMethods)[number]
+>
+
+import type {
 	GroupUser,
 	GroupUserData,
 	GroupUserQuery,
@@ -17,16 +30,16 @@ export type GroupUserClientService = Pick<
 >
 
 import type {
-	OrganizationOwner,
-	OrganizationOwnerData,
-	OrganizationOwnerQuery,
-	OrganizationOwnerService
-} from './services/organizationOwners/organizationOwners';
-export type { OrganizationOwner, OrganizationOwnerData, OrganizationOwnerQuery };
-export const organizationOwnerServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
-export type OrganizationOwnerClientService = Pick<
-	OrganizationOwnerService<Params<OrganizationOwnerQuery>>,
-	(typeof organizationOwnerServiceMethods)[number]
+	TenantOwner,
+	TenantOwnerData,
+	TenantOwnerQuery,
+	TenantOwnerService
+} from './services/tenantOwners/tenantOwners';
+export type { TenantOwner, TenantOwnerData, TenantOwnerQuery };
+export const tenantOwnerServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type TenantOwnerClientService = Pick<
+	TenantOwnerService<Params<TenantOwnerQuery>>,
+	(typeof tenantOwnerServiceMethods)[number]
 >
 
 import type {
@@ -108,16 +121,16 @@ export const groupServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' 
 export type GroupClientService = Pick<GroupService<Params<GroupQuery>>, (typeof groupServiceMethods)[number]>
 
 import type {
-	OrganizationFqdn,
-	OrganizationFqdnData,
-	OrganizationFqdnQuery,
-	OrganizationFqdnService
-} from './services/organizationFQDNs/organizationFQDNs';
-export type { OrganizationFqdn, OrganizationFqdnData, OrganizationFqdnQuery };
-export const organizationFqdnServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
-export type OrganizationFqdnClientService = Pick<
-	OrganizationFqdnService<Params<OrganizationFqdnQuery>>,
-	(typeof organizationFqdnServiceMethods)[number]
+	TenantFqdn,
+	TenantFqdnData,
+	TenantFqdnQuery,
+	TenantFqdnService
+} from './services/tenantFQDNs/tenantFQDNs';
+export type { TenantFqdn, TenantFqdnData, TenantFqdnQuery };
+export const tenantFqdnServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type TenantFqdnClientService = Pick<
+	TenantFqdnService<Params<TenantFqdnQuery>>,
+	(typeof tenantFqdnServiceMethods)[number]
 >
 
 import type { Location, LocationData, LocationQuery, LocationService } from './services/locations/locations';
@@ -142,29 +155,29 @@ export type MediaNodeClientService = Pick<
 >
 
 import type {
-	OrganizationAdmin,
-	OrganizationAdminData,
-	OrganizationAdminQuery,
-	OrganizationAdminService
-} from './services/organizationAdmins/organizationAdmins';
-export type { OrganizationAdmin, OrganizationAdminData, OrganizationAdminQuery };
-export const organizationAdminServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
-export type OrganizationAdminClientService = Pick<
-	OrganizationAdminService<Params<OrganizationAdminQuery>>,
-	(typeof organizationAdminServiceMethods)[number]
+	TenantAdmin,
+	TenantAdminData,
+	TenantAdminQuery,
+	TenantAdminService
+} from './services/tenantAdmins/tenantAdmins';
+export type { TenantAdmin, TenantAdminData, TenantAdminQuery };
+export const tenantAdminServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type TenantAdminClientService = Pick<
+	TenantAdminService<Params<TenantAdminQuery>>,
+	(typeof tenantAdminServiceMethods)[number]
 >
 
 import type {
-	Organization,
-	OrganizationData,
-	OrganizationQuery,
-	OrganizationService
-} from './services/organizations/organizations';
-export type { Organization, OrganizationData, OrganizationQuery };
-export const organizationServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
-export type OrganizationClientService = Pick<
-	OrganizationService<Params<OrganizationQuery>>,
-	(typeof organizationServiceMethods)[number]
+	Tenant,
+	TenantData,
+	TenantQuery,
+	TenantService
+} from './services/tenants/tenants';
+export type { Tenant, TenantData, TenantQuery };
+export const tenantServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type TenantClientService = Pick<
+	TenantService<Params<TenantQuery>>,
+	(typeof tenantServiceMethods)[number]
 >
 
 import type { Room, RoomData, RoomQuery, RoomService } from './services/rooms/rooms';
@@ -178,8 +191,9 @@ export const userServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ]
 export type UserClientService = Pick<UserService<Params<UserQuery>>, (typeof userServiceMethods)[number]>
 
 export interface ServiceTypes {
+	roomOwners: RoomOwnerClientService
 	groupUsers: GroupUserClientService
-	organizationOwners: OrganizationOwnerClientService
+	tenantOwners: TenantOwnerClientService
 	rolePermissions: RolePermissionClientService
 	roomGroupRoles: RoomGroupRoleClientService
 	roomUserRoles: RoomUserRoleClientService
@@ -188,11 +202,11 @@ export interface ServiceTypes {
 	permissions: PermissionClientService
 	roles: RoleClientService
 	groups: GroupClientService
-	organizationFQDNs: OrganizationFqdnClientService
+	tenantFQDNs: TenantFqdnClientService
 	locations: LocationClientService
 	mediaNodes: MediaNodeClientService
-	organizationAdmins: OrganizationAdminClientService
-	organizations: OrganizationClientService
+	tenantAdmins: TenantAdminClientService
+	tenants: TenantClientService
 	rooms: RoomClientService
 	users: UserClientService
 	//
@@ -218,15 +232,14 @@ export const createClient = <Configuration = unknown>(
 	client.use('users', connection.service('users'), {
 		methods: userServiceMethods
 	});
-
 	client.use('rooms', connection.service('rooms'), {
 		methods: roomServiceMethods
 	});
-	client.use('organizations', connection.service('organizations'), {
-		methods: organizationServiceMethods
+	client.use('tenants', connection.service('tenants'), {
+		methods: tenantServiceMethods
 	});
-	client.use('organizationAdmins', connection.service('organizationAdmins'), {
-		methods: organizationAdminServiceMethods
+	client.use('tenantAdmins', connection.service('tenantAdmins'), {
+		methods: tenantAdminServiceMethods
 	});
 	client.use('mediaNodes', connection.service('mediaNodes'), {
 		methods: mediaNodeServiceMethods
@@ -234,9 +247,8 @@ export const createClient = <Configuration = unknown>(
 	client.use('locations', connection.service('locations'), {
 		methods: locationServiceMethods
 	});
-
-	client.use('organizationFQDNs', connection.service('organizationFQDNs'), {
-		methods: organizationFqdnServiceMethods
+	client.use('tenantFQDNs', connection.service('tenantFQDNs'), {
+		methods: tenantFqdnServiceMethods
 	});
 	client.use('groups', connection.service('groups'), {
 		methods: groupServiceMethods
@@ -262,12 +274,14 @@ export const createClient = <Configuration = unknown>(
 	client.use('rolePermissions', connection.service('rolePermissions'), {
 		methods: rolePermissionServiceMethods
 	});
-	client.use('organizationOwners', connection.service('organizationOwners'), {
-		methods: organizationOwnerServiceMethods
+	client.use('tenantOwners', connection.service('tenantOwners'), {
+		methods: tenantOwnerServiceMethods
 	});
-
 	client.use('groupUsers', connection.service('groupUsers'), {
 		methods: groupUserServiceMethods
+	});
+	client.use('roomOwners', connection.service('roomOwners'), {
+		methods: roomOwnerServiceMethods
 	});
 	
 	return client;

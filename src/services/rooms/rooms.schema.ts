@@ -7,6 +7,7 @@ import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { roomGroupRoleSchema } from '../roomGroupRoles/roomGroupRoles.schema';
 import { roomUserRoleSchema } from '../roomUserRoles/roomUserRoles.schema';
+import { userSchema } from '../users/users.schema';
 
 // Main data model schema
 export const roomSchema = Type.Object(
@@ -17,10 +18,10 @@ export const roomSchema = Type.Object(
 		createdAt: Type.Number(),
 		updatedAt: Type.Number(),
 		creatorId: Type.Number(), // User ID of the creator
-		personalId: Type.Optional(Type.Number()), // User ID if that user has this room as their personal room
-		organizationId: Type.Number(),
+		tenantId: Type.Number(),
 
 		// Roles and permissions
+		owners: Type.Array(Type.Ref(userSchema)),
 		groupRoles: Type.Array(Type.Ref(roomGroupRoleSchema)), // Group roles in this room
 		userRoles: Type.Array(Type.Ref(roomUserRoleSchema)), // User roles in this room
 
@@ -40,6 +41,15 @@ export const roomSchema = Type.Object(
 );
 export type Room = Static<typeof roomSchema>
 export const roomResolver = resolve<Room, HookContext>({
+	owners: virtual(async (room, context) => {
+		const { data } = await context.app.service('roomOwners').find({
+			query: {
+				roomId: room.id
+			}
+		});
+
+		return data?.map((owner) => owner.user);
+	}),
 	groupRoles: virtual(async (room, context) => {
 		const { data } = await context.app.service('roomGroupRoles').find({
 			query: {
@@ -79,19 +89,19 @@ export const roomDataResolver = resolve<Room, HookContext>({
 		const { total } = await context.app.service('rooms').find({
 			query: {
 				name: value,
-				organizationId: room.organizationId
+				tenantId: room.tenantId
 			}
 		});
 
 		if (total > 0)
-			throw new Error('Room name already exists in this organization');
+			throw new Error('Room name already exists in this tenant');
 
 		return value;
 	},
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now(),
 	creatorId: async (value, room, context) => context.params.user?.id,
-	organizationId: async (value, room, context) => context.params.user?.organizationId,
+	tenantId: async (value, room, context) => context.params.user?.tenantId,
 	maxActiveVideos: async (value = 12) => value,
 	locked: async (value = true) => value,
 	chatEnabled: async (value = true) => value,
@@ -111,7 +121,7 @@ export const roomPatchResolver = resolve<Room, HookContext>({
 });
 
 // Schema for allowed query properties
-export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'organizationId', 'name', 'personalId' ]);
+export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'tenantId', 'name' ]);
 export const roomQuerySchema = Type.Intersect(
 	[
 		querySyntax(roomQueryProperties),
@@ -123,10 +133,10 @@ export const roomQuerySchema = Type.Intersect(
 export type RoomQuery = Static<typeof roomQuerySchema>
 export const roomQueryValidator = getValidator(roomQuerySchema, queryValidator);
 export const roomQueryResolver = resolve<RoomQuery, HookContext>({
-	organizationId: async (value, query, context) => {
-		// Make sure the user is limited to their own organization
+	tenantId: async (value, query, context) => {
+		// Make sure the user is limited to their own tenant
 		if (context.params.user)
-			return context.params.user.organizationId;
+			return context.params.user.tenantId;
 
 		return value;
 	}

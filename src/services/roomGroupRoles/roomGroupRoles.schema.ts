@@ -65,8 +65,8 @@ export const roomGroupRoleQueryResolver = resolve<RoomGroupRoleQuery, HookContex
 		if (typeof value === 'number' && context.params.user) {
 			const existingRoom = await context.app.service('rooms').get(value);
 
-			// Make sure the room belongs to the same organization as the user
-			if (!existingRoom || existingRoom.organizationId !== context.params.user.organizationId)
+			// Make sure the room belongs to the same tenant as the user
+			if (!existingRoom || existingRoom.tenantId !== context.params.user.tenantId)
 				throw new Error('roomId is invalid');
 		}
 
@@ -76,8 +76,8 @@ export const roomGroupRoleQueryResolver = resolve<RoomGroupRoleQuery, HookContex
 		if (typeof value === 'number' && context.params.user) {
 			const existingGroup = await context.app.service('groups').get(value);
 
-			// Make sure the group belongs to the same organization as the user
-			if (!existingGroup || existingGroup.organizationId !== context.params.user.organizationId)
+			// Make sure the group belongs to the same tenant as the user
+			if (!existingGroup || existingGroup.tenantId !== context.params.user.tenantId)
 				throw new Error('groupId is invalid');
 		}
 
@@ -87,8 +87,8 @@ export const roomGroupRoleQueryResolver = resolve<RoomGroupRoleQuery, HookContex
 		if (typeof value === 'number' && context.params.user) {
 			const existingRole = await context.app.service('roles').get(value);
 
-			// Make sure the role belongs to the same organization as the user
-			if (!existingRole || existingRole.organizationId !== context.params.user.organizationId)
+			// Make sure the role belongs to the same tenant as the user
+			if (!existingRole || existingRole.tenantId !== context.params.user.tenantId)
 				throw new Error('roleId is invalid');
 		}
 

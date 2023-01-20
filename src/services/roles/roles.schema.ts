@@ -15,7 +15,7 @@ export const roleSchema = Type.Object(
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
 		permissions: Type.Array(Type.Ref(permissionSchema)), // Array of permissions
-		organizationId: Type.Number(),
+		tenantId: Type.Number(),
 	},
 	{ $id: 'Role', additionalProperties: false }
 );
@@ -35,7 +35,7 @@ export const roleResolver = resolve<Role, HookContext>({
 export const roleExternalResolver = resolve<Role, HookContext>({});
 
 // Schema for creating new entries
-export const roleDataSchema = Type.Pick(roleSchema, [ 'name', 'description', 'organizationId' ], {
+export const roleDataSchema = Type.Pick(roleSchema, [ 'name', 'description', 'tenantId' ], {
 	$id: 'RoleData'
 });
 export type RoleData = Static<typeof roleDataSchema>
@@ -51,7 +51,7 @@ export const rolePatchValidator = getDataValidator(rolePatchSchema, dataValidato
 export const rolePatchResolver = resolve<Role, HookContext>({});
 
 // Schema for allowed query properties
-export const roleQueryProperties = Type.Pick(roleSchema, [ 'id', 'name', 'organizationId' ]);
+export const roleQueryProperties = Type.Pick(roleSchema, [ 'id', 'name', 'tenantId' ]);
 export const roleQuerySchema = Type.Intersect(
 	[
 		querySyntax(roleQueryProperties),
@@ -63,9 +63,9 @@ export const roleQuerySchema = Type.Intersect(
 export type RoleQuery = Static<typeof roleQuerySchema>
 export const roleQueryValidator = getValidator(roleQuerySchema, queryValidator);
 export const roleQueryResolver = resolve<RoleQuery, HookContext>({
-	organizationId: async (value, query, context) => {
+	tenantId: async (value, query, context) => {
 		if (context.params.user)
-			return context.params.user.organizationId;
+			return context.params.user.tenantId;
 
 		return value;
 	},
