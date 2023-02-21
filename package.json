@@ -1,7 +1,7 @@
 {
 	"name": "edumeet-management-server",
 	"description": "This is the management service for the edumeet service",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"homepage": "",
 	"private": true,
 	"keywords": [
