@@ -41,19 +41,23 @@ Run `npm test` and all your tests in the `test/` directory will be run.
 ## Dev tips for testing 
 
 ### add user 
-curl 'http://edumeet.sth.sze.hu:3030/users/' \
+```
+curl 'http://edumeet.example.com:3030/users/' \
   -H 'Content-Type: application/json' \
   --data-binary '{ "email": "edumeet@edu.meet", "password": "edumeet" }'
+```
 ### auth with user 
-curl 'http://edumeet.sth.sze.hu:3030/authentication/' \
+```
+curl 'http://edumeet.example.com:3030/authentication/' \
   -H 'Content-Type: application/json' \
   --data-binary '{ "strategy": "local", "email": "edumeet@edu.meet", "password": "edumeet" }'
-
+```
 ### use user with jwt
-curl 'http://edumeet.sth.sze.hu:3030/roomOwners/' \
+```
+curl 'http://edumeet.example.com:3030/roomOwners/' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <accessToken>' 
-
+```
 ## Scaffolding
 
 This app comes with a powerful command line interface for Feathers. Here are a few things it can do:
