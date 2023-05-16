@@ -18,46 +18,57 @@ exit
 exit
 ```
 1. Make sure you have [NodeJS](https://nodejs.org/) and [npm](https://www.npmjs.com/) installed.
-
 2. Install your dependencies
-
-    ```
-    cd path/to/edumeet-management-server
-    npm install
-    ```
-
+```
+cd path/to/edumeet-management-server
+npm install
+```
 3. Start the service
-
-    ```
-    npm run compile # Compile TypeScript source
-    npm run migrate # Run migrations to set up the database
-    npm start
-    ```
+```
+npm run compile # Compile TypeScript source
+npm run migrate # Run migrations to set up the database
+npm start
+```
 
 ## Testing
 
 Run `npm test` and all your tests in the `test/` directory will be run.
 
-## Dev tips for testing 
+## Dev tips for testing (with curl)
 
-### add user 
+### Add user 
 ```
 curl 'http://edumeet.example.com:3030/users/' \
   -H 'Content-Type: application/json' \
   --data-binary '{ "email": "edumeet@edu.meet", "password": "edumeet" }'
 ```
-### auth with user 
+### Auth with user 
 ```
 curl 'http://edumeet.example.com:3030/authentication/' \
   -H 'Content-Type: application/json' \
   --data-binary '{ "strategy": "local", "email": "edumeet@edu.meet", "password": "edumeet" }'
 ```
-### use user with jwt
+### Use user with jwt
 ```
 curl 'http://edumeet.example.com:3030/roomOwners/' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <accessToken>' 
 ```
+### Add room
+```
+curl 'http://edumeet.example.com:3030/rooms/' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <accessToken>' \
+  --data-binary '{ "name": "test","description": "testdesc","maxActiveVideos":4}'
+```
+### Get rooms
+```
+curl 'http://edumeet.example.com:3030/rooms/' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <accessToken>' \
+```
+
+
 ## Scaffolding
 
 This app comes with a powerful command line interface for Feathers. Here are a few things it can do:
