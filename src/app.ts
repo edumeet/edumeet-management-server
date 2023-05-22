@@ -26,13 +26,7 @@ app.use(bodyParser());
 
 // Configure services and transports
 app.configure(rest());
-app.configure(
-	socketio({
-		cors: {
-			origin: app.get('origins')
-		}
-	})
-);
+app.configure(socketio({ cors: { origin: app.get('origins') } }));
 app.configure(postgresql);
 app.configure(authentication);
 app.configure(services);

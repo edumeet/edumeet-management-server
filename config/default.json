@@ -33,12 +33,6 @@
 		"local": {
 			"usernameField": "email",
 			"passwordField": "password"
-		},
-		"oauth": {
-			"auth0": {
-				"key": "<Client ID>",
-				"secret": "<Client secret>"
-			}
 		}
 	}
 }

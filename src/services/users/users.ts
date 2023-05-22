@@ -35,6 +35,7 @@ export const user = (app: Application) => {
 			all: [ schemaHooks.resolveExternal(userExternalResolver), schemaHooks.resolveResult(userResolver) ],
 			find: [ authenticate('jwt') ],
 			get: [ authenticate('jwt') ],
+			// TODO: Add authentication to create on local strategy
 			create: [],
 			update: [ authenticate('jwt') ],
 			patch: [ authenticate('jwt') ],

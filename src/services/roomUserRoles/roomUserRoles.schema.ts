@@ -5,7 +5,6 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { userSchema } from '../users/users.schema';
 import { roleSchema } from '../roles/roles.schema';
 
 // Main data model schema
@@ -14,7 +13,6 @@ export const roomUserRoleSchema = Type.Object(
 		id: Type.Number(),
 		roomId: Type.Number(),
 		userId: Type.Number(),
-		user: Type.Ref(userSchema),
 		roleId: Type.Number(),
 		role: Type.Ref(roleSchema),
 	},
@@ -22,9 +20,6 @@ export const roomUserRoleSchema = Type.Object(
 );
 export type RoomUserRole = Static<typeof roomUserRoleSchema>
 export const roomUserRoleResolver = resolve<RoomUserRole, HookContext>({
-	user: virtual(async (roomUserRole, context) => {
-		return context.app.service('users').get(roomUserRole.userId);
-	}),
 	role: virtual(async (roomUserRole, context) => {
 		return context.app.service('roles').get(roomUserRole.roleId);
 	}),
@@ -61,6 +56,7 @@ export const roomUserRoleQuerySchema = Type.Intersect(
 export type RoomUserRoleQuery = Static<typeof roomUserRoleQuerySchema>
 export const roomUserRoleQueryValidator = getValidator(roomUserRoleQuerySchema, queryValidator);
 export const roomUserRoleQueryResolver = resolve<RoomUserRoleQuery, HookContext>({
+	// TODO: make sure the user owns the room or is a tenant admin
 	roomId: async (value, query, context) => {
 		if (typeof value === 'number' && context.params.user) {
 			const existingRoom = await context.app.service('rooms').get(value);

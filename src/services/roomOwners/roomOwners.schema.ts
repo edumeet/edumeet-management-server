@@ -1,11 +1,10 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve, virtual } from '@feathersjs/schema';
+import { resolve } from '@feathersjs/schema';
 import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { userSchema } from '../users/users.schema';
 
 // Main data model schema
 export const roomOwnerSchema = Type.Object(
@@ -13,16 +12,11 @@ export const roomOwnerSchema = Type.Object(
 		id: Type.Number(),
 		roomId: Type.Number(),
 		userId: Type.Number(),
-		user: Type.Ref(userSchema),
 	},
 	{ $id: 'RoomOwner', additionalProperties: false }
 );
 export type RoomOwner = Static<typeof roomOwnerSchema>
-export const roomOwnerResolver = resolve<RoomOwner, HookContext>({
-	user: virtual(async (roomOwner, context) => {
-		return context.app.service('users').get(roomOwner.userId);
-	}),
-});
+export const roomOwnerResolver = resolve<RoomOwner, HookContext>({});
 
 export const roomOwnerExternalResolver = resolve<RoomOwner, HookContext>({});
 

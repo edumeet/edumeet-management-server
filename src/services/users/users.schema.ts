@@ -14,7 +14,6 @@ export const userSchema = Type.Object(
 		tenantId: Type.Number(),
 		email: Type.String(),
 		password: Type.Optional(Type.String()),
-		auth0Id: Type.Optional(Type.String()),
 		name: Type.Optional(Type.String()),
 		avatar: Type.Optional(Type.String()),
 	},
@@ -50,7 +49,7 @@ export const userPatchResolver = resolve<User, HookContext>({
 });
 
 // Schema for allowed query properties
-export const userQueryProperties = Type.Pick(userSchema, [ 'id', 'tenantId', 'email', 'auth0Id' ]);
+export const userQueryProperties = Type.Pick(userSchema, [ 'id', 'tenantId', 'email' ]);
 export const userQuerySchema = Type.Intersect(
 	[
 		querySyntax(userQueryProperties),

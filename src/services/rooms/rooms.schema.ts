@@ -7,7 +7,6 @@ import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { roomGroupRoleSchema } from '../roomGroupRoles/roomGroupRoles.schema';
 import { roomUserRoleSchema } from '../roomUserRoles/roomUserRoles.schema';
-import { userSchema } from '../users/users.schema';
 
 // Main data model schema
 export const roomSchema = Type.Object(
@@ -21,7 +20,7 @@ export const roomSchema = Type.Object(
 		tenantId: Type.Number(),
 
 		// Roles and permissions
-		owners: Type.Array(Type.Ref(userSchema)),
+		owners: Type.Array(Type.Number()),
 		groupRoles: Type.Array(Type.Ref(roomGroupRoleSchema)), // Group roles in this room
 		userRoles: Type.Array(Type.Ref(roomUserRoleSchema)), // User roles in this room
 
@@ -42,13 +41,14 @@ export const roomSchema = Type.Object(
 export type Room = Static<typeof roomSchema>
 export const roomResolver = resolve<Room, HookContext>({
 	owners: virtual(async (room, context) => {
-		const { data } = await context.app.service('roomOwners').find({
+		const data = await context.app.service('roomOwners').find({
+			paginate: false,
 			query: {
 				roomId: room.id
 			}
 		});
 
-		return data?.map((owner) => owner.user);
+		return data?.map((owner) => owner.userId);
 	}),
 	groupRoles: virtual(async (room, context) => {
 		const { data } = await context.app.service('roomGroupRoles').find({

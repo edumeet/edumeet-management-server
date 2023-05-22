@@ -5,7 +5,6 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { groupSchema } from '../groups/groups.schema';
 import { roleSchema } from '../roles/roles.schema';
 
 // Main data model schema
@@ -14,7 +13,6 @@ export const roomGroupRoleSchema = Type.Object(
 		id: Type.Number(),
 		roomId: Type.Number(),
 		groupId: Type.Number(),
-		group: Type.Ref(groupSchema),
 		roleId: Type.Number(),
 		role: Type.Ref(roleSchema),
 	},
@@ -22,9 +20,6 @@ export const roomGroupRoleSchema = Type.Object(
 );
 export type RoomGroupRole = Static<typeof roomGroupRoleSchema>
 export const roomGroupRoleResolver = resolve<RoomGroupRole, HookContext>({
-	group: virtual(async (roomGroupRole, context) => {
-		return context.app.service('groups').get(roomGroupRole.groupId);
-	}),
 	role: virtual(async (roomGroupRole, context) => {
 		return context.app.service('roles').get(roomGroupRole.roleId);
 	}),

@@ -25,7 +25,7 @@ export const roomGroupRole = (app: Application) => {
 	// Register our service on the Feathers application
 	app.use('roomGroupRoles', new RoomGroupRoleService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'patch', 'remove' ],
+		methods: [ 'find', 'get', 'create', 'remove' ],
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});

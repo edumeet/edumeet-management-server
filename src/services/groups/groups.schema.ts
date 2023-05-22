@@ -1,11 +1,10 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve, virtual } from '@feathersjs/schema';
+import { resolve } from '@feathersjs/schema';
 import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { userSchema } from '../users/users.schema';
 
 // Main data model schema
 export const groupSchema = Type.Object(
@@ -14,22 +13,11 @@ export const groupSchema = Type.Object(
 		name: Type.String(),
 		description: Type.String(),
 		tenantId: Type.Optional(Type.Number()),
-		users: Type.Array(Type.Ref(userSchema)),
 	},
 	{ $id: 'Group', additionalProperties: false }
 );
 export type Group = Static<typeof groupSchema>
-export const groupResolver = resolve<Group, HookContext>({
-	users: virtual(async (group, context) => {
-		const { data } = await context.app.service('groupUsers').find({
-			query: {
-				groupId: group.id
-			}
-		});
-
-		return data?.map((groupUser) => groupUser.user);
-	})
-});
+export const groupResolver = resolve<Group, HookContext>({});
 
 export const groupExternalResolver = resolve<Group, HookContext>({});
 

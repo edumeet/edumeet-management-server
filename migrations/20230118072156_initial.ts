@@ -5,7 +5,6 @@ export async function up(knex: Knex): Promise<void> {
 		table.increments('id');
 		table.string('name');
 		table.string('description');
-		table.bigint('superTenantId').references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('users', (table) => {
@@ -13,7 +12,6 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('email').unique();
 		table.string('password');
-		table.string('auth0Id');
 		table.string('name');
 		table.string('avatar');
 	});
@@ -81,6 +79,7 @@ export async function up(knex: Knex): Promise<void> {
 		{ name: 'MODERATE_ROOM', description: 'Permission to moderate the room (e.g. kick user)' },
 		{ name: 'LOCAL_RECORD_ROOM', description: 'Permission to record the room locally' },
 		{ name: 'CREATE_ROOM', description: 'Permission to create a room' },
+		{ name: 'CHANGE_ROOM', description: 'Permission move between rooms' },
 	]).into('permissions');
 
 	await knex.schema.createTable('rolePermissions', (table) => {
