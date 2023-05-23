@@ -100,6 +100,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('background');
 		table.integer('maxActiveVideos');
 		table.boolean('locked');
+		table.boolean('breakoutsEnabled');
 		table.boolean('chatEnabled');
 		table.boolean('raiseHandEnabled');
 		table.boolean('filesharingEnabled');

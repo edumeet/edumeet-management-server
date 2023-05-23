@@ -31,6 +31,7 @@ export const roomSchema = Type.Object(
 		// Features of the room
 		maxActiveVideos: Type.Number(),
 		locked: Type.Boolean(),
+		breakoutsEnabled: Type.Boolean(),
 		chatEnabled: Type.Boolean(),
 		raiseHandEnabled: Type.Boolean(),
 		filesharingEnabled: Type.Boolean(),
@@ -104,6 +105,7 @@ export const roomDataResolver = resolve<Room, HookContext>({
 	tenantId: async (value, room, context) => context.params.user?.tenantId,
 	maxActiveVideos: async (value = 12) => value,
 	locked: async (value = true) => value,
+	breakoutsEnabled: async (value = true) => value,
 	chatEnabled: async (value = true) => value,
 	raiseHandEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
