@@ -18,7 +18,7 @@ export class RoomOwnerService<ServiceParams extends Params = RoomOwnerParams> ex
 
 export const getOptions = (app: Application): KnexAdapterOptions => {
 	return {
-		paginate: app.get('paginate'),
+		paginate: false,
 		Model: app.get('postgresqlClient'),
 		name: 'roomOwners'
 	};
