@@ -20,7 +20,7 @@ export class TenantOwnerService<
 
 export const getOptions = (app: Application): KnexAdapterOptions => {
 	return {
-		paginate: false,
+		paginate: app.get('paginate'),
 		Model: app.get('postgresqlClient'),
 		name: 'tenantOwners'
 	};

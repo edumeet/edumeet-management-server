@@ -22,7 +22,8 @@ export const roleSchema = Type.Object(
 export type Role = Static<typeof roleSchema>
 export const roleResolver = resolve<Role, HookContext>({
 	permissions: virtual(async (role, context) => {
-		const { data } = await context.app.service('rolePermissions').find({
+		const data = await context.app.service('rolePermissions').find({
+			paginate: false,
 			query: {
 				roleId: role.id
 			}

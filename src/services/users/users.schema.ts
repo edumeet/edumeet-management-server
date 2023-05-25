@@ -1,5 +1,5 @@
 // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve } from '@feathersjs/schema';
+import { resolve, virtual } from '@feathersjs/schema';
 import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 import { passwordHash } from '@feathersjs/authentication-local';
@@ -16,11 +16,34 @@ export const userSchema = Type.Object(
 		password: Type.Optional(Type.String()),
 		name: Type.Optional(Type.String()),
 		avatar: Type.Optional(Type.String()),
+		tenantAdmin: Type.Boolean(),
+		tenantOwner: Type.Boolean(),
 	},
 	{ $id: 'User', additionalProperties: false }
 );
 export type User = Static<typeof userSchema>
-export const userResolver = resolve<User, HookContext>({});
+export const userResolver = resolve<User, HookContext>({
+	tenantAdmin: virtual(async (user, context) => {
+		const { total } = await context.app.service('tenantAdmins').find({
+			query: {
+				tenantId: user.tenantId,
+				userId: user.id
+			}
+		});
+
+		return total > 0;
+	}),
+	tenantOwner: virtual(async (user, context) => {
+		const { total } = await context.app.service('tenantOwners').find({
+			query: {
+				tenantId: user.tenantId,
+				userId: user.id
+			}
+		});
+
+		return total > 0;
+	})
+});
 
 export const userExternalResolver = resolve<User, HookContext>({
 	// The password should never be visible externally

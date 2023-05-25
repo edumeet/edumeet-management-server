@@ -12,7 +12,7 @@ export const groupSchema = Type.Object(
 		id: Type.Number(),
 		name: Type.String(),
 		description: Type.String(),
-		tenantId: Type.Optional(Type.Number()),
+		tenantId: Type.Number(),
 	},
 	{ $id: 'Group', additionalProperties: false }
 );

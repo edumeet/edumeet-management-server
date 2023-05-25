@@ -18,7 +18,7 @@ export class GroupUserService<ServiceParams extends Params = GroupUserParams> ex
 
 export const getOptions = (app: Application): KnexAdapterOptions => {
 	return {
-		paginate: false,
+		paginate: app.get('paginate'),
 		Model: app.get('postgresqlClient'),
 		name: 'groupUsers'
 	};

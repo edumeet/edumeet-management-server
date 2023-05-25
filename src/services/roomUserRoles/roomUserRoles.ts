@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoomUserRoleService, getOptions } from './roomUserRoles.class';
+import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 
 export * from './roomUserRoles.class';
 export * from './roomUserRoles.schema';
@@ -46,14 +47,16 @@ export const roomUserRole = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
+				isRoomOwnerOrAdmin,
 				schemaHooks.validateData(roomUserRoleDataValidator),
 				schemaHooks.resolveData(roomUserRoleDataResolver)
 			],
 			patch: [
+				isRoomOwnerOrAdmin,
 				schemaHooks.validateData(roomUserRolePatchValidator),
 				schemaHooks.resolveData(roomUserRolePatchResolver)
 			],
-			remove: []
+			remove: [ isRoomOwnerOrAdmin ]
 		},
 		after: {
 			all: []

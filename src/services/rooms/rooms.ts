@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoomService, getOptions } from './rooms.class';
+import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -39,12 +40,22 @@ export const room = (app: Application) => {
 			]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(roomQueryValidator), schemaHooks.resolveQuery(roomQueryResolver) ],
+			all: [
+				schemaHooks.validateQuery(roomQueryValidator),
+				schemaHooks.resolveQuery(roomQueryResolver)
+			],
 			find: [],
 			get: [],
-			create: [ schemaHooks.validateData(roomDataValidator), schemaHooks.resolveData(roomDataResolver) ],
-			patch: [ schemaHooks.validateData(roomPatchValidator), schemaHooks.resolveData(roomPatchResolver) ],
-			remove: []
+			create: [
+				schemaHooks.validateData(roomDataValidator),
+				schemaHooks.resolveData(roomDataResolver)
+			],
+			patch: [
+				isRoomOwnerOrAdmin,
+				schemaHooks.validateData(roomPatchValidator),
+				schemaHooks.resolveData(roomPatchResolver)
+			],
+			remove: [ isRoomOwnerOrAdmin ]
 		},
 		after: {
 			all: []
