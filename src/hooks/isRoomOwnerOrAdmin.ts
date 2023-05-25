@@ -6,9 +6,9 @@ import { HookContext } from '../declarations';
 // If the user is not the owner, the hook throws a Forbidden error.
 
 export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> => {
-	// If the user is not logged in, throw an error.
+	// We only care about external calls
 	if (!context.params.user)
-		throw new Error('You are not logged in');
+		return;
 
 	if (context.params.user.tenantAdmin || context.params.user.tenantOwner)
 		return;
