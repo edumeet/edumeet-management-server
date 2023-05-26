@@ -8,31 +8,29 @@ This project uses [Feathers](http://feathersjs.com). An open source framework fo
 
 ## Getting Started
 
-0. Postgress and application config 
+Postgresql and application config 
 ```
 docker run  --name edumeet-db -p 5432:5432 -e POSTGRES_PASSWORD=edumeet -d postgres
 docker exec -it edumeet-db sh
 psql postgres://postgres:edumeet@localhost:5432/
 create database edumeet;
-exit
-exit
 ```
-1. Make sure you have [NodeJS](https://nodejs.org/) and [npm](https://www.npmjs.com/) installed.
-2. Install your dependencies
+Install your dependencies
 ```
-cd path/to/edumeet-management-server
-npm install
+yarn
 ```
-3. Start the service
+Start the service
 ```
-npm run compile # Compile TypeScript source
-npm run migrate # Run migrations to set up the database
-npm start
+yarn compile
+yarn migrate
+yarn start
 ```
 
 ## Testing
 
-Run `npm test` and all your tests in the `test/` directory will be run.
+```
+yarn test
+```
 
 ## Dev tips for testing (with curl)
 
@@ -67,17 +65,3 @@ curl 'http://edumeet.example.com:3030/rooms/' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <accessToken>' \
 ```
-
-
-## Scaffolding
-
-This app comes with a powerful command line interface for Feathers. Here are a few things it can do:
-
-```
-$ npx feathers help                           # Show all commands
-$ npx feathers generate service               # Generate a new Service
-```
-
-## Help
-
-For more information on all the things you can do with Feathers visit [docs.feathersjs.com](http://docs.feathersjs.com).
