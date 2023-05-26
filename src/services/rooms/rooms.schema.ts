@@ -81,7 +81,6 @@ export const roomDataSchema = Type.Pick(
 	roomSchema, [
 		'name',
 		'description',
-		'maxActiveVideos',
 	], {
 		$id: 'RoomData'
 	}
@@ -116,7 +115,18 @@ export const roomDataResolver = resolve<Room, HookContext>({
 });
 
 // Schema for updating existing entries
-export const roomPatchSchema = Type.Partial(roomDataSchema, {
+export const roomPatchSchema = Type.Partial(Type.Omit(
+	roomSchema,
+	[
+		'name',
+		'owners',
+		'groupRoles',
+		'userRoles',
+		'createdAt',
+		'updatedAt',
+		'creatorId',
+		'tenantId',
+	]), {
 	$id: 'RoomPatch'
 });
 export type RoomPatch = Static<typeof roomPatchSchema>
