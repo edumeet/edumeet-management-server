@@ -16,6 +16,8 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoleService, getOptions } from './roles.class';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './roles.class';
 export * from './roles.schema';
@@ -39,7 +41,7 @@ export const role = (app: Application) => {
 			]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(roleQueryValidator), schemaHooks.resolveQuery(roleQueryResolver) ],
+			all: [ schemaHooks.validateQuery(roleQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(roleQueryResolver)) ],
 			find: [],
 			get: [],
 			create: [ schemaHooks.validateData(roleDataValidator), schemaHooks.resolveData(roleDataResolver) ],

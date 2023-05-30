@@ -16,6 +16,8 @@ import {
 
 import type { Application } from '../../declarations';
 import { GroupService, getOptions } from './groups.class';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './groups.class';
 export * from './groups.schema';
@@ -39,7 +41,7 @@ export const group = (app: Application) => {
 			]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(groupQueryValidator), schemaHooks.resolveQuery(groupQueryResolver) ],
+			all: [ schemaHooks.validateQuery(groupQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(groupQueryResolver)) ],
 			find: [],
 			get: [],
 			create: [ schemaHooks.validateData(groupDataValidator), schemaHooks.resolveData(groupDataResolver) ],

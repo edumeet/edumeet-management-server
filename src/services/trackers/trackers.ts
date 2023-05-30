@@ -16,6 +16,8 @@ import {
 
 import type { Application } from '../../declarations';
 import { TrackerService, getOptions } from './trackers.class';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './trackers.class';
 export * from './trackers.schema';
@@ -39,7 +41,7 @@ export const tracker = (app: Application) => {
 			]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(trackerQueryValidator), schemaHooks.resolveQuery(trackerQueryResolver) ],
+			all: [ schemaHooks.validateQuery(trackerQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(trackerQueryResolver)) ],
 			find: [],
 			get: [],
 			create: [ schemaHooks.validateData(trackerDataValidator), schemaHooks.resolveData(trackerDataResolver) ],

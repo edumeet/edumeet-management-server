@@ -16,6 +16,8 @@ import {
 
 import type { Application } from '../../declarations';
 import { RolePermissionService, getOptions } from './rolePermissions.class';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './rolePermissions.class';
 export * from './rolePermissions.schema';
@@ -41,7 +43,7 @@ export const rolePermission = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(rolePermissionQueryValidator),
-				schemaHooks.resolveQuery(rolePermissionQueryResolver)
+				iff(notSuperAdmin(), schemaHooks.resolveQuery(rolePermissionQueryResolver))
 			],
 			find: [],
 			get: [],

@@ -48,4 +48,11 @@ export const tenantQuerySchema = Type.Intersect(
 );
 export type TenantQuery = Static<typeof tenantQuerySchema>
 export const tenantQueryValidator = getValidator(tenantQuerySchema, queryValidator);
-export const tenantQueryResolver = resolve<TenantQuery, HookContext>({});
+export const tenantQueryResolver = resolve<TenantQuery, HookContext>({
+	id: async (value, query, context) => {
+		if (context.params.user)
+			return context.params.user.tenantId;
+
+		return value;
+	}
+});

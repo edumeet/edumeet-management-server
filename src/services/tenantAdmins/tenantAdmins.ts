@@ -17,6 +17,8 @@ import {
 import type { Application } from '../../declarations';
 import { TenantAdminService, getOptions } from './tenantAdmins.class';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './tenantAdmins.class';
 export * from './tenantAdmins.schema';
@@ -41,9 +43,8 @@ export const tenantAdmin = (app: Application) => {
 		},
 		before: {
 			all: [
-				isTenantAdmin,
 				schemaHooks.validateQuery(tenantAdminQueryValidator),
-				schemaHooks.resolveQuery(tenantAdminQueryResolver)
+				iff(notSuperAdmin(), isTenantAdmin, schemaHooks.resolveQuery(tenantAdminQueryResolver))
 			],
 			find: [],
 			get: [],

@@ -15,6 +15,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('password');
 		table.string('name');
 		table.string('avatar');
+		table.specificType('roles', 'VARCHAR(255) ARRAY');
 		table.unique([ 'tenantId', 'email' ], { useConstraint: true });
 		table.unique([ 'tenantId', 'ssoId' ], { useConstraint: true });
 	});

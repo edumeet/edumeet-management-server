@@ -19,7 +19,8 @@ export interface ServiceTypes {}
 export type Application = FeathersApplication<ServiceTypes, Configuration>
 
 // The context for hook functions - can be typed with a service class
-export type HookContext<S = unknown> = FeathersHookContext<Application, S>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type HookContext<S = any> = FeathersHookContext<Application, S>
 
 // Add the user as an optional property to all params
 declare module '@feathersjs/feathers' {

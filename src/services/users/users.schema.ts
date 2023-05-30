@@ -19,6 +19,7 @@ export const userSchema = Type.Object(
 		avatar: Type.Optional(Type.String()),
 		tenantAdmin: Type.Boolean(),
 		tenantOwner: Type.Boolean(),
+		roles: Type.Optional(Type.Array(Type.String())),
 	},
 	{ $id: 'User', additionalProperties: false }
 );

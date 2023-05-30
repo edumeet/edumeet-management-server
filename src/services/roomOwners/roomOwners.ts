@@ -17,6 +17,8 @@ import {
 import type { Application } from '../../declarations';
 import { RoomOwnerService, getOptions } from './roomOwners.class';
 import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './roomOwners.class';
 export * from './roomOwners.schema';
@@ -42,21 +44,21 @@ export const roomOwner = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(roomOwnerQueryValidator),
-				schemaHooks.resolveQuery(roomOwnerQueryResolver)
+				iff(notSuperAdmin(), schemaHooks.resolveQuery(roomOwnerQueryResolver))
 			],
 			find: [],
 			get: [],
 			create: [
-				isRoomOwnerOrAdmin,
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomOwnerDataValidator),
 				schemaHooks.resolveData(roomOwnerDataResolver)
 			],
 			patch: [
-				isRoomOwnerOrAdmin,
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomOwnerPatchValidator),
 				schemaHooks.resolveData(roomOwnerPatchResolver)
 			],
-			remove: [ isRoomOwnerOrAdmin ]
+			remove: [ iff(notSuperAdmin(), isRoomOwnerOrAdmin) ]
 		},
 		after: {
 			all: []

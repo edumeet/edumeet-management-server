@@ -17,6 +17,8 @@ import {
 import type { Application } from '../../declarations';
 import { TenantOAuthService, getOptions } from './tenantOAuths.class';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './tenantOAuths.class';
 export * from './tenantOAuths.schema';
@@ -41,9 +43,8 @@ export const tenantOAuth = (app: Application) => {
 		},
 		before: {
 			all: [
-				isTenantAdmin,
 				schemaHooks.validateQuery(tenantOAuthQueryValidator),
-				schemaHooks.resolveQuery(tenantOAuthQueryResolver)
+				iff(notSuperAdmin(), isTenantAdmin, schemaHooks.resolveQuery(tenantOAuthQueryResolver))
 			],
 			find: [],
 			get: [],

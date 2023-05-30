@@ -16,6 +16,8 @@ import {
 
 import type { Application } from '../../declarations';
 import { UserService, getOptions } from './users.class';
+import { discard, iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './users.class';
 export * from './users.schema';
@@ -42,11 +44,11 @@ export const user = (app: Application) => {
 			remove: [ authenticate('jwt') ]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(userQueryValidator), schemaHooks.resolveQuery(userQueryResolver) ],
+			all: [ schemaHooks.validateQuery(userQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(userQueryResolver)) ],
 			find: [],
 			get: [],
-			create: [ schemaHooks.validateData(userDataValidator), schemaHooks.resolveData(userDataResolver) ],
-			patch: [ schemaHooks.validateData(userPatchValidator), schemaHooks.resolveData(userPatchResolver) ],
+			create: [ iff(notSuperAdmin(), discard('roles')), schemaHooks.validateData(userDataValidator), schemaHooks.resolveData(userDataResolver) ],
+			patch: [ iff(notSuperAdmin(), discard('roles')), schemaHooks.validateData(userPatchValidator), schemaHooks.resolveData(userPatchResolver) ],
 			remove: []
 		},
 		after: {

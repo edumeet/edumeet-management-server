@@ -17,6 +17,8 @@ import {
 import type { Application } from '../../declarations';
 import { TenantFqdnService, getOptions } from './tenantFQDNs.class';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 export * from './tenantFQDNs.class';
 export * from './tenantFQDNs.schema';
@@ -46,21 +48,21 @@ export const tenantFqdn = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(tenantFqdnQueryValidator),
-				schemaHooks.resolveQuery(tenantFqdnQueryResolver)
+				iff(notSuperAdmin(), schemaHooks.resolveQuery(tenantFqdnQueryResolver))
 			],
 			find: [],
 			get: [],
 			create: [
-				isTenantAdmin,
+				iff(notSuperAdmin(), isTenantAdmin),
 				schemaHooks.validateData(tenantFqdnDataValidator),
 				schemaHooks.resolveData(tenantFqdnDataResolver)
 			],
 			patch: [
-				isTenantAdmin,
+				iff(notSuperAdmin(), isTenantAdmin),
 				schemaHooks.validateData(tenantFqdnPatchValidator),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],
-			remove: [ isTenantAdmin ]
+			remove: [ iff(notSuperAdmin(), isTenantAdmin) ]
 		},
 		after: {
 			all: []

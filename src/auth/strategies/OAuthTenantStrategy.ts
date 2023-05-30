@@ -1,6 +1,5 @@
 import { OAuthProfile, OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
 import { AuthenticationResult, AuthenticationParams } from '@feathersjs/authentication/lib';
-import { NotAuthenticated } from '@feathersjs/errors/lib';
 import { Params } from '@feathersjs/feathers';
 import qs from 'qs';
 
