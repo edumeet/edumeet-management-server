@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { TenantFqdnService, getOptions } from './tenantFQDNs.class';
+import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 
 export * from './tenantFQDNs.class';
 export * from './tenantFQDNs.schema';
@@ -33,10 +34,14 @@ export const tenantFqdn = (app: Application) => {
 	app.service('tenantFQDNs').hooks({
 		around: {
 			all: [
-				authenticate('jwt'),
 				schemaHooks.resolveExternal(tenantFqdnExternalResolver),
 				schemaHooks.resolveResult(tenantFqdnResolver)
-			]
+			],
+			find: [],
+			get: [],
+			create: [ authenticate('jwt') ],
+			patch: [ authenticate('jwt') ],
+			remove: [ authenticate('jwt') ]
 		},
 		before: {
 			all: [
@@ -46,14 +51,16 @@ export const tenantFqdn = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
+				isTenantAdmin,
 				schemaHooks.validateData(tenantFqdnDataValidator),
 				schemaHooks.resolveData(tenantFqdnDataResolver)
 			],
 			patch: [
+				isTenantAdmin,
 				schemaHooks.validateData(tenantFqdnPatchValidator),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],
-			remove: []
+			remove: [ isTenantAdmin ]
 		},
 		after: {
 			all: []

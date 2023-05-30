@@ -47,12 +47,12 @@ export async function up(knex: Knex): Promise<void> {
 		table.unique([ 'tenantId', 'userId' ], { useConstraint: true });
 	});
 
-	await knex.schema.createTable('tenantFDQNs', (table) => {
+	await knex.schema.createTable('tenantFQDNs', (table) => {
 		table.increments('id');
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('fqdn');
 		table.string('description');
-		table.unique([ 'tenantId', 'fqdn' ], { useConstraint: true });
+		table.unique([ 'fqdn' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantOAuths', (table) => {

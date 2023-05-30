@@ -17,6 +17,7 @@ import {
 import type { Application } from '../../declarations';
 import { RoomService, getOptions } from './rooms.class';
 import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
+import { addRoomOwner } from '../../hooks/addRoomOwner';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -58,7 +59,8 @@ export const room = (app: Application) => {
 			remove: [ isRoomOwnerOrAdmin ]
 		},
 		after: {
-			all: []
+			all: [],
+			create: [ addRoomOwner ],
 		},
 		error: {
 			all: []

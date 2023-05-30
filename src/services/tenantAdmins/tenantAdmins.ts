@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { TenantAdminService, getOptions } from './tenantAdmins.class';
+import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 
 export * from './tenantAdmins.class';
 export * from './tenantAdmins.schema';
@@ -40,6 +41,7 @@ export const tenantAdmin = (app: Application) => {
 		},
 		before: {
 			all: [
+				isTenantAdmin,
 				schemaHooks.validateQuery(tenantAdminQueryValidator),
 				schemaHooks.resolveQuery(tenantAdminQueryResolver)
 			],

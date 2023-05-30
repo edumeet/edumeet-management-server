@@ -7,12 +7,13 @@ import { HookContext } from '../declarations';
 
 export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> => {
 	// We only care about external calls
-	if (!context.params.user)
-		return;
+	if (!context.params.provider) return;
 
-	if (context.params.user.tenantAdmin || context.params.user.tenantOwner)
-		return;
+	const { user } = context.params;
 
+	if (user?.tenantAdmin || user?.tenantOwner) return;
+
+	// TODO: Check properly if the user is an owner of the room
 	let roomId: string | undefined;
 
 	if (context.id)

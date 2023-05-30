@@ -59,6 +59,7 @@
 		"@feathersjs/socketio": "^5.0.5",
 		"@feathersjs/transport-commons": "^5.0.5",
 		"@feathersjs/typebox": "^5.0.5",
+		"@koa/router": "^12.0.0",
 		"knex": "^2.4.2",
 		"pg": "^8.10.0",
 		"winston": "^3.8.2"
@@ -67,6 +68,7 @@
 		"@feathersjs/cli": "^5.0.5",
 		"@feathersjs/rest-client": "^5.0.5",
 		"@tsconfig/node20": "^1.0.0",
+		"@types/koa__router": "^12.0.0",
 		"@types/mocha": "^10.0.1",
 		"@types/node": "^20.1.2",
 		"@typescript-eslint/eslint-plugin": "^5.59.5",

@@ -5,10 +5,13 @@ import { oauth } from '@feathersjs/authentication-oauth';
 
 import type { Application } from './declarations';
 import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
+import { OAuthService } from '@feathersjs/authentication-oauth/lib/service';
+import { dynamicOAuth } from './hooks/dynamicOAuth';
 
 declare module './declarations' {
 	interface ServiceTypes {
-		authentication: AuthenticationService
+		authentication: AuthenticationService;
+		'oauth/:provider': OAuthService;
 	}
 }
 
@@ -21,4 +24,6 @@ export const authentication = (app: Application) => {
 
 	app.use('authentication', authenticationService);
 	app.configure(oauth());
+
+	app.service('oauth/:provider').hooks({ before: { find: [ dynamicOAuth ] } });
 };
