@@ -11,6 +11,7 @@ import { dataValidator, queryValidator } from '../../validators';
 export const userSchema = Type.Object(
 	{
 		id: Type.Number(),
+		ssoId: Type.Optional(Type.String()),
 		tenantId: Type.Number(),
 		email: Type.String(),
 		password: Type.Optional(Type.String()),
@@ -51,7 +52,7 @@ export const userExternalResolver = resolve<User, HookContext>({
 });
 
 // Schema for creating new users
-export const userDataSchema = Type.Pick(userSchema, [ 'email', 'password' ], {
+export const userDataSchema = Type.Pick(userSchema, [ 'email', 'password', 'ssoId', 'tenantId' ], {
 	$id: 'UserData',
 	additionalProperties: false
 });
@@ -72,7 +73,7 @@ export const userPatchResolver = resolve<User, HookContext>({
 });
 
 // Schema for allowed query properties
-export const userQueryProperties = Type.Pick(userSchema, [ 'id', 'tenantId', 'email' ]);
+export const userQueryProperties = Type.Pick(userSchema, [ 'id', 'ssoId', 'tenantId', 'email' ]);
 export const userQuerySchema = Type.Intersect(
 	[
 		querySyntax(userQueryProperties),

@@ -3,6 +3,7 @@ import { feathers } from '@feathersjs/feathers';
 import type { TransportConnection, Params } from '@feathersjs/feathers';
 import authenticationClient from '@feathersjs/authentication-client';
 import type { AuthenticationClientOptions } from '@feathersjs/authentication-client';
+
 import type {
 	RoomOwner,
 	RoomOwnerData,
@@ -133,6 +134,19 @@ export type TenantFqdnClientService = Pick<
 	(typeof tenantFqdnServiceMethods)[number]
 >
 
+import type {
+	TenantOAuth,
+	TenantOAuthData,
+	TenantOAuthQuery,
+	TenantOAuthService
+} from './services/tenantOAuths/tenantOAuths';
+export type { TenantOAuth, TenantOAuthData, TenantOAuthQuery };
+export const tenantOAuthServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
+export type TenantOAuthClientService = Pick<
+	TenantOAuthService<Params<TenantOAuthQuery>>,
+	(typeof tenantOAuthServiceMethods)[number]
+>
+
 import type { Location, LocationData, LocationQuery, LocationService } from './services/locations/locations';
 export type { Location, LocationData, LocationQuery };
 export const locationServiceMethods = [ 'find', 'get', 'create', 'patch', 'remove' ] as const;
@@ -203,6 +217,7 @@ export interface ServiceTypes {
 	roles: RoleClientService
 	groups: GroupClientService
 	tenantFQDNs: TenantFqdnClientService
+	tenantOAuths: TenantOAuthClientService
 	locations: LocationClientService
 	mediaNodes: MediaNodeClientService
 	tenantAdmins: TenantAdminClientService
@@ -249,6 +264,9 @@ export const createClient = <Configuration = unknown>(
 	});
 	client.use('tenantFQDNs', connection.service('tenantFQDNs'), {
 		methods: tenantFqdnServiceMethods
+	});
+	client.use('tenantOAuths', connection.service('tenantOAuths'), {
+		methods: tenantOAuthServiceMethods
 	});
 	client.use('groups', connection.service('groups'), {
 		methods: groupServiceMethods

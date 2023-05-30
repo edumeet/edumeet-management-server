@@ -4,6 +4,7 @@ import { LocalStrategy } from '@feathersjs/authentication-local';
 import { oauth } from '@feathersjs/authentication-oauth';
 
 import type { Application } from './declarations';
+import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -16,6 +17,7 @@ export const authentication = (app: Application) => {
 
 	authenticationService.register('jwt', new JWTStrategy());
 	authenticationService.register('local', new LocalStrategy());
+	authenticationService.register('tenant', new OAuthTenantStrategy());
 
 	app.use('authentication', authenticationService);
 	app.configure(oauth());

@@ -27,21 +27,7 @@ export const tenantFqdnDataSchema = Type.Pick(tenantFqdnSchema, [ 'fqdn', 'descr
 });
 export type TenantFqdnData = Static<typeof tenantFqdnDataSchema>
 export const tenantFqdnDataValidator = getDataValidator(tenantFqdnDataSchema, dataValidator);
-export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({
-	fqdn: async (value, tenantFqdn, context) => {
-		// Has to be globally unique
-		const { total } = await context.app.service('tenantFQDNs').find({
-			query: {
-				fqdn: value
-			}
-		});
-
-		if (total > 0)
-			throw new Error('FQDN already exists');
-
-		return value;
-	},
-});
+export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({});
 
 // Schema for updating existing entries
 export const tenantFqdnPatchSchema = Type.Partial(tenantFqdnDataSchema, {

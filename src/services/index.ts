@@ -1,3 +1,4 @@
+import { tenantOAuth } from './tenantOAuths/tenantOAuths';
 import { roomOwner } from './roomOwners/roomOwners';
 import { groupUser } from './groupUsers/groupUsers';
 import { tenantOwner } from './tenantOwners/tenantOwners';
@@ -20,6 +21,7 @@ import { user } from './users/users';
 import type { Application } from '../declarations';
 
 export const services = (app: Application) => {
+	app.configure(tenantOAuth);
 	app.configure(roomOwner);
 	app.configure(groupUser);
 	app.configure(tenantOwner);

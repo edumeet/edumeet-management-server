@@ -9,11 +9,14 @@ export async function up(knex: Knex): Promise<void> {
 
 	await knex.schema.createTable('users', (table) => {
 		table.increments('id');
+		table.string('ssoId');
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
-		table.string('email').unique();
+		table.string('email');
 		table.string('password');
 		table.string('name');
 		table.string('avatar');
+		table.unique([ 'tenantId', 'email' ], { useConstraint: true });
+		table.unique([ 'tenantId', 'ssoId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('groups', (table) => {
@@ -27,18 +30,21 @@ export async function up(knex: Knex): Promise<void> {
 		table.increments('id');
 		table.bigint('groupId').references('id').inTable('groups').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
+		table.unique([ 'groupId', 'userId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantOwners', (table) => {
 		table.increments('id');
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
+		table.unique([ 'tenantId', 'userId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantAdmins', (table) => {
 		table.increments('id');
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
+		table.unique([ 'tenantId', 'userId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantFDQNs', (table) => {
@@ -46,6 +52,20 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('fqdn');
 		table.string('description');
+		table.unique([ 'tenantId', 'fqdn' ], { useConstraint: true });
+	});
+
+	await knex.schema.createTable('tenantOAuths', (table) => {
+		table.increments('id');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.string('key');
+		table.string('secret');
+		table.string('authorize_url');
+		table.string('access_url');
+		table.string('profile_url');
+		table.string('scope');
+		table.string('scope_delimiter');
+		table.unique([ 'tenantId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roles', (table) => {
@@ -86,6 +106,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.increments('id');
 		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
 		table.bigint('permissionId').references('id').inTable('permissions').onDelete('CASCADE');
+		table.unique([ 'roleId', 'permissionId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('rooms', (table) => {
@@ -105,12 +126,14 @@ export async function up(knex: Knex): Promise<void> {
 		table.boolean('raiseHandEnabled');
 		table.boolean('filesharingEnabled');
 		table.boolean('localRecordingEnabled');
+		table.unique([ 'tenantId', 'name' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomOwners', (table) => {
 		table.increments('id');
 		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
+		table.unique([ 'roomId', 'userId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomGroupRoles', (table) => {
@@ -118,6 +141,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
 		table.bigint('groupId').references('id').inTable('groups').onDelete('CASCADE');
 		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
+		table.unique([ 'roomId', 'groupId', 'roleId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomUserRoles', (table) => {
@@ -125,6 +149,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
 		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
 		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
+		table.unique([ 'roomId', 'userId', 'roleId' ], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('locations', (table) => {
@@ -174,6 +199,7 @@ export async function down(knex: Knex): Promise<void> {
 	await knex.schema.dropTable('tenantOwners');
 	await knex.schema.dropTable('tenantAdmins');
 	await knex.schema.dropTable('tenantFQDNs');
+	await knex.schema.dropTable('tenantOAuths');
 	await knex.schema.dropTable('roles');
 	await knex.schema.dropTable('permissions');
 	await knex.schema.dropTable('rolePermissions');

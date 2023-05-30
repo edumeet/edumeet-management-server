@@ -17,7 +17,7 @@ export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> =>
 
 	if (context.id)
 		roomId = String(context.id);
-	else if (context.data)
+	else if (context.data.roomId)
 		roomId = context.data.roomId;
 
 	if (!roomId)

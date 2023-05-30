@@ -88,19 +88,6 @@ export const roomDataSchema = Type.Pick(
 export type RoomData = Static<typeof roomDataSchema>
 export const roomDataValidator = getDataValidator(roomDataSchema, dataValidator);
 export const roomDataResolver = resolve<Room, HookContext>({
-	name: async (value, room, context) => {
-		const { total } = await context.app.service('rooms').find({
-			query: {
-				name: value,
-				tenantId: room.tenantId
-			}
-		});
-
-		if (total > 0)
-			throw new Error('Room name already exists in this tenant');
-
-		return value;
-	},
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now(),
 	creatorId: async (value, room, context) => context.params.user?.id,
