@@ -11,7 +11,9 @@ import {
 	userExternalResolver,
 	userDataResolver,
 	userPatchResolver,
-	userQueryResolver
+	userQueryResolver,
+	userDataAdminValidator,
+	userPatchAdminValidator
 } from './users.schema';
 
 import type { Application } from '../../declarations';
@@ -37,8 +39,7 @@ export const user = (app: Application) => {
 			all: [ schemaHooks.resolveExternal(userExternalResolver), schemaHooks.resolveResult(userResolver) ],
 			find: [ authenticate('jwt') ],
 			get: [ authenticate('jwt') ],
-			// TODO: Add authentication to create on local strategy
-			create: [],
+			create: [ authenticate('jwt') ],
 			update: [ authenticate('jwt') ],
 			patch: [ authenticate('jwt') ],
 			remove: [ authenticate('jwt') ]
@@ -47,8 +48,26 @@ export const user = (app: Application) => {
 			all: [ schemaHooks.validateQuery(userQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(userQueryResolver)) ],
 			find: [],
 			get: [],
-			create: [ iff(notSuperAdmin(), discard('roles')), schemaHooks.validateData(userDataValidator), schemaHooks.resolveData(userDataResolver) ],
-			patch: [ iff(notSuperAdmin(), discard('roles')), schemaHooks.validateData(userPatchValidator), schemaHooks.resolveData(userPatchResolver) ],
+			create: [
+				iff(
+					notSuperAdmin(),
+					discard('roles'),
+					schemaHooks.validateData(userDataValidator)
+				).else(
+					schemaHooks.validateData(userDataAdminValidator)
+				),
+				schemaHooks.resolveData(userDataResolver)
+			],
+			patch: [
+				iff(
+					notSuperAdmin(),
+					discard('roles'),
+					schemaHooks.validateData(userPatchValidator)
+				).else(
+					schemaHooks.validateData(userPatchAdminValidator)
+				),
+				schemaHooks.resolveData(userPatchResolver)
+			],
 			remove: []
 		},
 		after: {

@@ -12,7 +12,7 @@ export const userSchema = Type.Object(
 	{
 		id: Type.Number(),
 		ssoId: Type.Optional(Type.String()),
-		tenantId: Type.Number(),
+		tenantId: Type.Optional(Type.Number()),
 		email: Type.String(),
 		password: Type.Optional(Type.String()),
 		name: Type.Optional(Type.String()),
@@ -53,22 +53,35 @@ export const userExternalResolver = resolve<User, HookContext>({
 });
 
 // Schema for creating new users
-export const userDataSchema = Type.Pick(userSchema, [ 'email', 'password', 'ssoId', 'tenantId' ], {
-	$id: 'UserData',
-	additionalProperties: false
-});
+export const userDataSchema = Type.Pick(
+	Type.Required(userSchema),
+	[ 'email', 'password', 'tenantId' ], {
+		$id: 'UserData',
+		additionalProperties: false
+	}
+);
+export const userDataAdminSchema = Type.Intersect([
+	Type.Pick(userSchema, [ 'email', 'password' ], { additionalProperties: false }),
+	Type.Partial(Type.Omit(userSchema, [ 'email', 'password' ]), { additionalProperties: false })
+], { $id: 'UserDataAdmin', additionalProperties: false });
 export type UserData = Static<typeof userDataSchema>
 export const userDataValidator = getDataValidator(userDataSchema, dataValidator);
+export const userDataAdminValidator = getDataValidator(userDataAdminSchema, dataValidator);
 export const userDataResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' })
 });
 
+export const userPatchAdminSchema = Type.Partial(userSchema, { $id: 'RoomPatchAdmin' });
+
 // Schema for updating existing users
-export const userPatchSchema = Type.Partial(userSchema, {
-	$id: 'UserPatch'
-});
+export const userPatchSchema = Type.Partial(Type.Omit(
+	userSchema,
+	[ 'email', 'tenantId', 'ssoId', 'tenantAdmin', 'tenantOwner', 'roles' ]),
+{ $id: 'UserPatch' }
+);
 export type UserPatch = Static<typeof userPatchSchema>
 export const userPatchValidator = getDataValidator(userPatchSchema, dataValidator);
+export const userPatchAdminValidator = getDataValidator(userPatchAdminSchema, dataValidator);
 export const userPatchResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' })
 });

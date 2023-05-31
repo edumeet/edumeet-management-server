@@ -26,11 +26,13 @@ export const channels = (app: Application) => {
 		if (connection) {
 			const { user } = connection;
 
-			// The connection is no longer anonymous, remove it
-			app.channel('anonymous').leave(connection);
+			if (user.roles?.includes('super-admin')) {
+				// The connection is no longer anonymous, remove it
+				app.channel('anonymous').leave(connection);
 
-			// Add it to the authenticated user channel
-			app.channel('authenticated').join(connection);
+				// Add it to the authenticated user channel
+				app.channel('authenticated').join(connection);
+			}
 		}
 	});
 

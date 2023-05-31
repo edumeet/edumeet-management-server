@@ -77,14 +77,20 @@ export const roomResolver = resolve<Room, HookContext>({
 export const roomExternalResolver = resolve<Room, HookContext>({});
 
 // Schema for creating new entries
-export const roomDataSchema = Type.Pick(
-	roomSchema, [
+export const roomDataSchema = Type.Intersect([
+	Type.Pick(roomSchema, [ 'name' ], { additionalProperties: false }),
+	// Add additional query properties here
+	Type.Partial(Type.Omit(roomSchema, [
 		'name',
-		'description',
-	], {
-		$id: 'RoomData'
-	}
-);
+		'owners',
+		'groupRoles',
+		'userRoles',
+		'createdAt',
+		'updatedAt',
+		'creatorId',
+		'tenantId',
+	], { additionalProperties: false }))
+], { $id: 'RoomData', additionalProperties: false });
 export type RoomData = Static<typeof roomDataSchema>
 export const roomDataValidator = getDataValidator(roomDataSchema, dataValidator);
 export const roomDataResolver = resolve<Room, HookContext>({

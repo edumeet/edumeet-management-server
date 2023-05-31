@@ -1,4 +1,5 @@
 import { Knex } from 'knex';
+import bcrypt from 'bcryptjs'
 
 export async function up(knex: Knex): Promise<void> {
 	await knex.schema.createTable('tenants', (table) => {
@@ -190,6 +191,13 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('secret');
 		table.bigint('locationId').references('id').inTable('locations').onDelete('CASCADE');
 	});
+
+	await knex.insert({
+		email: 'edumeet-admin@localhost',
+		password: bcrypt.hash('supersecret', 10),
+		name: 'Edumeet Admin',
+		roles: [ 'super-admin' ]
+	}).into('users');
 }
 
 export async function down(knex: Knex): Promise<void> {
