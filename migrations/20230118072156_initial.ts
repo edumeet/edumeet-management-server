@@ -1,5 +1,5 @@
 import { Knex } from 'knex';
-import bcrypt from 'bcryptjs'
+import bcrypt from 'bcryptjs';
 
 export async function up(knex: Knex): Promise<void> {
 	await knex.schema.createTable('tenants', (table) => {
@@ -194,7 +194,7 @@ export async function up(knex: Knex): Promise<void> {
 
 	await knex.insert({
 		email: 'edumeet-admin@localhost',
-		password: bcrypt.hash('supersecret', 10),
+		password: bcrypt.hashSync('supersecret', 10),
 		name: 'Edumeet Admin',
 		roles: [ 'super-admin' ]
 	}).into('users');
