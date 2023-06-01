@@ -86,7 +86,6 @@ export async function up(knex: Knex): Promise<void> {
 	// These are the default permissions
 	await knex.insert([
 		{ name: 'BYPASS_ROOM_LOCK', description: 'Permission to bypass a room lock' },
-		{ name: 'BYPASS_LOBBY', description: 'Permission to bypass the lobby' },
 		{ name: 'CHANGE_ROOM_LOCK', description: 'Permission to lock/unlock a room' },
 		{ name: 'PROMOTE_PEER', description: 'Permission to promote a peer from the lobby' },
 		{ name: 'MODIFY_ROLE', description: 'Permission to modify the role of a peer' },
