@@ -4,8 +4,6 @@ import { authenticate } from '@feathersjs/authentication';
 import { hooks as schemaHooks } from '@feathersjs/schema';
 
 import {
-	userDataValidator,
-	userPatchValidator,
 	userQueryValidator,
 	userResolver,
 	userExternalResolver,
@@ -18,8 +16,9 @@ import {
 
 import type { Application } from '../../declarations';
 import { UserService, getOptions } from './users.class';
-import { discard, iff } from 'feathers-hooks-common';
+import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './users.class';
 export * from './users.schema';
@@ -49,26 +48,18 @@ export const user = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				iff(
-					notSuperAdmin(),
-					discard('roles'),
-					schemaHooks.validateData(userDataValidator)
-				).else(
-					schemaHooks.validateData(userDataAdminValidator)
-				),
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
+				schemaHooks.validateData(userDataAdminValidator),
 				schemaHooks.resolveData(userDataResolver)
 			],
 			patch: [
-				iff(
-					notSuperAdmin(),
-					discard('roles'),
-					schemaHooks.validateData(userPatchValidator)
-				).else(
-					schemaHooks.validateData(userPatchAdminValidator)
-				),
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
+				schemaHooks.validateData(userPatchAdminValidator),
 				schemaHooks.resolveData(userPatchResolver)
 			],
-			remove: []
+			remove: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] })
+			]
 		},
 		after: {
 			all: []

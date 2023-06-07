@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RecorderService, getOptions } from './recorders.class';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './recorders.class';
 export * from './recorders.schema';
@@ -40,6 +41,7 @@ export const recorder = (app: Application) => {
 		},
 		before: {
 			all: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
 				schemaHooks.validateQuery(recorderQueryValidator),
 				schemaHooks.resolveQuery(recorderQueryResolver)
 			],

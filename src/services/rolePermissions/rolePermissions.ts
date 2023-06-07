@@ -48,6 +48,7 @@ export const rolePermission = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
+				// TODO: Add a hook to check if the role belongs to the same tenant as the user
 				schemaHooks.validateData(rolePermissionDataValidator),
 				schemaHooks.resolveData(rolePermissionDataResolver)
 			],

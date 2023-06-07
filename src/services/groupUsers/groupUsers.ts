@@ -48,6 +48,7 @@ export const groupUser = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
+				// TODO: Add hook to check if the group belongs to the same tenant as the user
 				schemaHooks.validateData(groupUserDataValidator),
 				schemaHooks.resolveData(groupUserDataResolver)
 			],

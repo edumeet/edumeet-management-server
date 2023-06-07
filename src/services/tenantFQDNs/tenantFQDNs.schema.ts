@@ -1,5 +1,5 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve } from '@feathersjs/schema';
+import { resolve, virtual } from '@feathersjs/schema';
 import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
@@ -27,7 +27,12 @@ export const tenantFqdnDataSchema = Type.Pick(tenantFqdnSchema, [ 'fqdn', 'descr
 });
 export type TenantFqdnData = Static<typeof tenantFqdnDataSchema>
 export const tenantFqdnDataValidator = getDataValidator(tenantFqdnDataSchema, dataValidator);
-export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({});
+export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({
+	tenantId: virtual(async (tenantFqdn, context) => {
+		if (context.params.user)
+			return context.params.user.tenantId;
+	})
+});
 
 // Schema for updating existing entries
 export const tenantFqdnPatchSchema = Type.Partial(tenantFqdnDataSchema, {

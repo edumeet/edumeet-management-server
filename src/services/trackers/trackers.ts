@@ -16,8 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { TrackerService, getOptions } from './trackers.class';
-import { iff } from 'feathers-hooks-common';
-import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './trackers.class';
 export * from './trackers.schema';
@@ -41,11 +40,21 @@ export const tracker = (app: Application) => {
 			]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(trackerQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(trackerQueryResolver)) ],
+			all: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
+				schemaHooks.validateQuery(trackerQueryValidator),
+				schemaHooks.resolveQuery(trackerQueryResolver)
+			],
 			find: [],
 			get: [],
-			create: [ schemaHooks.validateData(trackerDataValidator), schemaHooks.resolveData(trackerDataResolver) ],
-			patch: [ schemaHooks.validateData(trackerPatchValidator), schemaHooks.resolveData(trackerPatchResolver) ],
+			create: [
+				schemaHooks.validateData(trackerDataValidator),
+				schemaHooks.resolveData(trackerDataResolver)
+			],
+			patch: [
+				schemaHooks.validateData(trackerPatchValidator),
+				schemaHooks.resolveData(trackerPatchResolver)
+			],
 			remove: []
 		},
 		after: {

@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { LocationService, getOptions } from './locations.class';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './locations.class';
 export * from './locations.schema';
@@ -40,6 +41,7 @@ export const location = (app: Application) => {
 		},
 		before: {
 			all: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
 				schemaHooks.validateQuery(locationQueryValidator),
 				schemaHooks.resolveQuery(locationQueryResolver)
 			],

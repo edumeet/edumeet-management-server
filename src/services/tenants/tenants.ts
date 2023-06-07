@@ -18,6 +18,7 @@ import type { Application } from '../../declarations';
 import { TenantService, getOptions } from './tenants.class';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './tenants.class';
 export * from './tenants.schema';
@@ -48,14 +49,16 @@ export const tenant = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
 				schemaHooks.validateData(tenantDataValidator),
 				schemaHooks.resolveData(tenantDataResolver)
 			],
 			patch: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
 				schemaHooks.validateData(tenantPatchValidator),
 				schemaHooks.resolveData(tenantPatchResolver)
 			],
-			remove: []
+			remove: [ checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }) ]
 		},
 		after: {
 			all: []

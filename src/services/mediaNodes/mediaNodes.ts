@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { MediaNodeService, getOptions } from './mediaNodes.class';
+import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './mediaNodes.class';
 export * from './mediaNodes.schema';
@@ -40,6 +41,7 @@ export const mediaNode = (app: Application) => {
 		},
 		before: {
 			all: [
+				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
 				schemaHooks.validateQuery(mediaNodeQueryValidator),
 				schemaHooks.resolveQuery(mediaNodeQueryResolver)
 			],
