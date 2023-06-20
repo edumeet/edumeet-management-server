@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -25,7 +25,7 @@ export const permissionDataSchema = Type.Pick(permissionSchema, [ 'name', 'descr
 	$id: 'PermissionData'
 });
 export type PermissionData = Static<typeof permissionDataSchema>
-export const permissionDataValidator = getDataValidator(permissionDataSchema, dataValidator);
+export const permissionDataValidator = getValidator(permissionDataSchema, dataValidator);
 export const permissionDataResolver = resolve<Permission, HookContext>({});
 
 // Schema for updating existing entries
@@ -33,7 +33,7 @@ export const permissionPatchSchema = Type.Partial(permissionDataSchema, {
 	$id: 'PermissionPatch'
 });
 export type PermissionPatch = Static<typeof permissionPatchSchema>
-export const permissionPatchValidator = getDataValidator(permissionPatchSchema, dataValidator);
+export const permissionPatchValidator = getValidator(permissionPatchSchema, dataValidator);
 export const permissionPatchResolver = resolve<Permission, HookContext>({});
 
 // Schema for allowed query properties

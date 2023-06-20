@@ -4,12 +4,9 @@ import { KnexService } from '@feathersjs/knex';
 import type { KnexAdapterParams, KnexAdapterOptions } from '@feathersjs/knex';
 
 import type { Application } from '../../declarations';
-import type {
-	Tenant,
-	TenantData,
-	TenantPatch,
-	TenantQuery
-} from './tenants.schema';
+import type { Tenant, TenantData, TenantPatch, TenantQuery } from './tenants.schema';
+
+export type { Tenant, TenantData, TenantPatch, TenantQuery };
 
 export type TenantParams = KnexAdapterParams<TenantQuery>
 
@@ -17,7 +14,7 @@ export type TenantParams = KnexAdapterParams<TenantQuery>
 export class TenantService<ServiceParams extends Params = TenantParams> extends KnexService<
 	Tenant,
 	TenantData,
-	ServiceParams,
+	TenantParams,
 	TenantPatch
 > {}
 

@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoomService, getOptions } from './rooms.class';
+import { roomPath, roomMethods } from './rooms.shared';
 import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 import { addRoomOwner } from '../../hooks/addRoomOwner';
 import { iff } from 'feathers-hooks-common';
@@ -27,14 +28,14 @@ export * from './rooms.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const room = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('rooms', new RoomService(getOptions(app)), {
+	app.use(roomPath, new RoomService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'patch', 'remove' ],
+		methods: roomMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('rooms').hooks({
+	app.service(roomPath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -73,6 +74,6 @@ export const room = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		rooms: RoomService
+		[roomPath]: RoomService
 	}
 }

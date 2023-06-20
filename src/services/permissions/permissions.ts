@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { PermissionService, getOptions } from './permissions.class';
+import { permissionPath, permissionMethods } from './permissions.shared';
 
 export * from './permissions.class';
 export * from './permissions.schema';
@@ -23,14 +24,14 @@ export * from './permissions.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const permission = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('permissions', new PermissionService(getOptions(app)), {
+	app.use(permissionPath, new PermissionService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get' ],
+		methods: permissionMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('permissions').hooks({
+	app.service(permissionPath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -67,6 +68,6 @@ export const permission = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		permissions: PermissionService
+		[permissionPath]: PermissionService
 	}
 }

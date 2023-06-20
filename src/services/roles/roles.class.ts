@@ -6,13 +6,15 @@ import type { KnexAdapterParams, KnexAdapterOptions } from '@feathersjs/knex';
 import type { Application } from '../../declarations';
 import type { Role, RoleData, RolePatch, RoleQuery } from './roles.schema';
 
+export type { Role, RoleData, RolePatch, RoleQuery };
+
 export type RoleParams = KnexAdapterParams<RoleQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
 export class RoleService<ServiceParams extends Params = RoleParams> extends KnexService<
 	Role,
 	RoleData,
-	ServiceParams,
+	RoleParams,
 	RolePatch
 > {}
 

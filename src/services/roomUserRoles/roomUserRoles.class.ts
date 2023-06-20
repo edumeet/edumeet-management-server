@@ -11,13 +11,15 @@ import type {
 	RoomUserRoleQuery
 } from './roomUserRoles.schema';
 
+export type { RoomUserRole, RoomUserRoleData, RoomUserRolePatch, RoomUserRoleQuery };
+
 export type RoomUserRoleParams = KnexAdapterParams<RoomUserRoleQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
 export class RoomUserRoleService<ServiceParams extends Params = RoomUserRoleParams> extends KnexService<
 	RoomUserRole,
 	RoomUserRoleData,
-	ServiceParams,
+	RoomUserRoleParams,
 	RoomUserRolePatch
 > {}
 

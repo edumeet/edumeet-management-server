@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -32,7 +32,7 @@ export const roomUserRoleDataSchema = Type.Pick(roomUserRoleSchema, [ 'roomId', 
 	$id: 'RoomUserRoleData'
 });
 export type RoomUserRoleData = Static<typeof roomUserRoleDataSchema>
-export const roomUserRoleDataValidator = getDataValidator(roomUserRoleDataSchema, dataValidator);
+export const roomUserRoleDataValidator = getValidator(roomUserRoleDataSchema, dataValidator);
 export const roomUserRoleDataResolver = resolve<RoomUserRole, HookContext>({});
 
 // Schema for updating existing entries
@@ -40,7 +40,7 @@ export const roomUserRolePatchSchema = Type.Partial(roomUserRoleDataSchema, {
 	$id: 'RoomUserRolePatch'
 });
 export type RoomUserRolePatch = Static<typeof roomUserRolePatchSchema>
-export const roomUserRolePatchValidator = getDataValidator(roomUserRolePatchSchema, dataValidator);
+export const roomUserRolePatchValidator = getValidator(roomUserRolePatchSchema, dataValidator);
 export const roomUserRolePatchResolver = resolve<RoomUserRole, HookContext>({});
 
 // Schema for allowed query properties

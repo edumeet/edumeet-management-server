@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -25,7 +25,7 @@ export const roomOwnerDataSchema = Type.Pick(roomOwnerSchema, [ 'roomId', 'userI
 	$id: 'RoomOwnerData'
 });
 export type RoomOwnerData = Static<typeof roomOwnerDataSchema>
-export const roomOwnerDataValidator = getDataValidator(roomOwnerDataSchema, dataValidator);
+export const roomOwnerDataValidator = getValidator(roomOwnerDataSchema, dataValidator);
 export const roomOwnerDataResolver = resolve<RoomOwner, HookContext>({});
 
 // Schema for updating existing entries
@@ -33,7 +33,7 @@ export const roomOwnerPatchSchema = Type.Partial(roomOwnerDataSchema, {
 	$id: 'RoomOwnerPatch'
 });
 export type RoomOwnerPatch = Static<typeof roomOwnerPatchSchema>
-export const roomOwnerPatchValidator = getDataValidator(roomOwnerPatchSchema, dataValidator);
+export const roomOwnerPatchValidator = getValidator(roomOwnerPatchSchema, dataValidator);
 export const roomOwnerPatchResolver = resolve<RoomOwner, HookContext>({});
 
 // Schema for allowed query properties

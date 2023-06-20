@@ -33,10 +33,10 @@ app.use(bodyParser());
 // Configure services and transports
 app.configure(rest());
 app.configure(socketio({ cors: { origin: app.get('origins') } }));
+app.configure(channels);
 app.configure(postgresql);
 app.configure(authentication);
 app.configure(services);
-app.configure(channels);
 
 // Register hooks that run on all service methods
 app.hooks({ around: { all: [ logError ] } });

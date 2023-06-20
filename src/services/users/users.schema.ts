@@ -1,6 +1,6 @@
 // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 import { passwordHash } from '@feathersjs/authentication-local';
 
@@ -65,8 +65,8 @@ export const userDataAdminSchema = Type.Intersect([
 	Type.Partial(Type.Omit(userSchema, [ 'email', 'password' ]), { additionalProperties: false })
 ], { $id: 'UserDataAdmin', additionalProperties: false });
 export type UserData = Static<typeof userDataSchema>
-export const userDataValidator = getDataValidator(userDataSchema, dataValidator);
-export const userDataAdminValidator = getDataValidator(userDataAdminSchema, dataValidator);
+export const userDataValidator = getValidator(userDataSchema, dataValidator);
+export const userDataAdminValidator = getValidator(userDataAdminSchema, dataValidator);
 export const userDataResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' })
 });
@@ -80,8 +80,8 @@ export const userPatchSchema = Type.Partial(Type.Omit(
 { $id: 'UserPatch' }
 );
 export type UserPatch = Static<typeof userPatchSchema>
-export const userPatchValidator = getDataValidator(userPatchSchema, dataValidator);
-export const userPatchAdminValidator = getDataValidator(userPatchAdminSchema, dataValidator);
+export const userPatchValidator = getValidator(userPatchSchema, dataValidator);
+export const userPatchAdminValidator = getValidator(userPatchAdminSchema, dataValidator);
 export const userPatchResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' })
 });

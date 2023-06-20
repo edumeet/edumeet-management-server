@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -32,7 +32,7 @@ export const roomGroupRoleDataSchema = Type.Pick(roomGroupRoleSchema, [ 'roomId'
 	$id: 'RoomGroupRoleData'
 });
 export type RoomGroupRoleData = Static<typeof roomGroupRoleDataSchema>
-export const roomGroupRoleDataValidator = getDataValidator(roomGroupRoleDataSchema, dataValidator);
+export const roomGroupRoleDataValidator = getValidator(roomGroupRoleDataSchema, dataValidator);
 export const roomGroupRoleDataResolver = resolve<RoomGroupRole, HookContext>({});
 
 // Schema for updating existing entries
@@ -40,7 +40,7 @@ export const roomGroupRolePatchSchema = Type.Partial(roomGroupRoleDataSchema, {
 	$id: 'RoomGroupRolePatch'
 });
 export type RoomGroupRolePatch = Static<typeof roomGroupRolePatchSchema>
-export const roomGroupRolePatchValidator = getDataValidator(roomGroupRolePatchSchema, dataValidator);
+export const roomGroupRolePatchValidator = getValidator(roomGroupRolePatchSchema, dataValidator);
 export const roomGroupRolePatchResolver = resolve<RoomGroupRole, HookContext>({});
 
 // Schema for allowed query properties

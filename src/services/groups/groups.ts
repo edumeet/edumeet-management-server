@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { GroupService, getOptions } from './groups.class';
+import { groupPath, groupMethods } from './groups.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
@@ -25,14 +26,14 @@ export * from './groups.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const group = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('groups', new GroupService(getOptions(app)), {
+	app.use(groupPath, new GroupService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'patch', 'remove' ],
+		methods: groupMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('groups').hooks({
+	app.service(groupPath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -60,6 +61,6 @@ export const group = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		groups: GroupService
+		[groupPath]: GroupService
 	}
 }

@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -40,7 +40,7 @@ export const roleDataSchema = Type.Pick(roleSchema, [ 'name', 'description', 'te
 	$id: 'RoleData'
 });
 export type RoleData = Static<typeof roleDataSchema>
-export const roleDataValidator = getDataValidator(roleDataSchema, dataValidator);
+export const roleDataValidator = getValidator(roleDataSchema, dataValidator);
 export const roleDataResolver = resolve<Role, HookContext>({});
 
 // Schema for updating existing entries
@@ -48,7 +48,7 @@ export const rolePatchSchema = Type.Partial(roleDataSchema, {
 	$id: 'RolePatch'
 });
 export type RolePatch = Static<typeof rolePatchSchema>
-export const rolePatchValidator = getDataValidator(rolePatchSchema, dataValidator);
+export const rolePatchValidator = getValidator(rolePatchSchema, dataValidator);
 export const rolePatchResolver = resolve<Role, HookContext>({});
 
 // Schema for allowed query properties

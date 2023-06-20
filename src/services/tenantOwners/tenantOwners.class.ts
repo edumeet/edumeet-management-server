@@ -4,19 +4,19 @@ import { KnexService } from '@feathersjs/knex';
 import type { KnexAdapterParams, KnexAdapterOptions } from '@feathersjs/knex';
 
 import type { Application } from '../../declarations';
-import type {
-	TenantOwner,
-	TenantOwnerData,
-	TenantOwnerPatch,
-	TenantOwnerQuery
-} from './tenantOwners.schema';
+import type { TenantOwner, TenantOwnerData, TenantOwnerPatch, TenantOwnerQuery } from './tenantOwners.schema';
+
+export type { TenantOwner, TenantOwnerData, TenantOwnerPatch, TenantOwnerQuery };
 
 export type TenantOwnerParams = KnexAdapterParams<TenantOwnerQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class TenantOwnerService<
-	ServiceParams extends Params = TenantOwnerParams
-> extends KnexService<TenantOwner, TenantOwnerData, ServiceParams, TenantOwnerPatch> {}
+export class TenantOwnerService<ServiceParams extends Params = TenantOwnerParams> extends KnexService<
+	TenantOwner,
+	TenantOwnerData,
+	TenantOwnerParams,
+	TenantOwnerPatch
+> {}
 
 export const getOptions = (app: Application): KnexAdapterOptions => {
 	return {

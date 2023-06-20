@@ -6,13 +6,15 @@ import type { KnexAdapterParams, KnexAdapterOptions } from '@feathersjs/knex';
 import type { Application } from '../../declarations';
 import type { Group, GroupData, GroupPatch, GroupQuery } from './groups.schema';
 
+export type { Group, GroupData, GroupPatch, GroupQuery };
+
 export type GroupParams = KnexAdapterParams<GroupQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
 export class GroupService<ServiceParams extends Params = GroupParams> extends KnexService<
 	Group,
 	GroupData,
-	ServiceParams,
+	GroupParams,
 	GroupPatch
 > {}
 

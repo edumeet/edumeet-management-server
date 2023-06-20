@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -25,7 +25,7 @@ export const tenantAdminDataSchema = Type.Pick(tenantAdminSchema, [ 'tenantId', 
 	$id: 'TenantAdminData'
 });
 export type TenantAdminData = Static<typeof tenantAdminDataSchema>
-export const tenantAdminDataValidator = getDataValidator(tenantAdminDataSchema, dataValidator);
+export const tenantAdminDataValidator = getValidator(tenantAdminDataSchema, dataValidator);
 export const tenantAdminDataResolver = resolve<TenantAdmin, HookContext>({});
 
 // Schema for updating existing entries
@@ -33,7 +33,7 @@ export const tenantAdminPatchSchema = Type.Partial(tenantAdminDataSchema, {
 	$id: 'TenantAdminPatch'
 });
 export type TenantAdminPatch = Static<typeof tenantAdminPatchSchema>
-export const tenantAdminPatchValidator = getDataValidator(tenantAdminPatchSchema, dataValidator);
+export const tenantAdminPatchValidator = getValidator(tenantAdminPatchSchema, dataValidator);
 export const tenantAdminPatchResolver = resolve<TenantAdmin, HookContext>({});
 
 // Schema for allowed query properties

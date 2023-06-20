@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { TenantService, getOptions } from './tenants.class';
+import { tenantPath, tenantMethods } from './tenants.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { checkPermissions } from '../../hooks/checkPermissions';
@@ -26,14 +27,14 @@ export * from './tenants.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const tenant = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('tenants', new TenantService(getOptions(app)), {
+	app.use(tenantPath, new TenantService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'patch', 'remove' ],
+		methods: tenantMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('tenants').hooks({
+	app.service(tenantPath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -72,6 +73,6 @@ export const tenant = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		tenants: TenantService
+		[tenantPath]: TenantService
 	}
 }

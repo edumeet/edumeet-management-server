@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -26,7 +26,7 @@ export const tenantFqdnDataSchema = Type.Pick(tenantFqdnSchema, [ 'fqdn', 'descr
 	$id: 'TenantFqdnData'
 });
 export type TenantFqdnData = Static<typeof tenantFqdnDataSchema>
-export const tenantFqdnDataValidator = getDataValidator(tenantFqdnDataSchema, dataValidator);
+export const tenantFqdnDataValidator = getValidator(tenantFqdnDataSchema, dataValidator);
 export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({
 	tenantId: virtual(async (tenantFqdn, context) => {
 		if (context.params.user)
@@ -39,7 +39,7 @@ export const tenantFqdnPatchSchema = Type.Partial(tenantFqdnDataSchema, {
 	$id: 'TenantFqdnPatch'
 });
 export type TenantFqdnPatch = Static<typeof tenantFqdnPatchSchema>
-export const tenantFqdnPatchValidator = getDataValidator(tenantFqdnPatchSchema, dataValidator);
+export const tenantFqdnPatchValidator = getValidator(tenantFqdnPatchSchema, dataValidator);
 export const tenantFqdnPatchResolver = resolve<TenantFqdn, HookContext>({});
 
 // Schema for allowed query properties

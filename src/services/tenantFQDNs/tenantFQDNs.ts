@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { TenantFqdnService, getOptions } from './tenantFQDNs.class';
+import { tenantFqdnPath, tenantFqdnMethods } from './tenantFQDNs.shared';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
@@ -26,14 +27,14 @@ export * from './tenantFQDNs.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const tenantFqdn = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('tenantFQDNs', new TenantFqdnService(getOptions(app)), {
+	app.use(tenantFqdnPath, new TenantFqdnService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'patch', 'remove' ],
+		methods: tenantFqdnMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('tenantFQDNs').hooks({
+	app.service(tenantFqdnPath).hooks({
 		around: {
 			all: [
 				schemaHooks.resolveExternal(tenantFqdnExternalResolver),
@@ -76,6 +77,6 @@ export const tenantFqdn = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		tenantFQDNs: TenantFqdnService
+	[tenantFqdnPath]: TenantFqdnService
 	}
 }

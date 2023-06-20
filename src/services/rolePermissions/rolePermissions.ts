@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RolePermissionService, getOptions } from './rolePermissions.class';
+import { rolePermissionPath, rolePermissionMethods } from './rolePermissions.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
@@ -25,14 +26,14 @@ export * from './rolePermissions.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const rolePermission = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('rolePermissions', new RolePermissionService(getOptions(app)), {
+	app.use(rolePermissionPath, new RolePermissionService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'remove' ],
+		methods: rolePermissionMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('rolePermissions').hooks({
+	app.service(rolePermissionPath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -70,6 +71,6 @@ export const rolePermission = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		rolePermissions: RolePermissionService
+		[rolePermissionPath]: RolePermissionService
 	}
 }

@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -17,6 +17,7 @@ export const groupSchema = Type.Object(
 	{ $id: 'Group', additionalProperties: false }
 );
 export type Group = Static<typeof groupSchema>
+export const groupValidator = getValidator(groupSchema, dataValidator);
 export const groupResolver = resolve<Group, HookContext>({});
 
 export const groupExternalResolver = resolve<Group, HookContext>({});
@@ -26,15 +27,15 @@ export const groupDataSchema = Type.Pick(groupSchema, [ 'name' ], {
 	$id: 'GroupData'
 });
 export type GroupData = Static<typeof groupDataSchema>
-export const groupDataValidator = getDataValidator(groupDataSchema, dataValidator);
+export const groupDataValidator = getValidator(groupDataSchema, dataValidator);
 export const groupDataResolver = resolve<Group, HookContext>({});
 
 // Schema for updating existing entries
-export const groupPatchSchema = Type.Partial(groupDataSchema, {
+export const groupPatchSchema = Type.Partial(groupSchema, {
 	$id: 'GroupPatch'
 });
 export type GroupPatch = Static<typeof groupPatchSchema>
-export const groupPatchValidator = getDataValidator(groupPatchSchema, dataValidator);
+export const groupPatchValidator = getValidator(groupPatchSchema, dataValidator);
 export const groupPatchResolver = resolve<Group, HookContext>({});
 
 // Schema for allowed query properties

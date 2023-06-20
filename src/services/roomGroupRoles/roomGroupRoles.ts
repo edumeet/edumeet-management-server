@@ -16,6 +16,7 @@ import {
 
 import type { Application } from '../../declarations';
 import { RoomGroupRoleService, getOptions } from './roomGroupRoles.class';
+import { roomGroupRolePath, roomGroupRoleMethods } from './roomGroupRoles.shared';
 import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
@@ -26,14 +27,14 @@ export * from './roomGroupRoles.schema';
 // A configure function that registers the service and its hooks via `app.configure`
 export const roomGroupRole = (app: Application) => {
 	// Register our service on the Feathers application
-	app.use('roomGroupRoles', new RoomGroupRoleService(getOptions(app)), {
+	app.use(roomGroupRolePath, new RoomGroupRoleService(getOptions(app)), {
 		// A list of all methods this service exposes externally
-		methods: [ 'find', 'get', 'create', 'remove' ],
+		methods: roomGroupRoleMethods,
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
 	// Initialize hooks
-	app.service('roomGroupRoles').hooks({
+	app.service(roomGroupRolePath).hooks({
 		around: {
 			all: [
 				authenticate('jwt'),
@@ -72,6 +73,6 @@ export const roomGroupRole = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		roomGroupRoles: RoomGroupRoleService
+		[roomGroupRolePath]: RoomGroupRoleService
 	}
 }

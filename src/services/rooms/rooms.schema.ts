@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getDataValidator, getValidator, querySyntax } from '@feathersjs/typebox';
+import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -92,7 +92,7 @@ export const roomDataSchema = Type.Intersect([
 	], { additionalProperties: false }))
 ], { $id: 'RoomData', additionalProperties: false });
 export type RoomData = Static<typeof roomDataSchema>
-export const roomDataValidator = getDataValidator(roomDataSchema, dataValidator);
+export const roomDataValidator = getValidator(roomDataSchema, dataValidator);
 export const roomDataResolver = resolve<Room, HookContext>({
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now(),
@@ -123,7 +123,7 @@ export const roomPatchSchema = Type.Partial(Type.Omit(
 	$id: 'RoomPatch'
 });
 export type RoomPatch = Static<typeof roomPatchSchema>
-export const roomPatchValidator = getDataValidator(roomPatchSchema, dataValidator);
+export const roomPatchValidator = getValidator(roomPatchSchema, dataValidator);
 export const roomPatchResolver = resolve<Room, HookContext>({
 	updatedAt: async () => Date.now()
 });

@@ -11,13 +11,15 @@ import type {
 	RolePermissionQuery
 } from './rolePermissions.schema';
 
+export type { RolePermission, RolePermissionData, RolePermissionPatch, RolePermissionQuery };
+
 export type RolePermissionParams = KnexAdapterParams<RolePermissionQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
 export class RolePermissionService<ServiceParams extends Params = RolePermissionParams> extends KnexService<
 	RolePermission,
 	RolePermissionData,
-	ServiceParams,
+	RolePermissionParams,
 	RolePermissionPatch
 > {}
 
