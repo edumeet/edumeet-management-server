@@ -20,6 +20,8 @@ export const tenantOAuthSchema = Type.Object(
 		// eslint-disable-next-line camelcase
 		profile_url: Type.String(),
 		// eslint-disable-next-line camelcase
+		redirect_uri: Type.String(),
+		// eslint-disable-next-line camelcase
 		scope: Type.String(),
 		// eslint-disable-next-line camelcase
 		scope_delimiter: Type.String(),

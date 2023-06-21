@@ -65,6 +65,7 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('authorize_url');
 		table.string('access_url');
 		table.string('profile_url');
+		table.string('redirect_uri');
 		table.string('scope');
 		table.string('scope_delimiter');
 		table.unique([ 'tenantId' ], { useConstraint: true });
