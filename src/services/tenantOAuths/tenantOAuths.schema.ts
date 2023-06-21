@@ -20,11 +20,11 @@ export const tenantOAuthSchema = Type.Object(
 		// eslint-disable-next-line camelcase
 		profile_url: Type.String(),
 		// eslint-disable-next-line camelcase
-		redirect_uri: Type.String(),
+		redirect_uri: Type.Optional(Type.String()),
 		// eslint-disable-next-line camelcase
-		scope: Type.String(),
+		scope: Type.Optional(Type.String()),
 		// eslint-disable-next-line camelcase
-		scope_delimiter: Type.String(),
+		scope_delimiter: Type.Optional(Type.String()),
 	},
 	{ $id: 'TenantOAuth', additionalProperties: false }
 );
@@ -41,19 +41,13 @@ export const tenantOAuthExternalResolver = resolve<TenantOAuth, HookContext>({
 
 // Schema for creating new entries
 export const tenantOAuthDataSchema = Type.Omit(tenantOAuthSchema, [
-	'id',
-	'scope',
-	'scope_delimiter'
+	'id'
 ], {
 	$id: 'TenantOAuthData', additionalProperties: false
 });
 export type TenantOAuthData = Static<typeof tenantOAuthDataSchema>
 export const tenantOAuthDataValidator = getValidator(tenantOAuthDataSchema, dataValidator);
-export const tenantOAuthDataResolver = resolve<TenantOAuth, HookContext>({
-	scope: async (value = 'openid profile email') => value,
-	// eslint-disable-next-line camelcase
-	scope_delimiter: async (value = ' ') => value,
-});
+export const tenantOAuthDataResolver = resolve<TenantOAuth, HookContext>({});
 
 // Schema for updating existing entries
 export const tenantOAuthPatchSchema = Type.Partial(tenantOAuthSchema, {
@@ -78,7 +72,7 @@ export const tenantOAuthQueryValidator = getValidator(tenantOAuthQuerySchema, qu
 export const tenantOAuthQueryResolver = resolve<TenantOAuthQuery, HookContext>({
 	tenantId: async (value, query, context) => {
 		// Make sure the user is limited to their own tenant
-		if (context.params.user)
+		if (context.params.user?.tenantId)
 			return context.params.user.tenantId;
 
 		return value;
