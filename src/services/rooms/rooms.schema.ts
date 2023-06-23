@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve, virtual } from '@feathersjs/schema';
-import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
+import { StringEnum, Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
@@ -8,6 +8,10 @@ import { dataValidator, queryValidator } from '../../validators';
 import { roomGroupRoleSchema } from '../roomGroupRoles/roomGroupRoles.schema';
 import { roomUserRoleSchema } from '../roomUserRoles/roomUserRoles.schema';
 import { roomOwnerSchema } from '../roomOwners/roomOwners.schema';
+import { roleSchema } from '../roles/roles.schema';
+
+export const VideoCodec = StringEnum([ 'vp8', 'vp9', 'h264', 'h265', 'av1' ]);
+export const VideoResolution = StringEnum([ 'low', 'medium', 'high', 'veryhigh', 'ultra' ]);
 
 // Main data model schema
 export const roomSchema = Type.Object(
@@ -24,6 +28,8 @@ export const roomSchema = Type.Object(
 		owners: Type.Array(Type.Ref(roomOwnerSchema)),
 		groupRoles: Type.Array(Type.Ref(roomGroupRoleSchema)), // Group roles in this room
 		userRoles: Type.Array(Type.Ref(roomUserRoleSchema)), // User roles in this room
+		defaultRole: Type.Optional(Type.Ref(roleSchema)),
+		defaultRoleId: Type.Optional(Type.Number()), // Default role for users without a role in this room
 
 		// Look and feel
 		logo: Type.Optional(Type.String()),
@@ -37,6 +43,32 @@ export const roomSchema = Type.Object(
 		raiseHandEnabled: Type.Boolean(),
 		filesharingEnabled: Type.Boolean(),
 		localRecordingEnabled: Type.Boolean(),
+
+		// Video settings
+		videoCodec: Type.Optional(Type.String()), // vp8, vp9, h264, h265, av1
+		simulcast: Type.Optional(Type.Boolean()),
+		videoResolution: Type.Optional(VideoResolution), // low, medium, high, veryhigh, ultra
+		videoFramerate: Type.Optional(Type.Number()),
+
+		// Audio settings
+		audioCodec: Type.Optional(Type.String()), // opus, g722, pcmu, pcma, isac, ilbc, g729, speex
+		autoGainControl: Type.Optional(Type.Boolean()),
+		echoCancellation: Type.Optional(Type.Boolean()),
+		noiseSuppression: Type.Optional(Type.Boolean()),
+		sampleRate: Type.Optional(Type.Number()),
+		channelCount: Type.Optional(Type.Number()),
+		sampleSize: Type.Optional(Type.Number()),
+		opusStereo: Type.Optional(Type.Boolean()),
+		opusDtx: Type.Optional(Type.Boolean()),
+		opusFec: Type.Optional(Type.Boolean()),
+		opusPtime: Type.Optional(Type.Number()),
+		opusMaxPlaybackRate: Type.Optional(Type.Number()),
+
+		// Screen sharing settings
+		screenSharingCodec: Type.Optional(Type.String()),
+		screenSharingSimulcast: Type.Optional(Type.Boolean()),
+		screenSharingResolution: Type.Optional(VideoResolution),
+		screenSharingFramerate: Type.Optional(Type.Number()),
 	},
 	{ $id: 'Room', additionalProperties: false }
 );
@@ -72,9 +104,36 @@ export const roomResolver = resolve<Room, HookContext>({
 
 		return data;
 	}),
+	defaultRole: virtual(async (room, context) => {
+		if (room.defaultRoleId)
+			return context.app.service('roles').get(room.defaultRoleId);
+	}),
 });
 
-export const roomExternalResolver = resolve<Room, HookContext>({});
+export const roomExternalResolver = resolve<Room, HookContext>({
+	logo: async (value) => value ?? undefined,
+	background: async (value) => value ?? undefined,
+	videoCodec: async (value) => value ?? undefined,
+	simulcast: async (value) => value ?? undefined,
+	videoResolution: async (value) => value ?? undefined,
+	videoFramerate: async (value) => value ?? undefined,
+	audioCodec: async (value) => value ?? undefined,
+	autoGainControl: async (value) => value ?? undefined,
+	echoCancellation: async (value) => value ?? undefined,
+	noiseSuppression: async (value) => value ?? undefined,
+	sampleRate: async (value) => value ?? undefined,
+	channelCount: async (value) => value ?? undefined,
+	sampleSize: async (value) => value ?? undefined,
+	opusStereo: async (value) => value ?? undefined,
+	opusDtx: async (value) => value ?? undefined,
+	opusFec: async (value) => value ?? undefined,
+	opusPtime: async (value) => value ?? undefined,
+	opusMaxPlaybackRate: async (value) => value ?? undefined,
+	screenSharingCodec: async (value) => value ?? undefined,
+	screenSharingSimulcast: async (value) => value ?? undefined,
+	screenSharingResolution: async (value) => value ?? undefined,
+	screenSharingFramerate: async (value) => value ?? undefined,
+});
 
 // Schema for creating new entries
 export const roomDataSchema = Type.Intersect([
@@ -85,6 +144,7 @@ export const roomDataSchema = Type.Intersect([
 		'owners',
 		'groupRoles',
 		'userRoles',
+		'defaultRole',
 		'createdAt',
 		'updatedAt',
 		'creatorId',
@@ -115,6 +175,7 @@ export const roomPatchSchema = Type.Partial(Type.Omit(
 		'owners',
 		'groupRoles',
 		'userRoles',
+		'defaultRole',
 		'createdAt',
 		'updatedAt',
 		'creatorId',

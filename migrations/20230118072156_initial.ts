@@ -119,8 +119,11 @@ export async function up(knex: Knex): Promise<void> {
 		table.bigint('updatedAt');
 		table.bigint('creatorId').references('id').inTable('users');
 		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('defaultRoleId').references('id').inTable('roles');
+
 		table.string('logo');
 		table.string('background');
+
 		table.integer('maxActiveVideos');
 		table.boolean('locked');
 		table.boolean('breakoutsEnabled');
@@ -128,6 +131,29 @@ export async function up(knex: Knex): Promise<void> {
 		table.boolean('raiseHandEnabled');
 		table.boolean('filesharingEnabled');
 		table.boolean('localRecordingEnabled');
+
+		table.string('videoCodec');
+		table.boolean('simulcast');
+		table.string('videoResolution');
+		table.integer('videoFramerate');
+
+		table.string('audioCodec');
+		table.boolean('autoGainControl');
+		table.boolean('echoCancellation');
+		table.boolean('noiseSuppression');
+		table.integer('sampleRate');
+		table.integer('channelCount');
+		table.integer('sampleSize');
+		table.boolean('opusStereo');
+		table.boolean('opusDtx');
+		table.boolean('opusFec');
+		table.integer('opusPtime');
+		table.integer('opusMaxPlaybackRate');
+
+		table.string('screenSharingCodec');
+		table.boolean('screenSharingSimulcast');
+		table.string('screenSharingResolution');
+		table.integer('screenSharingFramerate');
 		table.unique([ 'tenantId', 'name' ], { useConstraint: true });
 	});
 
