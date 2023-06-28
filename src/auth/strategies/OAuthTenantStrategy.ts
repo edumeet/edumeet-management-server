@@ -5,6 +5,7 @@ import qs from 'qs';
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	async getEntityQuery(profile: OAuthProfile, params: Params) {
+		if (profile?.error)	throw new Error(profile.error);
 		if (!profile.email || !params?.query?.tenantId) throw new Error('Missing paramenter(s)');
 
 		return {
