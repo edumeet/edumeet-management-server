@@ -11,9 +11,7 @@ This project uses [Feathers](http://feathersjs.com). An open source framework fo
 Postgresql and application config 
 ```
 docker run  --name edumeet-db -p 5432:5432 -e POSTGRES_PASSWORD=edumeet -d postgres
-docker exec -it edumeet-db sh
-psql postgres://postgres:edumeet@localhost:5432/
-create database edumeet;
+docker exec -it edumeet-db psql -U postgrest -c "create database edumeet;"
 ```
 Install your dependencies
 ```

@@ -37,6 +37,7 @@ describe('application client tests', () => {
 		const userData: UserData = {
 			email: 'someone@example.com',
 			password: 'supersecret',
+			tenantId: 1
 		};
 
 		await client.service('users').create(userData);
