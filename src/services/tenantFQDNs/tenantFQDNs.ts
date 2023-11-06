@@ -11,7 +11,8 @@ import {
 	tenantFqdnExternalResolver,
 	tenantFqdnDataResolver,
 	tenantFqdnPatchResolver,
-	tenantFqdnQueryResolver
+	tenantFqdnQueryResolver,
+	tenantFqdnUserQueryResolver
 } from './tenantFQDNs.schema';
 
 import type { Application } from '../../declarations';
@@ -49,7 +50,7 @@ export const tenantFqdn = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(tenantFqdnQueryValidator),
-				iff(notSuperAdmin(), schemaHooks.resolveQuery(tenantFqdnQueryResolver))
+				iff(notSuperAdmin(), schemaHooks.resolveQuery(tenantFqdnUserQueryResolver)).else(schemaHooks.resolveQuery(tenantFqdnQueryResolver))
 			],
 			find: [],
 			get: [],
