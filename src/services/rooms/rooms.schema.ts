@@ -154,6 +154,8 @@ export const roomDataSchema = Type.Intersect([
 export type RoomData = Static<typeof roomDataSchema>
 export const roomDataValidator = getValidator(roomDataSchema, dataValidator);
 export const roomDataResolver = resolve<Room, HookContext>({
+	// on room-server rooms are case insensitive
+	name: async (value, room, context) => context.data.name.toLowerCase(),
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now(),
 	creatorId: async (value, room, context) => context.params.user?.id,
