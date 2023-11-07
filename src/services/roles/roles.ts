@@ -19,6 +19,7 @@ import { RoleService, getOptions } from './roles.class';
 import { rolePath, roleMethods } from './roles.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { isInSameTenant } from '../../hooks/isInSameTenant';
 
 export * from './roles.class';
 export * from './roles.schema';
@@ -45,8 +46,8 @@ export const role = (app: Application) => {
 			all: [ schemaHooks.validateQuery(roleQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(roleQueryResolver)) ],
 			find: [],
 			get: [],
-			create: [ schemaHooks.validateData(roleDataValidator), schemaHooks.resolveData(roleDataResolver) ],
-			patch: [ schemaHooks.validateData(rolePatchValidator), schemaHooks.resolveData(rolePatchResolver) ],
+			create: [ schemaHooks.validateData(roleDataValidator), iff(notSuperAdmin(), iff(isInSameTenant(), schemaHooks.resolveData(roleDataResolver))).else(schemaHooks.resolveData(roleDataResolver)) ],
+			patch: [ schemaHooks.validateData(rolePatchValidator), iff(notSuperAdmin(), iff(isInSameTenant(), schemaHooks.resolveData(rolePatchResolver))).else(schemaHooks.resolveData(rolePatchResolver)) ],
 			remove: []
 		},
 		after: {
