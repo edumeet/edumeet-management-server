@@ -29,8 +29,11 @@ export type TenantFqdnData = Static<typeof tenantFqdnDataSchema>
 export const tenantFqdnDataValidator = getValidator(tenantFqdnDataSchema, dataValidator);
 export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({
 	tenantId: virtual(async (tenantFqdn, context) => {
-		if (context.params.user)
+		if (context.params.user && context.params.user.tenantId!=null) {
 			return context.params.user.tenantId;
+		} else {
+			return context.data.tenantId;
+		}
 	})
 });
 
