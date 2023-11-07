@@ -19,7 +19,6 @@ import { RoleService, getOptions } from './roles.class';
 import { rolePath, roleMethods } from './roles.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { isInSameTenant } from '../../hooks/isInSameTenant';
 import { notInSameTenant } from '../../hooks/notSameTenant';
 
 export * from './roles.class';
