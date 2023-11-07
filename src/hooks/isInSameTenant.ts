@@ -8,6 +8,6 @@ import { HookContext } from '../declarations';
 export const isInSameTenant = () => (context: HookContext) => {
 
 	// You can not move roles to a different tenant
-	return (context.params.query.tenantId === context.params.user.tenantId);
+	return (context.params.data.tenantId === context.params.user.tenantId);
 
 };
