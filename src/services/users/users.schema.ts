@@ -107,3 +107,13 @@ export const userQueryResolver = resolve<UserQuery, HookContext>({
 		return value;
 	}
 });
+
+export const userTenantManagerQueryResolver = resolve<UserQuery, HookContext>({
+	// If there is a user (TenantAdmin/Owner), they are allowed to see their own tenant data
+	tenantId: async (value, query, context) => {
+		if (context.params.user && context.params.user.tenantId)
+			return context.params.user.tenantId;
+
+		return value;
+	}
+});
