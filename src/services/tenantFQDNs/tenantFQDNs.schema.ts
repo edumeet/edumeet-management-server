@@ -29,8 +29,11 @@ export type TenantFqdnData = Static<typeof tenantFqdnDataSchema>
 export const tenantFqdnDataValidator = getValidator(tenantFqdnDataSchema, dataValidator);
 export const tenantFqdnDataResolver = resolve<TenantFqdn, HookContext>({
 	tenantId: virtual(async (tenantFqdn, context) => {
-		if (context.params.user)
+		if (context.params.user && context.params.user.tenantId!=null) {
 			return context.params.user.tenantId;
+		} else {
+			return context.data.tenantId;
+		}
 	})
 });
 
@@ -55,3 +58,12 @@ export const tenantFqdnQuerySchema = Type.Intersect(
 export type TenantFqdnQuery = Static<typeof tenantFqdnQuerySchema>
 export const tenantFqdnQueryValidator = getValidator(tenantFqdnQuerySchema, queryValidator);
 export const tenantFqdnQueryResolver = resolve<TenantFqdnQuery, HookContext>({});
+
+export const tenantFqdnUserQueryResolver = resolve<TenantFqdnQuery, HookContext>({
+	tenantId: async (value, query, context) => {
+		if (context.params.user)
+			return context.params.user.tenantId;
+
+		return value;
+	}
+});

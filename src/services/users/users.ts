@@ -11,7 +11,8 @@ import {
 	userPatchResolver,
 	userQueryResolver,
 	userDataAdminValidator,
-	userPatchAdminValidator
+	userPatchAdminValidator,
+	userTenantManagerQueryResolver
 } from './users.schema';
 
 import type { Application } from '../../declarations';
@@ -19,6 +20,8 @@ import { UserService, getOptions } from './users.class';
 import { userPath, userMethods } from './users.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { notTenantManager } from '../../hooks/notTenantManager';
+
 import { checkPermissions } from '../../hooks/checkPermissions';
 
 export * from './users.class';
@@ -45,7 +48,7 @@ export const user = (app: Application) => {
 			remove: [ authenticate('jwt') ]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(userQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(userQueryResolver)) ],
+			all: [ schemaHooks.validateQuery(userQueryValidator), iff(notSuperAdmin(), iff(notTenantManager(), schemaHooks.resolveQuery(userQueryResolver)).else(schemaHooks.resolveQuery(userTenantManagerQueryResolver))) ],
 			find: [],
 			get: [],
 			create: [
