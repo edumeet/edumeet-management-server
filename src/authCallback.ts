@@ -1,9 +1,12 @@
 import Router from '@koa/router';
+import DOMPurify from 'dompurify';
 
 export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 	// eslint-disable-next-line camelcase
 	const { access_token } = ctx.request.query;
 
+	const clean = DOMPurify.sanitize(access_token);
+	
 	// eslint-disable-next-line camelcase
 	if (!access_token) {
 		ctx.status = 400;
@@ -20,7 +23,7 @@ export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 			</head>
 			<body>
 				<script type='text/javascript'>
-					let data = ${JSON.stringify(access_token)};
+					let data = ${JSON.stringify(clean)};
 		
 					window.opener.postMessage({
 						type: 'edumeet-login',
