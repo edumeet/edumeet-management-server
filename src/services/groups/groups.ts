@@ -50,7 +50,7 @@ export const group = (app: Application) => {
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupDataValidator),
 				schemaHooks.resolveData(groupDataResolver) ],
-			patch: [ 				
+			patch: [
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupPatchValidator),
 				schemaHooks.resolveData(groupPatchResolver) ],

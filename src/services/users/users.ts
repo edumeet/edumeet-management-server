@@ -48,7 +48,18 @@ export const user = (app: Application) => {
 			remove: [ authenticate('jwt') ]
 		},
 		before: {
-			all: [ schemaHooks.validateQuery(userQueryValidator), iff(notSuperAdmin(), iff(notTenantManager(), schemaHooks.resolveQuery(userQueryResolver)).else(schemaHooks.resolveQuery(userTenantManagerQueryResolver))) ],
+			all: [
+				schemaHooks.validateQuery(userQueryValidator),
+				iff(
+					notSuperAdmin(),
+					iff(
+						notTenantManager(),
+						schemaHooks.resolveQuery(userQueryResolver)
+					).else(
+						schemaHooks.resolveQuery(userTenantManagerQueryResolver)
+					)
+				),
+			],
 			find: [],
 			get: [],
 			create: [
