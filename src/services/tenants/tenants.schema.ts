@@ -1,10 +1,11 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve } from '@feathersjs/schema';
+import { resolve, virtual } from '@feathersjs/schema';
 import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { roomSettingsSchema } from '../roomSettings/roomSettings.schema';
 
 // Main data model schema
 export const tenantSchema = Type.Object(
@@ -12,11 +13,18 @@ export const tenantSchema = Type.Object(
 		id: Type.Number(),
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
+		defaultRoomSettingsId: Type.Optional(Type.Number()),
+		defaultRoomSettings: Type.Optional(Type.Ref(roomSettingsSchema)),
 	},
 	{ $id: 'Tenant', additionalProperties: false }
 );
 export type Tenant = Static<typeof tenantSchema>
-export const tenantResolver = resolve<Tenant, HookContext>({});
+export const tenantResolver = resolve<Tenant, HookContext>({
+	defaultRoomSettings: virtual(async (tenant, context) => {
+		if (tenant.defaultRoomSettingsId)
+			return context.app.service('roomSettings').get(tenant.defaultRoomSettingsId);
+	}),
+});
 
 export const tenantExternalResolver = resolve<Tenant, HookContext>({});
 

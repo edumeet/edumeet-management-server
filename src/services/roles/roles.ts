@@ -46,12 +46,12 @@ export const role = (app: Application) => {
 			all: [ schemaHooks.validateQuery(roleQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(roleQueryResolver)) ],
 			find: [],
 			get: [],
-			create: [ 
+			create: [
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(roleDataValidator),
 				schemaHooks.resolveData(roleDataResolver)
 			],
-			patch: [ 
+			patch: [
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rolePatchValidator),
 				schemaHooks.resolveData(rolePatchResolver)

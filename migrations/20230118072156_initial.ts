@@ -2,6 +2,8 @@ import { Knex } from 'knex';
 import bcrypt from 'bcryptjs';
 
 export async function up(knex: Knex): Promise<void> {
+
+
 	await knex.schema.createTable('tenants', (table) => {
 		table.increments('id');
 		table.string('name');
@@ -111,15 +113,14 @@ export async function up(knex: Knex): Promise<void> {
 		table.unique([ 'roleId', 'permissionId' ], { useConstraint: true });
 	});
 
-	await knex.schema.createTable('rooms', (table) => {
+	await knex.schema.createTable('roomSettings', (table) => {
 		table.increments('id');
 		table.string('name');
 		table.string('description');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
-		table.bigint('creatorId').references('id').inTable('users');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
-		table.bigint('defaultRoleId').references('id').inTable('roles');
+		table.integer('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.integer('ownerId').references('id').inTable('users').onDelete('CASCADE');
 
 		table.string('logo');
 		table.string('background');
@@ -154,6 +155,19 @@ export async function up(knex: Knex): Promise<void> {
 		table.boolean('screenSharingSimulcast');
 		table.string('screenSharingResolution');
 		table.integer('screenSharingFramerate');
+	});
+
+	await knex.schema.createTable('rooms', (table) => {
+		table.increments('id');
+		table.string('name');
+		table.string('description');
+		table.bigint('createdAt');
+		table.bigint('updatedAt');
+		table.bigint('creatorId').references('id').inTable('users');
+		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('defaultRoleId').references('id').inTable('roles');
+		table.bigint('roomSettingsId').references('id').inTable('roomSettings');
+
 		table.unique([ 'tenantId', 'name' ], { useConstraint: true });
 	});
 
@@ -210,8 +224,7 @@ export async function up(knex: Knex): Promise<void> {
 
 	await knex.schema.createTable('mediaNodes', (table) => {
 		table.increments('id');
-		table.bigint('createdAt');
-		table.bigint('updatedAt');
+		table.string('description');
 		table.string('hostname');
 		table.integer('port');
 		table.string('secret');
