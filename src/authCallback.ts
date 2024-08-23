@@ -5,7 +5,8 @@ export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 	// eslint-disable-next-line camelcase
 	const { access_token } = ctx.request.query;
 
-        const clean = (access_token: string): string => DOMPurify.sanitize(access_token);
+	// eslint-disable-next-line camelcase
+	const clean = DOMPurify.sanitize(access_token as string);
 	
 	// eslint-disable-next-line camelcase
 	if (!access_token) {
