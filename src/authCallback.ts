@@ -1,5 +1,5 @@
 import Router from '@koa/router';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 
 export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 	// eslint-disable-next-line camelcase
