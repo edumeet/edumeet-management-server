@@ -8,6 +8,7 @@
 		"resolveJsonModule": true,
 		"outDir": "dist",
 		"esModuleInterop": true,
+		"sourceMap": true,
 	},
 	"include": [ "src", "test", "knexfile.ts" ],
 	"exclude": [ "migrations" ]
