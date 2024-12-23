@@ -21,6 +21,7 @@ import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 import { addRoomOwner } from '../../hooks/addRoomOwner';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import filterByRoomOwnership from '../../hooks/filterByRoomOwnership';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -40,7 +41,7 @@ export const room = (app: Application) => {
 			all: [
 				authenticate('jwt'),
 				schemaHooks.resolveExternal(roomExternalResolver),
-				schemaHooks.resolveResult(roomResolver)
+				schemaHooks.resolveResult(roomResolver)			
 			]
 		},
 		before: {
@@ -48,8 +49,8 @@ export const room = (app: Application) => {
 				schemaHooks.validateQuery(roomQueryValidator),
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(roomQueryResolver))
 			],
-			find: [],
-			get: [],
+			find: [ iff(notSuperAdmin(), filterByRoomOwnership) ],
+			get: [ iff(notSuperAdmin(), filterByRoomOwnership) ],
 			create: [
 				schemaHooks.validateData(roomDataValidator),
 				schemaHooks.resolveData(roomDataResolver)
@@ -63,6 +64,7 @@ export const room = (app: Application) => {
 		},
 		after: {
 			all: [],
+			get: [],
 			create: [ addRoomOwner ],
 		},
 		error: {
