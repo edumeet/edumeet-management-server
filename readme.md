@@ -30,6 +30,17 @@ yarn start
 yarn test
 ```
 
+Ways to access the management server:
+* For edumeet 4.0 (the management-client, which is a standalone application that provides an UI for all the API calls)
+* For edumeet 4.1 and above the mangement client is integrated into the edumeet client (on path '/mgmt-admin')
+* Directly from curl / thunder client / postman ... 
+
+For accessing certain API calls you have to have the proper JWT token authorization.
+
+The thenant owner/admin/local admin can access tenant settings.
+
+The normal users can create and manage their own rooms inside their own tenant.
+
 ## Dev tips for testing (with curl)
 
 ### Add user 
