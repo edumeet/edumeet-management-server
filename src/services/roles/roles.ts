@@ -47,7 +47,6 @@ export const role = (app: Application) => {
 			find: [],
 			get: [],
 			create: [ 
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(roleDataValidator),
 				schemaHooks.resolveData(roleDataResolver)
 			],

@@ -41,7 +41,15 @@ export const roleDataSchema = Type.Pick(roleSchema, [ 'name', 'description', 'te
 });
 export type RoleData = Static<typeof roleDataSchema>
 export const roleDataValidator = getValidator(roleDataSchema, dataValidator);
-export const roleDataResolver = resolve<Role, HookContext>({});
+export const roleDataResolver = resolve<Role, HookContext>({
+	tenantId: async (value, query, context) => {
+		// Make sure the user is limited to their own tenant
+		if (context.params.user)
+			return context.params.user.tenantId;
+
+		return value;
+	}
+});
 
 // Schema for updating existing entries
 export const rolePatchSchema = Type.Partial(roleDataSchema, {
