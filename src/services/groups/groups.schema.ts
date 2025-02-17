@@ -28,7 +28,15 @@ export const groupDataSchema = Type.Pick(groupSchema, [ 'name' ], {
 });
 export type GroupData = Static<typeof groupDataSchema>
 export const groupDataValidator = getValidator(groupDataSchema, dataValidator);
-export const groupDataResolver = resolve<Group, HookContext>({});
+export const groupDataResolver = resolve<Group, HookContext>({
+	tenantId: async (value, query, context) => {
+		// Make sure the user is limited to their own tenant
+		if (context.params.user)
+			return context.params.user.tenantId;
+
+		return value;
+	}
+});
 
 // Schema for updating existing entries
 export const groupPatchSchema = Type.Partial(groupSchema, {
