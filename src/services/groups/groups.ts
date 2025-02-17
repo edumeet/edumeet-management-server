@@ -47,7 +47,6 @@ export const group = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupDataValidator),
 				schemaHooks.resolveData(groupDataResolver) ],
 			patch: [
