@@ -43,7 +43,7 @@ The normal users can create and manage their own rooms inside their own tenant.
 
 ## Dev tips for testing (with curl)
 
-### Add user 
+### Add user (option has been removed, use migration to create your initial user)
 ```
 curl 'http://edumeet.example.com:3030/users/' \
   -H 'Content-Type: application/json' \
