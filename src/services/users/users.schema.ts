@@ -76,7 +76,7 @@ export const userPatchAdminSchema = Type.Partial(userSchema, { $id: 'RoomPatchAd
 // Schema for updating existing users
 export const userPatchSchema = Type.Partial(Type.Omit(
 	userSchema,
-	[ 'email', 'tenantId', 'ssoId', 'tenantAdmin', 'tenantOwner', 'roles' ]),
+	[ 'email', 'tenantId', 'ssoId', 'tenantAdmin', 'tenantOwner' ]),
 { $id: 'UserPatch' }
 );
 export type UserPatch = Static<typeof userPatchSchema>

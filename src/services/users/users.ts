@@ -23,6 +23,8 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notTenantManager } from '../../hooks/notTenantManager';
 
 import { checkPermissions } from '../../hooks/checkPermissions';
+import { assertRules } from '../../hooks/assertRules';
+import { gainRules } from '../../hooks/gainRules';
 
 export * from './users.class';
 export * from './users.schema';
@@ -64,6 +66,7 @@ export const user = (app: Application) => {
 			get: [],
 			create: [
 				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
+				assertRules,
 				schemaHooks.validateData(userDataAdminValidator),
 				schemaHooks.resolveData(userDataResolver)
 			],
@@ -77,7 +80,8 @@ export const user = (app: Application) => {
 			]
 		},
 		after: {
-			all: []
+			all: [ gainRules ],
+			create: [ ]
 		},
 		error: {
 			all: []
