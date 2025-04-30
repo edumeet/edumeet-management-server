@@ -18,7 +18,8 @@ export const dynamicOAuth = async (context: HookContext) => {
 		profile_url,
 		redirect_uri = '/oauth/tenant/callback',
 		scope = 'openid profile email',
-		scope_delimiter = ' '
+		scope_delimiter = ' ',
+		name_parameter
 	} = data[0];
 
 	if (!key) throw new Error('Missing OAuth key');
@@ -35,4 +36,5 @@ export const dynamicOAuth = async (context: HookContext) => {
 	context.params.query.profile_url = profile_url;
 	context.params.query.redirect_uri = redirect_uri;
 	context.params.query.scope_delimiter = scope_delimiter;
+	context.params.query.name_parameter = name_parameter;
 };
