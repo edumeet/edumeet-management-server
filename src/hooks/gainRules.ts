@@ -59,9 +59,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 					condition = !condition;
 				}
 				if (condition) {
-					// eslint-disable-next-line no-console
-					// console.log(accessId, action);
-
+					
 					switch (action) {
 						case 'groupUsers': {
 							// -> action db/service -> currentuser id + accessId assigment
@@ -77,9 +75,6 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 
 								if (precheck) {
 									context.app.service(action).create({ groupId: parseInt(accessId), userId: context.result.id });
-								} else {
-								// eslint-disable-next-line no-console
-								// console.log(accessId, action, 'redundant');
 								}
 							}
 							break;
@@ -97,9 +92,6 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 
 							if (precheck) {
 								context.app.service(action).create({ tenantId: context.data.tenantId, userId: context.result.id });
-							} else {
-								// eslint-disable-next-line no-console
-								// console.log(accessId, action, 'redundant');
 							}
 
 							break;
@@ -117,16 +109,12 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 
 							if (precheck) {
 								context.app.service(action).create({ tenantId: context.data.tenantId, userId: context.result.id });
-							} else {
-								// eslint-disable-next-line no-console
-								// console.log(accessId, action, 'redundant');
 							}
 
 							break;
 						}
 						case 'userRole': {
-							// eslint-disable-next-line no-console
-							console.log(accessId, action);
+							// TODO
 							break;
 						}
 						case 'superAdmin': {
@@ -135,9 +123,6 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 							precheck = tmp == null || !tmp.includes('super-admin');
 							if (precheck) {
 								context.app.service('users').patch(context.result.id, { roles: [ 'super-admin' ] });
-							} else {
-								// eslint-disable-next-line no-console
-								// console.log(accessId, action, 'redundant');
 							}
 							break;
 						}
