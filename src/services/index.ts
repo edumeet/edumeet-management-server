@@ -15,6 +15,7 @@ import { group } from './groups/groups';
 import { user } from './users/users';
 // For more information about this file see https://dove.feathersjs.com/guides/cli/application.html#configure-functions
 import type { Application } from '../declarations';
+import { rule } from './rules/rules';
 
 export const services = (app: Application) => {
 	app.configure(tenant);
@@ -28,6 +29,7 @@ export const services = (app: Application) => {
 	app.configure(roomGroupRole);
 	app.configure(role);
 	app.configure(rolePermission);
+	app.configure(rule);
 	app.configure(permission);
 	app.configure(groupUser);
 	app.configure(group);

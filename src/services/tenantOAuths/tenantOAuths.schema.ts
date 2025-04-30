@@ -25,6 +25,10 @@ export const tenantOAuthSchema = Type.Object(
 		scope: Type.Optional(Type.String()),
 		// eslint-disable-next-line camelcase
 		scope_delimiter: Type.Optional(Type.String()),
+		// eslint-disable-next-line camelcase
+		end_session_endpoint: Type.Optional(Type.String()),
+		// eslint-disable-next-line camelcase
+		name_parameter: Type.Optional(Type.String()),
 	},
 	{ $id: 'TenantOAuth', additionalProperties: false }
 );
