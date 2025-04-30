@@ -65,20 +65,22 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 					switch (action) {
 						case 'groupUsers': {
 							// -> action db/service -> currentuser id + accessId assigment
-							tmp = await context.app.service(action).find({
-								paginate: false, // Fetch all relevant records
-								query: {
-									groupId: parseInt(accessId),
-									userId: parseInt(context.result.id)
-								}
-							});
-							precheck = tmp.length == 0;
+							if (accessId) {
+								tmp = await context.app.service(action).find({
+									paginate: false, // Fetch all relevant records
+									query: {
+										groupId: parseInt(accessId),
+										userId: parseInt(context.result.id)
+									}
+								});
+								precheck = tmp.length == 0;
 
-							if (precheck) {
-								context.app.service(action).create({ groupId: parseInt(accessId), userId: context.result.id });
-							} else {
+								if (precheck) {
+									context.app.service(action).create({ groupId: parseInt(accessId), userId: context.result.id });
+								} else {
 								// eslint-disable-next-line no-console
 								// console.log(accessId, action, 'redundant');
+								}
 							}
 							break;
 						}
