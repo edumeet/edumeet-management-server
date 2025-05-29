@@ -3,63 +3,72 @@ import bcrypt from 'bcryptjs';
 
 export async function up(knex: Knex): Promise<void> {
 	await knex.schema.createTable('tenants', (table) => {
-		table.increments('id');
+		table.bigIncrements('id').primary();
 		table.string('name');
 		table.string('description');
 	});
 
 	await knex.schema.createTable('users', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('ssoId');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('email');
 		table.string('password');
 		table.string('name');
 		table.string('avatar');
-		table.specificType('roles', 'VARCHAR(255) ARRAY');
-		table.unique([ 'tenantId', 'email' ], { useConstraint: true });
-		table.unique([ 'tenantId', 'ssoId' ], { useConstraint: true });
-	});
+		if (knex.client.config.client === 'pg') {
+			// PostgreSQL specific type for roles
+			table.specificType('roles', 'VARCHAR(255) ARRAY');
+		} else if (knex.client.config.client === 'mysql' || knex.client.config.client === 'mysql2' ) {
+			// MySQL specific type for roles (e.g., JSON)
+		    table.json('roles'); // No default here
 
+		} else {
+			throw new Error(`Unsupported database client: ${knex.client.config.client}`);
+		}
+		table.unique(['tenantId', 'email'], { useConstraint: true });
+		table.unique(['tenantId', 'ssoId'], { useConstraint: true });
+	});
+	
 	await knex.schema.createTable('groups', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('name');
 		table.string('description');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('groupUsers', (table) => {
-		table.increments('id');
-		table.bigint('groupId').references('id').inTable('groups').onDelete('CASCADE');
-		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
-		table.unique([ 'groupId', 'userId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('groupId').unsigned().references('id').inTable('groups').onDelete('CASCADE');
+		table.bigint('userId').unsigned().references('id').inTable('users').onDelete('CASCADE');
+		table.unique(['groupId', 'userId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantOwners', (table) => {
-		table.increments('id');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
-		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
-		table.unique([ 'tenantId', 'userId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('userId').unsigned().references('id').inTable('users').onDelete('CASCADE');
+		table.unique(['tenantId', 'userId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantAdmins', (table) => {
-		table.increments('id');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
-		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
-		table.unique([ 'tenantId', 'userId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('userId').unsigned().references('id').inTable('users').onDelete('CASCADE');
+		table.unique(['tenantId', 'userId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantFQDNs', (table) => {
-		table.increments('id');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigIncrements('id');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('fqdn');
 		table.string('description');
-		table.unique([ 'fqdn' ], { useConstraint: true });
+		table.unique(['fqdn'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('tenantOAuths', (table) => {
-		table.increments('id');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigIncrements('id');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
 		table.string('key');
 		table.string('secret');
 		table.string('authorize_url');
@@ -68,18 +77,18 @@ export async function up(knex: Knex): Promise<void> {
 		table.string('redirect_uri');
 		table.string('scope');
 		table.string('scope_delimiter');
-		table.unique([ 'tenantId' ], { useConstraint: true });
+		table.unique(['tenantId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roles', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('name');
 		table.string('description');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('permissions', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('name');
 		table.string('description');
 	});
@@ -105,21 +114,21 @@ export async function up(knex: Knex): Promise<void> {
 	]).into('permissions');
 
 	await knex.schema.createTable('rolePermissions', (table) => {
-		table.increments('id');
-		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
-		table.bigint('permissionId').references('id').inTable('permissions').onDelete('CASCADE');
-		table.unique([ 'roleId', 'permissionId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('roleId').unsigned().references('id').inTable('roles').onDelete('CASCADE');
+		table.bigint('permissionId').unsigned().references('id').inTable('permissions').onDelete('CASCADE');
+		table.unique(['roleId', 'permissionId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('rooms', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('name');
 		table.string('description');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
-		table.bigint('creatorId').references('id').inTable('users');
-		table.bigint('tenantId').references('id').inTable('tenants').onDelete('CASCADE');
-		table.bigint('defaultRoleId').references('id').inTable('roles');
+		table.bigint('creatorId').unsigned().references('id').inTable('users');
+		table.bigint('tenantId').unsigned().references('id').inTable('tenants').onDelete('CASCADE');
+		table.bigint('defaultRoleId').unsigned().references('id').inTable('roles');
 
 		table.string('logo');
 		table.string('background');
@@ -154,34 +163,34 @@ export async function up(knex: Knex): Promise<void> {
 		table.boolean('screenSharingSimulcast');
 		table.string('screenSharingResolution');
 		table.integer('screenSharingFramerate');
-		table.unique([ 'tenantId', 'name' ], { useConstraint: true });
+		table.unique(['tenantId', 'name'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomOwners', (table) => {
-		table.increments('id');
-		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
-		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
-		table.unique([ 'roomId', 'userId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('roomId').unsigned().references('id').inTable('rooms').onDelete('CASCADE');
+		table.bigint('userId').unsigned().references('id').inTable('users').onDelete('CASCADE');
+		table.unique(['roomId', 'userId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomGroupRoles', (table) => {
-		table.increments('id');
-		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
-		table.bigint('groupId').references('id').inTable('groups').onDelete('CASCADE');
-		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
-		table.unique([ 'roomId', 'groupId', 'roleId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('roomId').unsigned().references('id').inTable('rooms').onDelete('CASCADE');
+		table.bigint('groupId').unsigned().references('id').inTable('groups').onDelete('CASCADE');
+		table.bigint('roleId').unsigned().references('id').inTable('roles').onDelete('CASCADE');
+		table.unique(['roomId', 'groupId', 'roleId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('roomUserRoles', (table) => {
-		table.increments('id');
-		table.bigint('roomId').references('id').inTable('rooms').onDelete('CASCADE');
-		table.bigint('userId').references('id').inTable('users').onDelete('CASCADE');
-		table.bigint('roleId').references('id').inTable('roles').onDelete('CASCADE');
-		table.unique([ 'roomId', 'userId', 'roleId' ], { useConstraint: true });
+		table.bigIncrements('id');
+		table.bigint('roomId').unsigned().references('id').inTable('rooms').onDelete('CASCADE');
+		table.bigint('userId').unsigned().references('id').inTable('users').onDelete('CASCADE');
+		table.bigint('roleId').unsigned().references('id').inTable('roles').onDelete('CASCADE');
+		table.unique(['roomId', 'userId', 'roleId'], { useConstraint: true });
 	});
 
 	await knex.schema.createTable('locations', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.string('name');
 		table.string('description');
 		table.float('latitude');
@@ -189,41 +198,50 @@ export async function up(knex: Knex): Promise<void> {
 	});
 
 	await knex.schema.createTable('recorders', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
 		table.string('hostname');
 		table.integer('port');
 		table.string('secret');
-		table.bigint('locationId').references('id').inTable('locations').onDelete('CASCADE');
+		table.bigint('locationId').unsigned().references('id').inTable('locations').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('trackers', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
 		table.string('hostname');
 		table.integer('port');
 		table.string('secret');
-		table.bigint('locationId').references('id').inTable('locations').onDelete('CASCADE');
+		table.bigint('locationId').unsigned().references('id').inTable('locations').onDelete('CASCADE');
 	});
 
 	await knex.schema.createTable('mediaNodes', (table) => {
-		table.increments('id');
+		table.bigIncrements('id');
 		table.bigint('createdAt');
 		table.bigint('updatedAt');
 		table.string('hostname');
 		table.integer('port');
 		table.string('secret');
-		table.bigint('locationId').references('id').inTable('locations').onDelete('CASCADE');
+		table.bigint('locationId').unsigned().references('id').inTable('locations').onDelete('CASCADE');
 	});
 
-	await knex.insert({
-		email: 'edumeet-admin@localhost',
-		password: bcrypt.hashSync('supersecret', 10),
-		name: 'Edumeet Admin',
-		roles: [ 'super-admin' ]
-	}).into('users');
+	if (knex.client.config.client === 'pg') {
+		await knex.insert({
+			email: 'edumeet-admin@localhost',
+			password: bcrypt.hashSync('supersecret', 10),
+			name: 'Edumeet Admin',
+			roles: [ 'super-admin' ]
+		}).into('users');
+	} else{
+		await knex.insert({
+			email: 'edumeet-admin@localhost',
+			password: bcrypt.hashSync('supersecret', 10),
+			name: 'Edumeet Admin',
+			roles: JSON.stringify(['super-admin'])
+		}).into('users');
+	}
 }
 
 export async function down(knex: Knex): Promise<void> {

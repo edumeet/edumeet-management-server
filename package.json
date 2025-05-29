@@ -65,6 +65,8 @@
 		"feathers-hooks-common": "^7.0.3",
 		"isomorphic-dompurify": "^2.14.0",
 		"knex": "^3.1.0",
+		"mysql": "^2.18.1",
+		"mysql2": "^3.14.1",
 		"pg": "^8.10.0",
 		"winston": "^3.8.2"
 	},
