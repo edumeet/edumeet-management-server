@@ -122,7 +122,11 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 							tmp = context.result.roles;
 							precheck = tmp == null || !tmp.includes('super-admin');
 							if (precheck) {
-								context.app.service('users').patch(context.result.id, { roles: [ 'super-admin' ] });
+								if (context.app.get('postgresql')?.client=='mysql2') {
+									context.app.service('users').patch(context.result.id, { roles: [ '["super-admin"]' ] });
+								} else {
+									context.app.service('users').patch(context.result.id, { roles: [ 'super-admin' ] });
+								}
 							}
 							break;
 						}
