@@ -74,7 +74,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 								precheck = tmp.length == 0;
 
 								if (precheck) {
-									context.app.service(action).create({ groupId: parseInt(accessId), userId: context.result.id });
+									context.app.service(action).create({ groupId: parseInt(accessId), userId: parseInt(context.result.id) });
 								}
 							}
 							break;
@@ -91,7 +91,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 							precheck = tmp.length == 0;
 
 							if (precheck) {
-								context.app.service(action).create({ tenantId: context.data.tenantId, userId: context.result.id });
+								context.app.service(action).create({ tenantId: parseInt(context.data.tenantId), userId: parseInt(context.result.id) });
 							}
 
 							break;
@@ -108,7 +108,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 							precheck = tmp.length == 0;
 
 							if (precheck) {
-								context.app.service(action).create({ tenantId: context.data.tenantId, userId: context.result.id });
+								context.app.service(action).create({ tenantId: parseInt(context.data.tenantId), userId: parseInt(context.result.id) });
 							}
 
 							break;
@@ -122,7 +122,11 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 							tmp = context.result.roles;
 							precheck = tmp == null || !tmp.includes('super-admin');
 							if (precheck) {
-								context.app.service('users').patch(context.result.id, { roles: [ 'super-admin' ] });
+								if (context.app.get('postgresql')?.client=='mysql2') {
+									context.app.service('users').patch(parseInt(context.result.id), { roles: [ '["super-admin"]' ] });
+								} else {
+									context.app.service('users').patch(parseInt(context.result.id), { roles: [ 'super-admin' ] });
+								}
 							}
 							break;
 						}
