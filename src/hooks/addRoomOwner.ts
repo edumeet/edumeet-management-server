@@ -5,7 +5,7 @@ export const addRoomOwner = async (context: HookContext): Promise<void> => {
 	if (!context.params.provider) return;
 
 	await context.app.service('roomOwners').create({
-		roomId: context.result.id,
-		userId: context.params.user.id
+		roomId: parseInt(context.result.id),
+		userId: parseInt(context.params.user.id)
 	});
 };
