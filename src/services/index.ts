@@ -16,6 +16,7 @@ import { user } from './users/users';
 // For more information about this file see https://dove.feathersjs.com/guides/cli/application.html#configure-functions
 import type { Application } from '../declarations';
 import { rule } from './rules/rules';
+import { defaults } from './defaults/defaults';
 
 export const services = (app: Application) => {
 	app.configure(tenant);
@@ -32,6 +33,7 @@ export const services = (app: Application) => {
 	app.configure(rule);
 	app.configure(permission);
 	app.configure(groupUser);
+	app.configure(defaults);
 	app.configure(group);
 	app.configure(user);
 	// All services will be registered here

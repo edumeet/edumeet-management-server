@@ -97,6 +97,7 @@ import { groupClient } from './services/groups/groups.shared';
 export type { Group, GroupData, GroupQuery, GroupPatch } from './services/groups/groups.shared';
 
 import { userClient } from './services/users/users.shared';
+import { defaultClient } from './services/defaults/defaults.shared';
 export type { User, UserData, UserQuery, UserPatch } from './services/users/users.shared';
 
 export interface Configuration {
@@ -129,6 +130,7 @@ export const createClient = <Configuration = any>(
 
 	client.configure(userClient);
 	client.configure(groupClient);
+	client.configure(defaultClient);
 	client.configure(groupUserClient);
 	client.configure(permissionClient);
 	client.configure(rolePermissionClient);
