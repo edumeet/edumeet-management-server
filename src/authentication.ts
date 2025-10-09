@@ -27,7 +27,7 @@ export const authentication = (app: Application) => {
 	app.configure(oauth());
 
 	app.service('oauth/:provider').hooks(
-		{ 
+		{
 			before: { find: [ dynamicOAuth ] },
 		});
 };

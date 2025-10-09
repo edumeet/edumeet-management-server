@@ -6,12 +6,12 @@ import qs from 'qs';
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// name attribute can come from displayName or sn + givenName
 	async getEntityQuery(profile: OAuthProfile, params: Params) {
-		if (profile?.error)	throw new Error(profile.error);
-		if (!profile?.email || !params?.query?.tenantId) return {};// throw new Error('Missing paramenter(s)');
+		if (profile?.error) throw new Error(profile.error);
+		if (!profile?.email || !params?.query?.tenantId) return {};
 
 		const paramKey = params?.query?.name_parameter;
 		const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
-		
+
 		return {
 			ssoId: profile.sub || profile.id,
 			email: profile.email,
@@ -39,8 +39,10 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		const redirectUrl = '/auth/callback?';
 		const authResult: AuthenticationResult = data;
 		// eslint-disable-next-line camelcase
-		const query = authResult.accessToken ? { access_token: authResult.accessToken } : { error: data.message || 'OAuth Authentication not successful' };
-	
+		const query = authResult.accessToken
+			? { access_token: authResult.accessToken }
+			: { error: data.message || 'OAuth Authentication not successful' };
+
 		return `${redirectUrl}${qs.stringify(query)}`;
 	}
 }

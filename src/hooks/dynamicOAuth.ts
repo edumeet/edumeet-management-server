@@ -8,14 +8,14 @@ export const dynamicOAuth = async (context: HookContext) => {
 	}
 
 	const { tenantId } = context.params.query;
-	
+
 	if (!tenantId) throw new Error('Missing tenantId');
 
-	// if tenantid is valid and unknown in the oauth config 
+	// if tenantid is valid and unknown in the oauth config
 	// we have to configure and restart oauth settings
 	const authService = context.app.service('authentication');
 
-	// no tenant found 
+	// no tenant found
 	if (!authService.configuration.oauth?.[tenantId]) {
 		// get tenant data
 		const { total, data } = await context.app.service('tenantOAuths').find({ query: { tenantId } });
@@ -48,7 +48,6 @@ export const dynamicOAuth = async (context: HookContext) => {
 			const tmpconf: any = config.oauth || {};
 
 			tmpconf[tenantId] = {
-			// tmpconf['tenant'] = {
 				'oauth': 2,
 				'key': key,
 				'client_id': key,
@@ -63,21 +62,21 @@ export const dynamicOAuth = async (context: HookContext) => {
 				'token_endpoint_auth_method': 'client_secret_basic'
 			};
 			config.oauth = tmpconf;
-			// update config 
+			// update config
 			context.app.set('authentication', config);
-			// delete oauth 
+			// delete oauth
 			context.app.unuse('oauth/:provider');
 			// updateConfiguration
 			context.app.configure(oauth());
 			// re-add hooks
 			context.app.service('oauth/:provider').hooks(
-				{ 
+				{
 					before: { find: [ dynamicOAuth ] },
 				});
 			// halt hooks since they will fail
 			throw new Error('Reloading configuration try again!');
 		}
-		
+
 	} else {
 		// tenant found no problem
 		context.params.route.provider = tenantId;
