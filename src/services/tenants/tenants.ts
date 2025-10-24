@@ -17,6 +17,7 @@ import {
 import type { Application } from '../../declarations';
 import { TenantService, getOptions } from './tenants.class';
 import { tenantPath, tenantMethods } from './tenants.shared';
+import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { checkPermissions } from '../../hooks/checkPermissions';
@@ -45,7 +46,7 @@ export const tenant = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(tenantQueryValidator),
-				iff(notSuperAdmin(), schemaHooks.resolveQuery(tenantQueryResolver))
+				iff(notSuperAdmin(), isTenantAdmin, schemaHooks.resolveQuery(tenantQueryResolver))
 			],
 			find: [],
 			get: [],
