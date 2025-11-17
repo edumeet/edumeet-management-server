@@ -1,10 +1,12 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
-import { resolve } from '@feathersjs/schema';
+import { resolve, virtual } from '@feathersjs/schema';
 import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { roleSchema } from '../roles/roles.schema';
+import { permissionSchema } from '../permissions/permissions.schema';
 
 // Main data model schema
 export const defaultSchema = Type.Object(
@@ -47,6 +49,23 @@ export const defaultSchema = Type.Object(
 		// # defaults
 		// roleid for default role used as a fallback 
 		defaultRoleId: Type.Optional(Type.Number()),
+		defaultRole: Type.Object(
+			{
+				id: Type.Number(),
+				name: Type.String(),
+				description: Type.Optional(Type.String()),
+				permissions: Type.Array(Type.Object(
+					{
+						id: Type.Number(),
+						name: Type.String(),
+						description: Type.Optional(Type.String()),
+					},
+					{ $id: 'Permission', additionalProperties: false }
+				)), // Array of permissions
+				tenantId: Type.Number(),
+			},
+			{ $id: 'Role', additionalProperties: false }
+		),
 		// role that can be used as a permission limitter
 		tenantPermissionLimitRole: Type.Optional(Type.Number()),
 
@@ -55,7 +74,12 @@ export const defaultSchema = Type.Object(
 );
 export type Default = Static<typeof defaultSchema>
 export const defaultValidator = getValidator(defaultSchema, dataValidator);
-export const defaultResolver = resolve<Default, HookContext>({});
+export const defaultResolver = resolve<Default, HookContext>({
+	defaultRole: virtual(async (room, context) => {
+		if (room.defaultRoleId)
+			return context.app.service('roles').get(room.defaultRoleId);
+	}),
+});
 
 export const defaultExternalResolver = resolve<Default, HookContext>({});
 

@@ -54,11 +54,15 @@ export const role = (app: Application) => {
 				schemaHooks.resolveData(roleDataResolver)
 			],
 			patch: [ 
+				iff(notSuperAdmin(), isTenantAdmin),
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rolePatchValidator),
 				schemaHooks.resolveData(rolePatchResolver)
 			],
-			remove: []
+			remove: [
+				iff(notSuperAdmin(), isTenantAdmin),
+				iff(notSuperAdmin(), notInSameTenant),
+			]
 		},
 		after: {
 			all: []

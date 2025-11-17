@@ -26,6 +26,7 @@ export const services = (app: Application) => {
 	app.configure(tenantAdmin);
 	app.configure(roomUserRole);
 	app.configure(room);
+	app.configure(defaults);
 	app.configure(roomOwner);
 	app.configure(roomGroupRole);
 	app.configure(role);
@@ -33,7 +34,6 @@ export const services = (app: Application) => {
 	app.configure(rule);
 	app.configure(permission);
 	app.configure(groupUser);
-	app.configure(defaults);
 	app.configure(group);
 	app.configure(user);
 	// All services will be registered here

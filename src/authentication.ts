@@ -16,14 +16,18 @@ declare module './declarations' {
 }
 
 export const authentication = (app: Application) => {
-	const authenticationService = new AuthenticationService(app);
+	const authenticationService = new AuthenticationService(app, 'authentication');
 
 	authenticationService.register('jwt', new JWTStrategy());
 	authenticationService.register('local', new LocalStrategy());
 	authenticationService.register('tenant', new OAuthTenantStrategy());
 
 	app.use('authentication', authenticationService);
+	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
 
-	app.service('oauth/:provider').hooks({ before: { find: [ dynamicOAuth ] } });
+	app.service('oauth/:provider').hooks(
+		{ 
+			before: { find: [ dynamicOAuth ] },
+		});
 };

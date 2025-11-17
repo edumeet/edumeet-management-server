@@ -19,6 +19,8 @@ import { GroupUserService, getOptions } from './groupUsers.class';
 import { groupUserPath, groupUserMethods } from './groupUsers.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { notInSameTenant } from '../../hooks/notSameTenant';
+import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 
 export * from './groupUsers.class';
 export * from './groupUsers.schema';
@@ -49,11 +51,13 @@ export const groupUser = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				// TODO: Add hook to check if the group belongs to the same tenant as the user
+				iff(notSuperAdmin(), notInSameTenant),
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(groupUserDataValidator),
 				schemaHooks.resolveData(groupUserDataResolver)
 			],
 			patch: [
+				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupUserPatchValidator),
 				schemaHooks.resolveData(groupUserPatchResolver)
 			],
