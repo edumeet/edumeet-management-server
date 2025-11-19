@@ -11,7 +11,8 @@ export const isInSameTenantAndTenantOwnerOrAdmin = async (context: HookContext):
 
 	const { user } = context.params;
 
-	if (!user?.tenantAdmin && !user?.tenantOwner) return;
+	if (!user?.tenantAdmin && !user?.tenantOwner) 
+		throw new Error('You are not a tenant owner or admin');
 
 	// TODO: Check properly if the user is an owner of the room
 	let tenantId: string | undefined;

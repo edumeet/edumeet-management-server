@@ -16,6 +16,7 @@ import { user } from './users/users';
 // For more information about this file see https://dove.feathersjs.com/guides/cli/application.html#configure-functions
 import type { Application } from '../declarations';
 import { rule } from './rules/rules';
+import { defaults } from './defaults/defaults';
 
 export const services = (app: Application) => {
 	app.configure(tenant);
@@ -25,6 +26,7 @@ export const services = (app: Application) => {
 	app.configure(tenantAdmin);
 	app.configure(roomUserRole);
 	app.configure(room);
+	app.configure(defaults);
 	app.configure(roomOwner);
 	app.configure(roomGroupRole);
 	app.configure(role);

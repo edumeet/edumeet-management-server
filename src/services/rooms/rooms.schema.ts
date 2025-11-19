@@ -192,7 +192,7 @@ export const roomPatchResolver = resolve<Room, HookContext>({
 });
 
 // Schema for allowed query properties
-export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'tenantId', 'name' ]);
+export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'tenantId', 'name', 'creatorId' ]);
 export const roomQuerySchema = Type.Intersect(
 	[
 		querySyntax(roomQueryProperties),
