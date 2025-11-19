@@ -14,8 +14,6 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		
 		return {
 			ssoId: profile.sub || profile.id,
-			email: profile.email,
-			name: name,
 			tenantId: parseInt(params.query?.tenantId),
 		};
 	}
