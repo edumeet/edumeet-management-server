@@ -75,7 +75,7 @@ export const userDataResolver = resolve<User, HookContext>({
 	updatedAt: async () => Date.now()
 });
 
-export const userPatchAdminSchema = Type.Partial(userSchema, { $id: 'RoomPatchAdmin' });
+export const userPatchAdminSchema = Type.Partial(userSchema, { $id: 'UserPatchAdmin' });
 
 // Schema for updating existing users
 export const userPatchSchema = Type.Partial(Type.Omit(
