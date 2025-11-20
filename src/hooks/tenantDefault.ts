@@ -20,27 +20,21 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 		}
 
 		if (item['lockedLock']) {
-			context.data['lockedManaged'] = item['lockedManaged'];
 			context.data['lockedUnmanaged'] = item['lockedUnmanaged'];
 		}
 		if (item['raiseHandEnabledLock']) {
-			context.data['raiseHandEnabledManaged'] = item['raiseHandEnabledManaged'];
 			context.data['raiseHandEnabledUnmanaged'] = item['raiseHandEnabledUnmanaged'];
 		}
 		if (item['localRecordingEnabledLock']) {
-			context.data['localRecordingEnabledManaged'] = item['localRecordingEnabledManaged'];
 			context.data['localRecordingEnabledUnmanaged'] = item['localRecordingEnabledUnmanaged'];
 		}
 		if (item['chatEnabledLock']) {
-			context.data['chatEnabledManaged'] = item['chatEnabledManaged'];
 			context.data['chatEnabledUnmanaged'] = item['chatEnabledUnmanaged'];
 		}
 		if (item['breakoutsEnabledLock']) {
-			context.data['breakoutsEnabledManaged'] = item['breakoutsEnabledManaged'];
 			context.data['breakoutsEnabledUnmanaged'] = item['breakoutsEnabledUnmanaged'];
 		}
 		if (item['filesharingEnabledLock']) {
-			context.data['filesharingEnabledManaged'] = item['filesharingEnabledManaged'];
 			context.data['filesharingEnabledUnmanaged'] = item['filesharingEnabledUnmanaged'];
 		}
 		
