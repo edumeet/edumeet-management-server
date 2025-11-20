@@ -13,8 +13,7 @@ import { services } from './services/index';
 import { channels } from './channels';
 import { authCallback } from './authCallback';
 // import { setDebug } from '@feathersjs/commons';
-
-// eslint-disable-next-line no-console
+ 
 // setDebug(() => console.log);
 
 const app: Application = koa(feathers());

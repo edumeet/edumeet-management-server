@@ -9,8 +9,8 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		if (profile?.error)	throw new Error(profile.error);
 		if (!profile?.email || !params?.query?.tenantId) return {};// throw new Error('Missing paramenter(s)');
 
-		const paramKey = params?.query?.name_parameter;
-		const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
+		// const paramKey = params?.query?.name_parameter;
+		// const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 		
 		return {
 			ssoId: profile.sub || profile.id,
@@ -18,6 +18,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		};
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async getEntityData(profile: OAuthProfile, _existingEntity: any, params: Params) {
 		if (!profile?.email || !params?.query?.tenantId) throw new Error('Missing paramenter(s)');
 		const paramKey = params?.query?.name_parameter;

@@ -23,6 +23,7 @@ const filterByRoomOwnership = async (context: HookContext): Promise<void> => {
 
 		if (roomOwners) {
 		// Extract the list of room IDs
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const validRoomIds: string[] = roomOwners.map((owner: any) => owner.roomId);
 
 			// If no valid room IDs are found, return an empty result
