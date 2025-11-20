@@ -20,6 +20,8 @@ export const userSchema = Type.Object(
 		tenantAdmin: Type.Boolean(),
 		tenantOwner: Type.Boolean(),
 		roles: Type.Optional(Type.Array(Type.String())),
+		createdAt: Type.Number(),
+		updatedAt: Type.Number()
 	},
 	{ $id: 'User', additionalProperties: false }
 );
@@ -68,7 +70,9 @@ export type UserData = Static<typeof userDataSchema>
 export const userDataValidator = getValidator(userDataSchema, dataValidator);
 export const userDataAdminValidator = getValidator(userDataAdminSchema, dataValidator);
 export const userDataResolver = resolve<User, HookContext>({
-	password: passwordHash({ strategy: 'local' })
+	password: passwordHash({ strategy: 'local' }),
+	createdAt: async () => Date.now(),
+	updatedAt: async () => Date.now()
 });
 
 export const userPatchAdminSchema = Type.Partial(userSchema, { $id: 'RoomPatchAdmin' });
@@ -83,7 +87,8 @@ export type UserPatch = Static<typeof userPatchSchema>
 export const userPatchValidator = getValidator(userPatchSchema, dataValidator);
 export const userPatchAdminValidator = getValidator(userPatchAdminSchema, dataValidator);
 export const userPatchResolver = resolve<User, HookContext>({
-	password: passwordHash({ strategy: 'local' })
+	password: passwordHash({ strategy: 'local' }),
+	updatedAt: async () => Date.now()
 });
 
 // Schema for allowed query properties
