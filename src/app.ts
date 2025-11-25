@@ -12,6 +12,7 @@ import { authentication } from './authentication';
 import { services } from './services/index';
 import { channels } from './channels';
 import { authCallback } from './authCallback';
+import { dynamicOAuthSetup } from './hooks/dynamicOAuth';
 // import { setDebug } from '@feathersjs/commons';
  
 // setDebug(() => console.log);
@@ -40,8 +41,11 @@ app.configure(services);
 // Register hooks that run on all service methods
 app.hooks({ around: { all: [ logError ] } });
 // Register application setup and teardown hooks here
+
 app.hooks({
-	setup: [],
+	setup: [
+		dynamicOAuthSetup
+	],
 	teardown: []
 });
 
