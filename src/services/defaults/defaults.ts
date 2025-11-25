@@ -51,7 +51,7 @@ export const defaults = (app: Application) => {
 			get: [],
 			create: [
 				iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
+				// iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(defaultDataValidator),
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [
