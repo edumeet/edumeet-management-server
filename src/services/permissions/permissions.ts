@@ -17,6 +17,9 @@ import {
 import type { Application } from '../../declarations';
 import { PermissionService, getOptions } from './permissions.class';
 import { permissionPath, permissionMethods } from './permissions.shared';
+import { iff } from 'feathers-hooks-common';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { adminOnly } from '../../hooks/adminOnly';
 
 export * from './permissions.class';
 export * from './permissions.schema';
@@ -48,13 +51,18 @@ export const permission = (app: Application) => {
 			get: [],
 			create: [
 				schemaHooks.validateData(permissionDataValidator),
-				schemaHooks.resolveData(permissionDataResolver)
+				schemaHooks.resolveData(permissionDataResolver),
+				iff(notSuperAdmin(), adminOnly)
+
 			],
 			patch: [
 				schemaHooks.validateData(permissionPatchValidator),
-				schemaHooks.resolveData(permissionPatchResolver)
+				schemaHooks.resolveData(permissionPatchResolver),
+				iff(notSuperAdmin(), adminOnly)
 			],
-			remove: []
+			remove: [
+				iff(notSuperAdmin(), adminOnly),
+			]
 		},
 		after: {
 			all: []

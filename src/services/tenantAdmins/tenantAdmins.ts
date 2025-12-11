@@ -20,6 +20,7 @@ import { tenantAdminPath, tenantAdminMethods } from './tenantAdmins.shared';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './tenantAdmins.class';
 export * from './tenantAdmins.schema';
@@ -57,7 +58,9 @@ export const tenantAdmin = (app: Application) => {
 				schemaHooks.validateData(tenantAdminPatchValidator),
 				schemaHooks.resolveData(tenantAdminPatchResolver)
 			],
-			remove: []
+			remove: [
+				iff(notSuperAdmin(), notInSameTenantByContextId),
+			]
 		},
 		after: {
 			all: []

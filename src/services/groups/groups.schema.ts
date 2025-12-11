@@ -13,6 +13,7 @@ export const groupSchema = Type.Object(
 		name: Type.String(),
 		description: Type.String(),
 		tenantId: Type.Number(),
+		// creator id so the owner can delete it
 	},
 	{ $id: 'Group', additionalProperties: false }
 );

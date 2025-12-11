@@ -26,6 +26,7 @@ import { tenantUserManagedRoomNumberLimit } from '../../hooks/tenantUserManagedR
 import { tenantRoomLimit } from '../../hooks/tenantUserRoomLimit';
 import { notTenantManager } from '../../hooks/notTenantManager';
 import { tenantManagerManagedRoomNumberLimit } from '../../hooks/managerManagedRoomNumberLimit';
+import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -66,10 +67,14 @@ export const room = (app: Application) => {
 			],
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
+				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(roomPatchValidator),
 				schemaHooks.resolveData(roomPatchResolver)
 			],
-			remove: [ iff(notSuperAdmin(), isRoomOwnerOrAdmin) ]
+			remove: [ 
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
+				iff(notSuperAdmin(), notInSameTenantByContextId)
+			]
 		},
 		after: {
 			all: [],
