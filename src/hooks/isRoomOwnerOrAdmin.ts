@@ -42,32 +42,42 @@ export const isRoomOwnerOrAdminRoomIdOfGroupRole = async (context: HookContext):
 
 	const { user } = context.params;
 
-	if (user?.tenantAdmin || user?.tenantOwner) return;
-
 	// TODO: Check properly if the user is an owner of the room
 	let roomId: string | undefined;
 
 	// grr id -> roomid 
 
 	if (context.id) {
-		
+
 		const rgr = await context.app.service('roomGroupRoles').get(context.id);
 
 		roomId = String(rgr.roomId);
-		
+
 	}
 
 	if (!roomId)
 		throw new Error('No room id provided');
 
-	// If the user is not the owner of the room, throw an error.
-	const { total } = await context.app.service('roomOwners').find({
-		query: {
-			roomId: parseInt(roomId),
-			userId: context.params.user.id
-		}
-	});
+	if (user?.tenantAdmin || user?.tenantOwner) {
+		// is tenant admin but still might be from an other tenant
+		const { tenantId } = await context.app.service('rooms').get(roomId);
 
-	if (total === 0)
-		throw new Error('You are not an owner of this room');
+		if (tenantId) {
+			if (tenantId != parseInt(context.params.user.tenantId))
+				throw new Error('You are not an owner of this room');	
+		}
+		
+		return;
+	} else {
+		// If the user is not the owner of the room, throw an error.
+		const { total } = await context.app.service('roomOwners').find({
+			query: {
+				roomId: parseInt(roomId),
+				userId: context.params.user.id
+			}
+		});
+
+		if (total === 0)
+			throw new Error('You are not an owner of this room');
+	}
 };
