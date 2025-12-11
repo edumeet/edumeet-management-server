@@ -11,8 +11,6 @@ export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> =>
 
 	const { user } = context.params;
 
-	if (user?.tenantAdmin || user?.tenantOwner) return;
-
 	// TODO: Check properly if the user is an owner of the room
 	let roomId: string | undefined;
 
@@ -23,6 +21,18 @@ export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> =>
 
 	if (!roomId)
 		throw new Error('No room id provided');
+
+	if (user?.tenantAdmin || user?.tenantOwner) {
+		// is tenant admin but still might be from an other tenant
+		const { tenantId } = await context.app.service('rooms').get(roomId);
+
+		if (tenantId) {
+			if (tenantId != parseInt(context.params.user.tenantId))
+				throw new Error('You are not an owner of this room');	
+		}
+		
+		return;
+	} 
 
 	// If the user is not the owner of the room, throw an error.
 	const { total } = await context.app.service('roomOwners').find({
