@@ -15,6 +15,4 @@ export const notInSameTenantByContextId = async (context: HookContext) => {
 	} else {
 		throw new Error('Record not found!');
 	}
-
-
 };
