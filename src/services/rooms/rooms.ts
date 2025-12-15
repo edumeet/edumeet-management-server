@@ -67,7 +67,6 @@ export const room = (app: Application) => {
 			],
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(roomPatchValidator),
 				schemaHooks.resolveData(roomPatchResolver)
 			],
