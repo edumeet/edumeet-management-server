@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { oauth } from '@feathersjs/authentication-oauth';
-import { HookContext } from '../declarations';
+import { HookContext, NextFunction } from '../declarations';
 
 export const dynamicOAuth = async (context: HookContext) => {
 	if (context.params.headers['user-agent']) {
@@ -84,7 +84,7 @@ export const dynamicOAuth = async (context: HookContext) => {
 	}
 
 };
-export const dynamicOAuthSetup = async (context: HookContext) => {
+export const dynamicOAuthSetup = async (context: HookContext, next: NextFunction) => {
 	const authService = context.app.service('authentication');
 
 	// no tenant found 
@@ -159,5 +159,6 @@ export const dynamicOAuthSetup = async (context: HookContext) => {
 		}
 	}
 	);
+	await next();
 
 };

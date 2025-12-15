@@ -12,7 +12,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 		
 		return {
-			ssoId: profile.sub || profile.id,
+			ssoId: profile?.sub || profile.id,
 			tenantId: parseInt(params.query?.tenantId),
 		};
 	}
