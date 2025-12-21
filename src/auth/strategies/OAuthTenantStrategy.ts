@@ -11,8 +11,16 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// const paramKey = params?.query?.name_parameter;
 		// const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 		
+		const ssoId = profile?.sub || profile?.id || undefined;
+
+		if (ssoId) {
+			return {
+				ssoId: profile?.sub || profile?.id || undefined,
+				tenantId: parseInt(params.query?.tenantId),
+			};
+		}
+
 		return {
-			// ssoId: profile?.sub || profile.id,
 			tenantId: parseInt(params.query?.tenantId),
 		};
 	}
