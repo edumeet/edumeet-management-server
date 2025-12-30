@@ -2,6 +2,12 @@
 import Router from '@koa/router';
 import DOMPurify from 'isomorphic-dompurify';
 
+function assertNonEmptyString(value: unknown, message: string): asserts value is string
+{
+	if (typeof value !== 'string' || !value)
+		throw new Error(message);
+}
+
 export const authLogout = () =>
 	new Router().get('/auth/logout', async (ctx) => {
 		const tenantIdRaw = ctx.request.query.tenantId as string | undefined;
@@ -30,18 +36,15 @@ export const authLogout = () =>
 		if (!row)
 			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
 
-		const endSessionValue: unknown = row.end_session_endpoint;
+		const endSessionEndpoint: unknown = row.end_session_endpoint;
+		assertNonEmptyString(endSessionEndpoint, `Missing end_session_endpoint for tenantId=${tenantId}`);
 
-		if (typeof endSessionValue !== 'string' || !endSessionValue)
-			ctx.throw(400, `Missing end_session_endpoint for tenantId=${tenantId}`);
-
-		const endSessionEndpoint = endSessionValue;
-
-		const clientIdValue: unknown = row.key;
 		const closeUrl = `${ctx.origin}/auth/logout-close`;
 
 		const url = new URL(endSessionEndpoint);
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
+
+		const clientIdValue: unknown = row.key;
 
 		if (typeof clientIdValue === 'string' && clientIdValue)
 			url.searchParams.set('client_id', clientIdValue);
