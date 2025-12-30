@@ -9,7 +9,10 @@ export const authLogoutClose = () =>
 	<body>
 		<script>
 			window.close();
-			document.body.innerText = 'You are logged out. You can close this tab.';
+
+			setTimeout(() => {
+				document.body.innerText = 'You are logged out. You can close this tab.';
+			}, 2000);
 		</script>
 	</body>
 </html>`;
