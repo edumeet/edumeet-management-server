@@ -10,7 +10,6 @@ export const authLogout = () =>
 		if (!tenantId)
 			ctx.throw(400, 'tenantId is required');
 
-		// Feathers app is attached to Koa's context in this project
 		const app = (ctx.app.context as any).app;
 
 		if (!app?.service)
@@ -31,20 +30,19 @@ export const authLogout = () =>
 		if (!row)
 			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
 
-		const endSession = row.end_session_endpoint as string | null | undefined;
-		const clientId = row.key as string | null | undefined;
+		const endSession = row.end_session_endpoint as unknown;
 
-		if (!endSession || typeof endSession !== 'string')
+		if (typeof endSession !== 'string' || !endSession)
 			ctx.throw(400, `Missing end_session_endpoint for tenantId=${tenantId}`);
 
-		const endSessionEndpoint: string = endSession;
+		const clientId = row.key as unknown;
 
 		const closeUrl = `${ctx.origin}/auth/logout-close`;
 
-		const url = new URL(endSessionEndpoint);
+		const url = new URL(endSession);
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
 
-		if (clientId && typeof clientId === 'string')
+		if (typeof clientId === 'string' && clientId)
 			url.searchParams.set('client_id', clientId);
 
 		ctx.redirect(url.toString());
