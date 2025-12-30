@@ -2,46 +2,62 @@
 import Router from '@koa/router';
 import DOMPurify from 'isomorphic-dompurify';
 
+function getOriginFromRedirectUri(row: any): string | undefined
+{
+	const value: unknown = row?.redirect_uri ?? row?.redirectUri ?? row?.redirectURL ?? row?.redirectUrl;
+
+	if (typeof value !== 'string' || !value)
+		return undefined;
+
+	try
+	{
+		return new URL(value).origin;
+	}
+	catch (error)
+	{
+		return undefined;
+	}
+}
+
 export const authLogout = () =>
 	new Router().get('/auth/logout', async (ctx) => {
 		const tenantIdRaw = ctx.request.query.tenantId as string | undefined;
 		const tenantId = Number(DOMPurify.sanitize(tenantIdRaw || ''));
 
-		const closeUrl = `${ctx.origin}/auth/logout-close`;
-
-		// If tenantId is missing/invalid, just close the popup
 		if (!tenantId)
-		{
-			ctx.redirect(closeUrl);
-			return;
-		}
+			ctx.throw(400, 'tenantId is required');
 
 		const tenantOAuthsService = (ctx.app as any).service('tenantOAuths');
 
-		let row: any;
+		let res: any;
 
 		try
 		{
-			const res = await tenantOAuthsService.find({
+			res = await tenantOAuthsService.find({
 				query:
 				{
 					tenantId,
 					$limit: 1
 				}
 			});
-
-			row = Array.isArray(res) ? res[0] : res?.data?.[0];
 		}
 		catch (error)
 		{
-			// If we can't fetch tenant OAuth config, just close the popup
-			ctx.redirect(closeUrl);
+			ctx.throw(500, 'Failed to load tenant OAuth config');
 			return;
 		}
 
+		const row = Array.isArray(res) ? res[0] : res?.data?.[0];
+
+		if (!row)
+			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
+
+		const origin = getOriginFromRedirectUri(row);
+		const closeUrl = origin ? `${origin}/auth/logout-close` : '/auth/logout-close';
+
 		const endSessionEndpoint = row?.end_session_endpoint as unknown;
 
-		// If not configured, just close the popup
+		// Missing end_session_endpoint is NOT an error: just close the popup
 		if (typeof endSessionEndpoint !== 'string' || !endSessionEndpoint)
 		{
 			ctx.redirect(closeUrl);
