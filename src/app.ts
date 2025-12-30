@@ -13,6 +13,8 @@ import { services } from './services/index';
 import { channels } from './channels';
 import { authCallback } from './authCallback';
 import { dynamicOAuthSetup } from './hooks/dynamicOAuth';
+import { authLogout } from './authLogout';
+import { authLogoutClose } from './authLogoutClose';
 // import { setDebug } from '@feathersjs/commons';
  
 // setDebug(() => console.log);
@@ -26,6 +28,8 @@ app.configure(configuration(configurationValidator));
 app.use(cors());
 app.use(serveStatic(app.get('public')));
 app.use(authCallback());
+app.use(authLogout());
+app.use(authLogoutClose());
 app.use(errorHandler());
 app.use(parseAuthentication());
 app.use(bodyParser());
