@@ -30,20 +30,21 @@ export const authLogout = () =>
 		if (!row)
 			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
 
-		const endSession = row.end_session_endpoint as unknown;
+		const endSessionValue: unknown = row.end_session_endpoint;
 
-		if (typeof endSession !== 'string' || !endSession)
+		if (typeof endSessionValue !== 'string' || !endSessionValue)
 			ctx.throw(400, `Missing end_session_endpoint for tenantId=${tenantId}`);
 
-		const clientId = row.key as unknown;
+		const endSessionEndpoint = endSessionValue;
 
+		const clientIdValue: unknown = row.key;
 		const closeUrl = `${ctx.origin}/auth/logout-close`;
 
-		const url = new URL(endSession);
+		const url = new URL(endSessionEndpoint);
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
 
-		if (typeof clientId === 'string' && clientId)
-			url.searchParams.set('client_id', clientId);
+		if (typeof clientIdValue === 'string' && clientIdValue)
+			url.searchParams.set('client_id', clientIdValue);
 
 		ctx.redirect(url.toString());
 	}).routes();
