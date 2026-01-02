@@ -56,13 +56,14 @@ export const roomUserRoleQuerySchema = Type.Intersect(
 export type RoomUserRoleQuery = Static<typeof roomUserRoleQuerySchema>
 export const roomUserRoleQueryValidator = getValidator(roomUserRoleQuerySchema, queryValidator);
 export const roomUserRoleQueryResolver = resolve<RoomUserRoleQuery, HookContext>({
-	// TODO: make sure the user owns the room or is a tenant admin
+	// room ownership/admin enforcement is handled in service hooks (before: find/get/create/patch/remove)
 	roomId: async (value, query, context) => {
 		if (typeof value === 'number' && context.params.user) {
 			const existingRoom = await context.app.service('rooms').get(value);
 
 			// Make sure the room belongs to the same tenant as the user
 			if (!existingRoom || existingRoom.tenantId !== context.params.user.tenantId)
+			if (!existingRoom || existingRoom.tenantId !== parseInt(context.params.user.tenantId))
 				throw new Error('roomId is invalid');
 		}
 
