@@ -20,7 +20,7 @@ import { roomUserRolePath, roomUserRoleMethods } from './roomUserRoles.shared';
 import { isRoomOwnerOrAdminRoomIdOfUserRole } from '../../hooks/isRoomOwnerOrAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { BadRequest } from '@feathersjs/errors';
+import { BadRequest, Forbidden } from '@feathersjs/errors';
 
 export * from './roomUserRoles.class';
 export * from './roomUserRoles.schema';
@@ -58,23 +58,23 @@ export const roomUserRole = (app: Application) => {
 
 					return context;
 				}),
-				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomUserRole)
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole)
 			],
 			get: [
-				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomUserRole)
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole)
 			],
 			create: [
-				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomUserRole),
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole),
 				schemaHooks.validateData(roomUserRoleDataValidator),
 				schemaHooks.resolveData(roomUserRoleDataResolver)
 			],
 			patch: [
-				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomUserRole),
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole),
 				schemaHooks.validateData(roomUserRolePatchValidator),
 				schemaHooks.resolveData(roomUserRolePatchResolver)
 			],
 			remove: [
-				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomUserRole)
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole)
 			]
 		},
 		after: {
