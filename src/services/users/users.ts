@@ -10,6 +10,7 @@ import {
 	userDataResolver,
 	userPatchResolver,
 	userQueryResolver,
+	userPatchValidator,
 	userDataAdminValidator,
 	userPatchAdminValidator,
 	userTenantManagerQueryResolver
@@ -25,6 +26,8 @@ import { notTenantManager } from '../../hooks/notTenantManager';
 import { checkPermissions } from '../../hooks/checkPermissions';
 import { assertRules } from '../../hooks/assertRules';
 import { gainRules } from '../../hooks/gainRules';
+
+import { requireNonEmptyName } from '../../hooks/requireNonEmptyName';
 
 export * from './users.class';
 export * from './users.schema';
@@ -71,8 +74,47 @@ export const user = (app: Application) => {
 				schemaHooks.resolveData(userDataResolver)
 			],
 			patch: [
-				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
-				schemaHooks.validateData(userPatchAdminValidator),
+				iff(notSuperAdmin(), async (context) => {
+					const user = context.params.user as any;
+
+					const isTenantManager = !!user?.tenantAdmin || !!user?.tenantOwner;
+					const isSelf = String(context.id) === String(user?.id);
+
+					if (!isTenantManager && !isSelf) {
+						throw new Forbidden('You are not allowed to edit this user');
+					}
+
+					// If tenant manager edits someone else, enforce same-tenant
+					if (isTenantManager && !isSelf) {
+						const target = await context.app.service('users').get(context.id as any, {
+							...context.params,
+							provider: undefined,
+							query: {}
+						});
+
+						if (target?.tenantId != null && user?.tenantId != null) {
+							if (String(target.tenantId) !== String(user.tenantId)) {
+								throw new Forbidden('You are not allowed to edit users of another tenant');
+							}
+						}
+					}
+
+					// Allow only name + avatar (strip everything else)
+					const { name, avatar } = context.data as any;
+			
+					context.data = {};
+			
+					if (name !== undefined) (context.data as any).name = name;
+					if (avatar !== undefined) (context.data as any).avatar = avatar;
+			
+					return context;
+				}),
+				requireNonEmptyName,
+				iff(notSuperAdmin(),
+					schemaHooks.validateData(userPatchValidator)
+				).else(
+					schemaHooks.validateData(userPatchAdminValidator)
+				),
 				schemaHooks.resolveData(userPatchResolver)
 			],
 			remove: [
