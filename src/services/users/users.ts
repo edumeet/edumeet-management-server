@@ -56,6 +56,7 @@ export const user = (app: Application) => {
 			if (!canSeeAll && !isSelf) {
 				item.email = null;
 				item.ssoId = null;
+				item.name = null;
 			}
 		};
 
