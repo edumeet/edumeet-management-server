@@ -48,35 +48,8 @@ export const userResolver = resolve<User, HookContext>({
 });
 
 export const userExternalResolver = resolve<User, HookContext>({
-	...( {
-		password: async () => undefined
-	} as Partial<Record<keyof User, any>> ),
-
-	email: async (value, user, context) => {
-		const u = context.params.user as any;
-
-		if (!u) return null;
-
-		const isSelf = String(u.id) === String((user as any).id);
-		const canSeeAll = !!u.tenantAdmin || !!u.tenantOwner || !!u.superAdmin;
-
-		if (canSeeAll || isSelf) return value;
-
-		return null;
-	},
-
-	ssoId: async (value, user, context) => {
-		const u = context.params.user as any;
-
-		if (!u) return null;
-
-		const isSelf = String(u.id) === String((user as any).id);
-		const canSeeAll = !!u.tenantAdmin || !!u.tenantOwner || !!u.superAdmin;
-
-		if (canSeeAll || isSelf) return value;
-
-		return null;
-	}
+	// The password should never be visible externally
+	password: async () => undefined
 });
 
 // Schema for creating new users
