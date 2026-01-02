@@ -41,9 +41,10 @@ export const user = (app: Application) => {
 
 		// If no authenticated user, be conservative
 		if (!reqUser) return context;
-	
-		const canSeeAll = !!reqUser.tenantAdmin || !!reqUser.tenantOwner || !!reqUser.superAdmin;
-	
+
+		const isSuperAdmin = !notSuperAdmin()(context);
+		const canSeeAll = isSuperAdmin || reqUser.tenantAdmin || reqUser.tenantOwner;
+
 		const sanitizeOne = (item: any) => {
 			if (!item) return;
 
