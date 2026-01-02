@@ -27,6 +27,8 @@ import { checkPermissions } from '../../hooks/checkPermissions';
 import { assertRules } from '../../hooks/assertRules';
 import { gainRules } from '../../hooks/gainRules';
 
+import { Forbidden } from '@feathersjs/errors';
+
 import { requireNonEmptyName } from '../../hooks/requireNonEmptyName';
 
 export * from './users.class';

@@ -20,7 +20,7 @@ import { roomUserRolePath, roomUserRoleMethods } from './roomUserRoles.shared';
 import { isRoomOwnerOrAdminRoomIdOfUserRole } from '../../hooks/isRoomOwnerOrAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { BadRequest, Forbidden } from '@feathersjs/errors';
+import { BadRequest } from '@feathersjs/errors';
 
 export * from './roomUserRoles.class';
 export * from './roomUserRoles.schema';
