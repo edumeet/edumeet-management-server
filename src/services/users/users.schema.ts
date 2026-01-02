@@ -48,8 +48,9 @@ export const userResolver = resolve<User, HookContext>({
 });
 
 export const userExternalResolver = resolve<User, HookContext>({
-	// The password should never be visible externally
-	password: async () => undefined,
+	...( {
+		password: async () => undefined
+	} as Partial<Record<keyof User, any>> ),
 
 	email: async (value, user, context) => {
 		const u = context.params.user as any;
