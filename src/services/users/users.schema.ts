@@ -49,7 +49,33 @@ export const userResolver = resolve<User, HookContext>({
 
 export const userExternalResolver = resolve<User, HookContext>({
 	// The password should never be visible externally
-	password: async () => undefined
+	password: async () => undefined,
+
+	email: async (value, user, context) => {
+		const u = context.params.user as any;
+
+		if (!u) return null;
+
+		const isSelf = String(u.id) === String((user as any).id);
+		const canSeeAll = !!u.tenantAdmin || !!u.tenantOwner || !!u.superAdmin;
+
+		if (canSeeAll || isSelf) return value;
+
+		return null;
+	},
+
+	ssoId: async (value, user, context) => {
+		const u = context.params.user as any;
+
+		if (!u) return null;
+
+		const isSelf = String(u.id) === String((user as any).id);
+		const canSeeAll = !!u.tenantAdmin || !!u.tenantOwner || !!u.superAdmin;
+
+		if (canSeeAll || isSelf) return value;
+
+		return null;
+	}
 });
 
 // Schema for creating new users
@@ -99,11 +125,11 @@ export const userQuerySchema = Type.Intersect(
 export type UserQuery = Static<typeof userQuerySchema>
 export const userQueryValidator = getValidator(userQuerySchema, queryValidator);
 export const userQueryResolver = resolve<UserQuery, HookContext>({
-	// If there is a user (e.g. with authentication), they are only allowed to see their own data
-	id: async (value, query, context) => {
-		if (context.params.user)
-			return context.params.user.id;
-
+	// Authenticated users can only query within their tenant
+	tenantId: async (value, query, context) => {
+		if (context.params.user?.tenantId != null) {
+			return parseInt(String(context.params.user.tenantId));
+		}
 		return value;
 	}
 });
