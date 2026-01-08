@@ -16,4 +16,5 @@ export const authLogoutClose = () =>
 		</script>
 	</body>
 </html>`;
-	}).routes();
+	})
+		.routes();

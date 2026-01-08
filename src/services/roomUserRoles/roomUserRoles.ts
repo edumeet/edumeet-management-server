@@ -52,7 +52,7 @@ export const roomUserRole = (app: Application) => {
 				iff(notSuperAdmin(), async (context) => {
 					const q = context.params.query || {};
 
-					if ((q as any).roomId == null) {
+					if (q.roomId == null) {
 						throw new BadRequest('roomId is required');
 					}
 
