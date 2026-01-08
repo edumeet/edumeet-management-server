@@ -56,6 +56,7 @@ export const authLogout = () => {
 
 		// Missing end_session_endpoint is NOT an error: just close the popup
 		const endSessionEndpoint: unknown = row.end_session_endpoint;
+
 		if (typeof endSessionEndpoint !== 'string' || !endSessionEndpoint) {
 			ctx.redirect(closeUrl);
 
@@ -63,9 +64,11 @@ export const authLogout = () => {
 		}
 
 		const url = new URL(endSessionEndpoint);
+
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
 
 		const clientIdValue: unknown = row.key;
+
 		if (typeof clientIdValue === 'string' && clientIdValue) {
 			url.searchParams.set('client_id', clientIdValue);
 		}

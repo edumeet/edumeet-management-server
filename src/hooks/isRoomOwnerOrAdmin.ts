@@ -104,7 +104,7 @@ export const isRoomOwnerOrAdminRoomIdOfUserRole = async (context: HookContext): 
 	if (context.data?.roomId) roomId = String(context.data.roomId);
 
 	// 2) find (roomId comes from query)
-	else if ((context.params as any)?.query?.roomId) roomId = String((context.params as any).query.roomId);
+	else if ((context.params)?.query?.roomId) roomId = String((context.params).query.roomId);
 
 	// 3) get/patch/remove by id -> load record to get its roomId
 	else if (context.id) {
