@@ -7,6 +7,8 @@ import type { TenantOAuth } from './services/tenantOAuths/tenantOAuths.schema';
 type RedirectUriSource = Pick<TenantOAuth, 'redirect_uri' | 'end_session_endpoint' | 'key'>;
 
 function getOriginFromRedirectUri(row: RedirectUriSource): string | undefined {
+	if (!row) return undefined;
+
 	if (typeof row.redirect_uri !== 'string' || !row.redirect_uri) {
 		return undefined;
 	}
@@ -49,11 +51,6 @@ export const authLogout = () => {
 		}
 
 		const row: RedirectUriSource | undefined = Array.isArray(res) ? res[0] : res?.data?.[0];
-
-		if (!row) {
-			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
-		}
-
 		const origin = getOriginFromRedirectUri(row);
 		const closeUrl = origin ? `${origin}/auth/logout-close` : '/auth/logout-close';
 
