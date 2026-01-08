@@ -49,7 +49,7 @@ export const user = (app: Application) => {
 			if (!item) return;
 
 			// Always remove password if present
-			if ('password' in item) delete item.password;
+			if ('password' in item && !isSuperAdmin) delete item.password;
 
 			const isSelf = String(reqUser.id) === String(item.id);
 
@@ -112,10 +112,10 @@ export const user = (app: Application) => {
 			],
 			patch: [
 				iff(notSuperAdmin(), async (context) => {
-					const user = context.params.user as any;
+					const reqUser = context.params.user as any;
 
-					const isTenantManager = !!user?.tenantAdmin || !!user?.tenantOwner;
-					const isSelf = String(context.id) === String(user?.id);
+					const isTenantManager = !!reqUser?.tenantAdmin || !!reqUser?.tenantOwner;
+					const isSelf = String(context.id) === String(reqUser?.id);
 
 					if (!isTenantManager && !isSelf) {
 						throw new Forbidden('You are not allowed to edit this user');
@@ -129,8 +129,8 @@ export const user = (app: Application) => {
 							query: {}
 						});
 
-						if (target?.tenantId != null && user?.tenantId != null) {
-							if (String(target.tenantId) !== String(user.tenantId)) {
+						if (target?.tenantId != null && reqUser?.tenantId != null) {
+							if (String(target.tenantId) !== String(reqUser.tenantId)) {
 								throw new Forbidden('You are not allowed to edit users of another tenant');
 							}
 						}
