@@ -4,7 +4,7 @@ export const tenantRoomLimit = async (context: HookContext): Promise<void> => {
 	// If the user is not logged in, throw an error.
 	if (context.params.provider && !context.params.user)
 		throw new Error('You are not logged in');
-    
+
 	// when creating check if user has less rooms than the limit
 	const defaultsService = context.app.service('defaults');
 	const roomsService = context.app.service('rooms');
@@ -15,7 +15,7 @@ export const tenantRoomLimit = async (context: HookContext): Promise<void> => {
 			tenantId: parseInt(context.params.user.tenantId),
 		}
 	});
-	
+
 	const rooms = await roomsService.find({
 		query: {
 			$limit: 0,
