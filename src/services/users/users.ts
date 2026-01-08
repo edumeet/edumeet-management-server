@@ -1,6 +1,5 @@
 // For more information about this file see https://dove.feathersjs.com/guides/cli/service.html
 import { authenticate } from '@feathersjs/authentication';
-
 import { hooks as schemaHooks } from '@feathersjs/schema';
 import type { Paginated } from '@feathersjs/feathers';
 
@@ -36,11 +35,15 @@ import type { User } from './users.schema';
 export * from './users.class';
 export * from './users.schema';
 
-type UserResult = User & {
+/**
+ * Result shape we are allowed to mutate for privacy filtering
+ * (schema User has required email, but responses may hide it)
+ */
+type UserResult = Omit<User, 'email' | 'ssoId' | 'name'> & {
 	password?: string;
-	email?: string | null;
-	ssoId?: string | null;
-	name?: string | null;
+	email?: string;
+	ssoId?: string;
+	name?: string;
 };
 
 const isPaginatedUsers = (result: unknown): result is Paginated<UserResult> =>
@@ -68,11 +71,11 @@ export const user = (app: Application) => {
 
 			const isSelf = String(reqUser.id) === String(item.id);
 
-			// Non-admins: hide email + ssoId except for their own row
+			// Non-admins: hide email + ssoId + name except for their own row
 			if (!canSeeAll && !isSelf) {
-				item.email = null;
-				item.ssoId = null;
-				item.name = null;
+				item.email = undefined;
+				item.ssoId = undefined;
+				item.name = undefined;
 			}
 		};
 
@@ -95,10 +98,14 @@ export const user = (app: Application) => {
 		// You can add additional custom events to be sent to clients here
 		events: []
 	});
+
 	// Initialize hooks
 	app.service(userPath).hooks({
 		around: {
-			all: [ schemaHooks.resolveExternal(userExternalResolver), schemaHooks.resolveResult(userResolver) ],
+			all: [
+				schemaHooks.resolveExternal(userExternalResolver),
+				schemaHooks.resolveResult(userResolver)
+			],
 			find: [ authenticate('jwt') ],
 			get: [ authenticate('jwt') ],
 			create: [ authenticate('jwt') ],
@@ -117,7 +124,7 @@ export const user = (app: Application) => {
 					).else(
 						schemaHooks.resolveQuery(userTenantManagerQueryResolver)
 					)
-				),
+				)
 			],
 			find: [],
 			get: [],
@@ -131,7 +138,10 @@ export const user = (app: Application) => {
 				iff(notSuperAdmin(), async (context: HookContext<UserService>) => {
 					const reqUser = context.params.user;
 
-					const isTenantManager = Boolean(reqUser?.tenantAdmin) || Boolean(reqUser?.tenantOwner);
+					const isTenantManager =
+						Boolean(reqUser?.tenantAdmin) ||
+						Boolean(reqUser?.tenantOwner);
+
 					const isSelf = String(context.id) === String(reqUser?.id);
 
 					if (!isTenantManager && !isSelf) {
@@ -140,11 +150,13 @@ export const user = (app: Application) => {
 
 					// If tenant manager edits someone else, enforce same-tenant
 					if (isTenantManager && !isSelf) {
-						const target = await context.app.service('users').get(context.id as User['id'], {
-							...context.params,
-							provider: undefined,
-							query: {}
-						});
+						const target = await context.app
+							.service('users')
+							.get(context.id as User['id'], {
+								...context.params,
+								provider: undefined,
+								query: {}
+							});
 
 						if (target?.tenantId != null && reqUser?.tenantId != null) {
 							if (String(target.tenantId) !== String(reqUser.tenantId)) {
@@ -154,17 +166,22 @@ export const user = (app: Application) => {
 					}
 
 					// Allow only name + avatar (strip everything else)
-					const { name, avatar } = context.data as Partial<Pick<User, 'name' | 'avatar'>>;
+					const { name, avatar } =
+						context.data as Partial<Pick<User, 'name' | 'avatar'>>;
 
-					context.data = {};
+					const data: Partial<Pick<User, 'name' | 'avatar'>> = {};
 
-					if (name !== undefined) (context.data as Partial<User>).name = name;
-					if (avatar !== undefined) (context.data as Partial<User>).avatar = avatar;
+					if (name !== undefined) data.name = name;
+					if (avatar !== undefined) data.avatar = avatar;
+
+					context.data =
+						data as unknown as HookContext<UserService>['data'];
 
 					return context;
 				}),
 				requireNonEmptyName,
-				iff(notSuperAdmin(),
+				iff(
+					notSuperAdmin(),
 					schemaHooks.validateData(userPatchValidator)
 				).else(
 					schemaHooks.validateData(userPatchAdminValidator)
@@ -177,7 +194,7 @@ export const user = (app: Application) => {
 		},
 		after: {
 			all: [ gainRules, sanitizeUsersForPrivacy ],
-			create: [ ]
+			create: []
 		},
 		error: {
 			all: []
@@ -188,6 +205,6 @@ export const user = (app: Application) => {
 // Add this service to the service type index
 declare module '../../declarations' {
 	interface ServiceTypes {
-		[userPath]: UserService
+		[userPath]: UserService;
 	}
 }
