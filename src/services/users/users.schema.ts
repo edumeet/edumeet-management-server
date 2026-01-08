@@ -104,6 +104,7 @@ export const userQueryResolver = resolve<UserQuery, HookContext>({
 		if (context.params.user?.tenantId != null) {
 			return parseInt(String(context.params.user.tenantId));
 		}
+
 		return value;
 	}
 });
