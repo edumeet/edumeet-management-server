@@ -1,76 +1,80 @@
-/* eslint-disable camelcase */
 import Router from '@koa/router';
 import DOMPurify from 'isomorphic-dompurify';
+import type { Application } from './declarations';
 
-function getOriginFromRedirectUri(row: any): string | undefined
-{
-	const value: unknown = row?.redirect_uri ?? row?.redirectUri ?? row?.redirectURL ?? row?.redirectUrl;
+import type { TenantOAuth } from './services/tenantOAuths/tenantOAuths.schema';
 
-	if (typeof value !== 'string' || !value)
+type RedirectUriSource = Pick<TenantOAuth, 'redirect_uri' | 'end_session_endpoint' | 'key'>;
+
+function getOriginFromRedirectUri(row: RedirectUriSource): string | undefined {
+	if (typeof row.redirect_uri !== 'string' || !row.redirect_uri) {
 		return undefined;
-
-	try
-	{
-		return new URL(value).origin;
 	}
-	catch (error)
-	{
+
+	try {
+		return new URL(row.redirect_uri).origin;
+	} catch (_error) {
 		return undefined;
 	}
 }
 
-export const authLogout = () =>
-	new Router().get('/auth/logout', async (ctx) => {
+export const authLogout = () => {
+	const router = new Router();
+
+	router.get('/auth/logout', async (ctx) => {
 		const tenantIdRaw = ctx.request.query.tenantId as string | undefined;
 		const tenantId = Number(DOMPurify.sanitize(tenantIdRaw || ''));
 
-		if (!tenantId)
+		if (!tenantId) {
 			ctx.throw(400, 'tenantId is required');
+		}
 
-		const tenantOAuthsService = (ctx.app as any).service('tenantOAuths');
+		const app = ctx.app as unknown as Application;
+		const tenantOAuthsService = app.service('tenantOAuths');
 
-		let res: any;
+		type TenantOAuthFindResult = Awaited<ReturnType<typeof tenantOAuthsService.find>>;
+		let res: TenantOAuthFindResult;
 
-		try
-		{
+		try {
 			res = await tenantOAuthsService.find({
-				query:
-				{
+				query: {
 					tenantId,
 					$limit: 1
 				}
 			});
-		}
-		catch (error)
-		{
+		} catch (_error) {
 			ctx.throw(500, 'Failed to load tenant OAuth config');
+
 			return;
 		}
 
-		const row = Array.isArray(res) ? res[0] : res?.data?.[0];
+		const row: RedirectUriSource | undefined = Array.isArray(res) ? res[0] : res?.data?.[0];
 
-		if (!row)
+		if (!row) {
 			ctx.throw(404, `No tenantOAuth config found for tenantId=${tenantId}`);
+		}
 
 		const origin = getOriginFromRedirectUri(row);
 		const closeUrl = origin ? `${origin}/auth/logout-close` : '/auth/logout-close';
 
-		const endSessionEndpoint = row?.end_session_endpoint as unknown;
-
 		// Missing end_session_endpoint is NOT an error: just close the popup
-		if (typeof endSessionEndpoint !== 'string' || !endSessionEndpoint)
-		{
+		const endSessionEndpoint: unknown = row.end_session_endpoint;
+		if (typeof endSessionEndpoint !== 'string' || !endSessionEndpoint) {
 			ctx.redirect(closeUrl);
+
 			return;
 		}
 
 		const url = new URL(endSessionEndpoint);
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
 
-		const clientIdValue = row?.key as unknown;
-
-		if (typeof clientIdValue === 'string' && clientIdValue)
+		const clientIdValue: unknown = row.key;
+		if (typeof clientIdValue === 'string' && clientIdValue) {
 			url.searchParams.set('client_id', clientIdValue);
+		}
 
 		ctx.redirect(url.toString());
-	}).routes();
+	});
+
+	return router.routes();
+};
