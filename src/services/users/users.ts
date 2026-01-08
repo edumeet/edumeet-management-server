@@ -2,6 +2,7 @@
 import { authenticate } from '@feathersjs/authentication';
 
 import { hooks as schemaHooks } from '@feathersjs/schema';
+import type { Paginated } from '@feathersjs/feathers';
 
 import {
 	userQueryValidator,
@@ -16,7 +17,7 @@ import {
 	userTenantManagerQueryResolver
 } from './users.schema';
 
-import type { Application } from '../../declarations';
+import type { Application, HookContext } from '../../declarations';
 import { UserService, getOptions } from './users.class';
 import { userPath, userMethods } from './users.shared';
 import { iff } from 'feathers-hooks-common';
@@ -30,14 +31,28 @@ import { gainRules } from '../../hooks/gainRules';
 import { Forbidden } from '@feathersjs/errors';
 
 import { requireNonEmptyName } from '../../hooks/requireNonEmptyName';
+import type { User } from './users.schema';
 
 export * from './users.class';
 export * from './users.schema';
 
+type UserResult = User & {
+	password?: string;
+	email?: string | null;
+	ssoId?: string | null;
+	name?: string | null;
+};
+
+const isPaginatedUsers = (result: unknown): result is Paginated<UserResult> =>
+	typeof result === 'object' &&
+	result !== null &&
+	'data' in result &&
+	Array.isArray((result as { data?: unknown }).data);
+
 // A configure function that registers the service and its hooks via `app.configure`
 export const user = (app: Application) => {
-	const sanitizeUsersForPrivacy = async (context: any) => {
-		const reqUser = context.params.user as any;
+	const sanitizeUsersForPrivacy = async (context: HookContext<UserService>) => {
+		const reqUser = context.params.user;
 
 		// If no authenticated user, be conservative
 		if (!reqUser) return context;
@@ -45,7 +60,7 @@ export const user = (app: Application) => {
 		const isSuperAdmin = !notSuperAdmin()(context);
 		const canSeeAll = isSuperAdmin || reqUser.tenantAdmin || reqUser.tenantOwner;
 
-		const sanitizeOne = (item: any) => {
+		const sanitizeOne = (item: UserResult | undefined) => {
 			if (!item) return;
 
 			// Always remove password if present
@@ -62,10 +77,12 @@ export const user = (app: Application) => {
 		};
 
 		// Handle paginated and non-paginated responses
-		if (context.result && Array.isArray(context.result.data)) {
+		if (isPaginatedUsers(context.result)) {
 			context.result.data.forEach(sanitizeOne);
+		} else if (Array.isArray(context.result)) {
+			(context.result as UserResult[]).forEach(sanitizeOne);
 		} else {
-			sanitizeOne(context.result);
+			sanitizeOne(context.result as UserResult | undefined);
 		}
 
 		return context;
@@ -111,10 +128,10 @@ export const user = (app: Application) => {
 				schemaHooks.resolveData(userDataResolver)
 			],
 			patch: [
-				iff(notSuperAdmin(), async (context) => {
-					const reqUser = context.params.user as any;
+				iff(notSuperAdmin(), async (context: HookContext<UserService>) => {
+					const reqUser = context.params.user;
 
-					const isTenantManager = !!reqUser?.tenantAdmin || !!reqUser?.tenantOwner;
+					const isTenantManager = Boolean(reqUser?.tenantAdmin) || Boolean(reqUser?.tenantOwner);
 					const isSelf = String(context.id) === String(reqUser?.id);
 
 					if (!isTenantManager && !isSelf) {
@@ -123,7 +140,7 @@ export const user = (app: Application) => {
 
 					// If tenant manager edits someone else, enforce same-tenant
 					if (isTenantManager && !isSelf) {
-						const target = await context.app.service('users').get(context.id as any, {
+						const target = await context.app.service('users').get(context.id as User['id'], {
 							...context.params,
 							provider: undefined,
 							query: {}
@@ -137,13 +154,13 @@ export const user = (app: Application) => {
 					}
 
 					// Allow only name + avatar (strip everything else)
-					const { name, avatar } = context.data as any;
-			
+					const { name, avatar } = context.data as Partial<Pick<User, 'name' | 'avatar'>>;
+
 					context.data = {};
-			
-					if (name !== undefined) (context.data as any).name = name;
-					if (avatar !== undefined) (context.data as any).avatar = avatar;
-			
+
+					if (name !== undefined) (context.data as Partial<User>).name = name;
+					if (avatar !== undefined) (context.data as Partial<User>).avatar = avatar;
+
 					return context;
 				}),
 				requireNonEmptyName,
