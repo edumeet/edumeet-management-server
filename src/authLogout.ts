@@ -55,12 +55,15 @@ export const authLogout = () => {
 			: '/auth/logout-close';
 
 		const endSessionEndpoint = row?.end_session_endpoint;
+
 		if (!endSessionEndpoint) {
 			ctx.redirect(closeUrl);
+
 			return;
 		}
 
 		const url = new URL(endSessionEndpoint);
+
 		url.searchParams.set('post_logout_redirect_uri', closeUrl);
 
 		if (row?.key) {
