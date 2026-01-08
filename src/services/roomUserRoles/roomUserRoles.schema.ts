@@ -63,7 +63,6 @@ export const roomUserRoleQueryResolver = resolve<RoomUserRoleQuery, HookContext>
 
 			// Make sure the room belongs to the same tenant as the user
 			if (!existingRoom || existingRoom.tenantId !== context.params.user.tenantId)
-			if (!existingRoom || existingRoom.tenantId !== parseInt(context.params.user.tenantId))
 				throw new Error('roomId is invalid');
 		}
 
