@@ -21,9 +21,6 @@ export const defaultSchema = Type.Object(
 		managerManagedRoomNumberLimit: Type.Optional(Type.Number()), // (number of managed rooms that can be created by a single user), -unlimited- (if user-room-limit is set to 0, this would meant that only admins can create rooms)
 		//  room features (if disabled here, no one will able to turn it on, if not set they will have the default behaviour)
 		
-		lockedManaged: Type.Optional(Type.Boolean()),
-		raiseHandEnabledManaged: Type.Optional(Type.Boolean()),
-		localRecordingEnabledManaged: Type.Optional(Type.Boolean()),
 		lockedUnmanaged: Type.Optional(Type.Boolean()),
 		raiseHandEnabledUnmanaged: Type.Optional(Type.Boolean()),
 		localRecordingEnabledUnmanaged: Type.Optional(Type.Boolean()),
@@ -32,12 +29,11 @@ export const defaultSchema = Type.Object(
 		localRecordingEnabledLock: Type.Optional(Type.Boolean()),
 
 		chatEnabledUnmanaged: Type.Optional(Type.Boolean()),
+		reactionsEnabledUnmanaged: Type.Optional(Type.Boolean()),
 		breakoutsEnabledUnmanaged: Type.Optional(Type.Boolean()),
 		filesharingEnabledUnmanaged: Type.Optional(Type.Boolean()),
-		chatEnabledManaged: Type.Optional(Type.Boolean()),
-		breakoutsEnabledManaged: Type.Optional(Type.Boolean()),
-		filesharingEnabledManaged: Type.Optional(Type.Boolean()),
 		chatEnabledLock: Type.Optional(Type.Boolean()),
+		reactionsEnabledLock: Type.Optional(Type.Boolean()),
 		breakoutsEnabledLock: Type.Optional(Type.Boolean()),
 		filesharingEnabledLock: Type.Optional(Type.Boolean()),
 		
@@ -67,7 +63,7 @@ export const defaultSchema = Type.Object(
 			{ $id: 'Role', additionalProperties: false }
 		),
 		// role that can be used as a permission limitter
-		tenantPermissionLimitRole: Type.Optional(Type.Number()),
+		// tenantPermissionLimitRole: Type.Optional(Type.Number()),
 
 	},
 	{ $id: 'Defaults', additionalProperties: false }

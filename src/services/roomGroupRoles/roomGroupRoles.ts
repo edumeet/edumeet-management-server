@@ -59,7 +59,10 @@ export const roomGroupRole = (app: Application) => {
 				schemaHooks.validateData(roomGroupRolePatchValidator),
 				schemaHooks.resolveData(roomGroupRolePatchResolver)
 			],
-			remove: [ iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfGroupRole) ]
+			remove: [ 
+				// tenant id is checked inside the function
+				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfGroupRole)
+			]
 		},
 		after: {
 			all: []

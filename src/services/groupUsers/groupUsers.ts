@@ -19,8 +19,8 @@ import { GroupUserService, getOptions } from './groupUsers.class';
 import { groupUserPath, groupUserMethods } from './groupUsers.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant } from '../../hooks/notSameTenant';
-import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
+import { checkTenantAdminOrGroupMemberOnDelete } from '../../hooks/isTenantAdmin';
+import { adminOnly } from '../../hooks/adminOnly';
 
 export * from './groupUsers.class';
 export * from './groupUsers.schema';
@@ -51,17 +51,21 @@ export const groupUser = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				iff(notSuperAdmin(), notInSameTenant),
-				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
+				// check group and user have the same tenant
 				schemaHooks.validateData(groupUserDataValidator),
 				schemaHooks.resolveData(groupUserDataResolver)
 			],
 			patch: [
-				iff(notSuperAdmin(), notInSameTenant),
+				// you cannot patch 
+				iff(notSuperAdmin(), adminOnly),
 				schemaHooks.validateData(groupUserPatchValidator),
 				schemaHooks.resolveData(groupUserPatchResolver)
 			],
-			remove: []
+			remove: [
+				// teant admin or group member (maybe add manager param for group membership or creator id?)
+				// dont let users remove it from other tenants
+				iff(notSuperAdmin(), checkTenantAdminOrGroupMemberOnDelete),
+			]
 		},
 		after: {
 			all: []

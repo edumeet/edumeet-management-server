@@ -99,10 +99,11 @@ export const userQuerySchema = Type.Intersect(
 export type UserQuery = Static<typeof userQuerySchema>
 export const userQueryValidator = getValidator(userQuerySchema, queryValidator);
 export const userQueryResolver = resolve<UserQuery, HookContext>({
-	// If there is a user (e.g. with authentication), they are only allowed to see their own data
-	id: async (value, query, context) => {
-		if (context.params.user)
-			return context.params.user.id;
+	// Authenticated users can only query within their tenant
+	tenantId: async (value, query, context) => {
+		if (context.params.user?.tenantId != null) {
+			return parseInt(String(context.params.user.tenantId));
+		}
 
 		return value;
 	}

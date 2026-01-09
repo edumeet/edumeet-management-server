@@ -59,7 +59,9 @@ export const roomOwner = (app: Application) => {
 				schemaHooks.validateData(roomOwnerPatchValidator),
 				schemaHooks.resolveData(roomOwnerPatchResolver)
 			],
-			remove: [ iff(notSuperAdmin(), isRoomOwnerOrAdmin) ]
+			remove: [ 
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin) 
+			]
 		},
 		after: {
 			all: []

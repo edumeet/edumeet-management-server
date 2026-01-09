@@ -19,7 +19,7 @@ import { DefaultService, getOptions } from './defaults.class';
 import { defaultPath, defaultMethods } from './defaults.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant } from '../../hooks/notSameTenant';
+import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
@@ -47,23 +47,24 @@ export const defaults = (app: Application) => {
 		},
 		before: {
 			all: [ schemaHooks.validateQuery(defaultQueryValidator), iff(notSuperAdmin(), schemaHooks.resolveQuery(defaultQueryResolver)) ],
+			// users should be able to get/find defaults, for preview of the default state
 			find: [],
 			get: [],
 			create: [
 				iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
+				// iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(defaultDataValidator),
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [
 				iff(notSuperAdmin(), isTenantAdmin),
 				iff(notSuperAdmin(), notInSameTenant),
 				iff(notSuperAdmin(), tenantDefault),
-				
 				schemaHooks.validateData(defaultPatchValidator),
 				schemaHooks.resolveData(defaultPatchResolver) ],
 			remove: [
 				iff(notSuperAdmin(), adminOnly),
-
+				// currently locked for super admin only
+				// iff(notSuperAdmin(), notInSameTenantByContextId)
 			]
 		},
 		after: {

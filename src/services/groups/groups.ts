@@ -19,7 +19,7 @@ import { GroupService, getOptions } from './groups.class';
 import { groupPath, groupMethods } from './groups.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant } from '../../hooks/notSameTenant';
+import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './groups.class';
 export * from './groups.schema';
@@ -53,7 +53,9 @@ export const group = (app: Application) => {
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupPatchValidator),
 				schemaHooks.resolveData(groupPatchResolver) ],
-			remove: []
+			remove: [
+				iff(notSuperAdmin(), notInSameTenantByContextId),
+			]
 		},
 		after: {
 			all: []
