@@ -38,6 +38,7 @@ export const roomSchema = Type.Object(
 		// Features of the room
 		maxActiveVideos: Type.Number(),
 		locked: Type.Boolean(),
+		reactionsEnabled: Type.Boolean(),
 		breakoutsEnabled: Type.Boolean(),
 		chatEnabled: Type.Boolean(),
 		raiseHandEnabled: Type.Boolean(),
@@ -165,6 +166,7 @@ export const roomDataResolver = resolve<Room, HookContext>({
 	breakoutsEnabled: async (value = true) => value,
 	chatEnabled: async (value = true) => value,
 	raiseHandEnabled: async (value = true) => value,
+	reactionsEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
 	localRecordingEnabled: async (value = true) => value,
 });
@@ -192,7 +194,7 @@ export const roomPatchResolver = resolve<Room, HookContext>({
 });
 
 // Schema for allowed query properties
-export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'tenantId', 'name' ]);
+export const roomQueryProperties = Type.Pick(roomSchema, [ 'id', 'tenantId', 'name', 'creatorId' ]);
 export const roomQuerySchema = Type.Intersect(
 	[
 		querySyntax(roomQueryProperties),

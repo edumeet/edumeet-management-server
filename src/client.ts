@@ -97,13 +97,14 @@ import { groupClient } from './services/groups/groups.shared';
 export type { Group, GroupData, GroupQuery, GroupPatch } from './services/groups/groups.shared';
 
 import { userClient } from './services/users/users.shared';
+import { defaultClient } from './services/defaults/defaults.shared';
 export type { User, UserData, UserQuery, UserPatch } from './services/users/users.shared';
 
 export interface Configuration {
   connection: TransportConnection<ServiceTypes>
 }
-
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+ 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ServiceTypes {}
 
 export type ClientApplication = Application<ServiceTypes, Configuration>
@@ -116,7 +117,7 @@ export type ClientApplication = Application<ServiceTypes, Configuration>
  * @see https://dove.feathersjs.com/api/client.html
  * @returns The Feathers client application
  */
-// eslint-disable-next-line no-unused-vars, no-shadow
+// eslint-disable-next-line no-unused-vars, no-shadow, @typescript-eslint/no-explicit-any
 export const createClient = <Configuration = any>(
 	connection: TransportConnection<ServiceTypes>,
 	authenticationOptions: Partial<AuthenticationClientOptions> = {}
@@ -129,6 +130,7 @@ export const createClient = <Configuration = any>(
 
 	client.configure(userClient);
 	client.configure(groupClient);
+	client.configure(defaultClient);
 	client.configure(groupUserClient);
 	client.configure(permissionClient);
 	client.configure(rolePermissionClient);

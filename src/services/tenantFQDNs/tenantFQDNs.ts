@@ -21,6 +21,8 @@ import { tenantFqdnPath, tenantFqdnMethods } from './tenantFQDNs.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { isInSameTenantAndTenantOwnerOrAdmin } from '../../hooks/isInSameTenantAndTenantOwnerOrAdmin';
+import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './tenantFQDNs.class';
 export * from './tenantFQDNs.schema';
@@ -64,7 +66,11 @@ export const tenantFqdn = (app: Application) => {
 				schemaHooks.validateData(tenantFqdnPatchValidator),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],
-			remove: [ iff(notSuperAdmin(), isInSameTenantAndTenantOwnerOrAdmin) ]
+			remove: [ 
+				// check tenant id as well
+				iff(notSuperAdmin(), isTenantAdmin),
+				iff(notSuperAdmin(), notInSameTenantByContextId)
+			]
 		},
 		after: {
 			all: []

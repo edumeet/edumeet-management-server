@@ -22,6 +22,11 @@ import { addRoomOwner } from '../../hooks/addRoomOwner';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import filterByRoomOwnership from '../../hooks/filterByRoomOwnership';
+import { tenantUserManagedRoomNumberLimit } from '../../hooks/tenantUserManagedRoomNumberLimit';
+import { tenantRoomLimit } from '../../hooks/tenantUserRoomLimit';
+import { notTenantManager } from '../../hooks/notTenantManager';
+import { tenantManagerManagedRoomNumberLimit } from '../../hooks/managerManagedRoomNumberLimit';
+import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -50,8 +55,13 @@ export const room = (app: Application) => {
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(roomQueryResolver))
 			],
 			find: [ iff(notSuperAdmin(), filterByRoomOwnership) ],
-			get: [ iff(notSuperAdmin(), filterByRoomOwnership) ],
+			get: [ 
+				iff(notSuperAdmin(), filterByRoomOwnership)
+			],
 			create: [
+				iff(notSuperAdmin(), iff(notTenantManager(), tenantUserManagedRoomNumberLimit)), // limits all room count for user under a tenant
+				iff(notSuperAdmin(), iff(!notTenantManager(), tenantManagerManagedRoomNumberLimit)), // limits all room count for tenant admin user under a tenant
+				iff(notSuperAdmin(), tenantRoomLimit), // limits all room count under a tenant
 				schemaHooks.validateData(roomDataValidator),
 				schemaHooks.resolveData(roomDataResolver)
 			],
@@ -60,7 +70,10 @@ export const room = (app: Application) => {
 				schemaHooks.validateData(roomPatchValidator),
 				schemaHooks.resolveData(roomPatchResolver)
 			],
-			remove: [ iff(notSuperAdmin(), isRoomOwnerOrAdmin) ]
+			remove: [ 
+				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
+				iff(notSuperAdmin(), notInSameTenantByContextId)
+			]
 		},
 		after: {
 			all: [],

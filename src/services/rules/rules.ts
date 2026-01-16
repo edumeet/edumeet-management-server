@@ -21,6 +21,8 @@ import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { adminOnlyData } from '../../hooks/adminOnlyData';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { isInSameTenantAndTenantOwnerOrAdmin } from '../../hooks/isInSameTenantAndTenantOwnerOrAdmin';
 
 export * from './rules.class';
 
@@ -47,10 +49,8 @@ export const rule = (app: Application) => {
 				iff(notSuperAdmin(), isTenantAdmin, schemaHooks.resolveQuery(ruleQueryResolver)) ],
 			
 			find: [
-
 			],
 			get: [
-
 			],
 			create: [ 
 				iff(notSuperAdmin(), adminOnlyData),
@@ -59,10 +59,12 @@ export const rule = (app: Application) => {
 			],
 			patch: [ 
 				iff(notSuperAdmin(), adminOnlyData),
+				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rulePatchValidator),
 				schemaHooks.resolveData(rulePatchResolver)
 			],
 			remove: [
+				iff(notSuperAdmin(), notInSameTenantByContextId),
 			]
 		},
 		after: {
