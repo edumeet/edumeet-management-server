@@ -1,7 +1,7 @@
 import { HookContext } from '../declarations';
 
-// Make a feathers hook that checks if the user is the owner of the room.
-// It does this by checking the roomOwners service for a record with the roomId and userId.
+// Make a feathers hook that checks if the user is the owner or admin of the tenant.
+// It does this by checking the tenantOwners and tenantAdmins services for a record with the tenantId and userId.
 // If the user is the owner, the hook returns the context.
 // If the user is not the owner, the hook throws a Forbidden error.
 
@@ -9,12 +9,6 @@ export const isInSameTenantAndTenantOwnerOrAdmin = async (context: HookContext):
 	// We only care about external calls
 	if (!context.params.provider) return;
 
-	const { user } = context.params;
-
-	if (!user?.tenantAdmin && !user?.tenantOwner) 
-		throw new Error('You are not a tenant owner or admin');
-
-	// TODO: Check properly if the user is an owner of the room
 	let tenantId: string | undefined;
 
 	if (context.id)
