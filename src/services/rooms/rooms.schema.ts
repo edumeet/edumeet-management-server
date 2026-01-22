@@ -149,7 +149,6 @@ export const roomDataSchema = Type.Intersect([
 		'createdAt',
 		'updatedAt',
 		'creatorId',
-		'tenantId',
 	], { additionalProperties: false }))
 ], { $id: 'RoomData', additionalProperties: false });
 
