@@ -152,6 +152,7 @@ export const roomDataSchema = Type.Intersect([
 		'tenantId',
 	], { additionalProperties: false }))
 ], { $id: 'RoomData', additionalProperties: false });
+
 export type RoomData = Static<typeof roomDataSchema>
 export const roomDataValidator = getValidator(roomDataSchema, dataValidator);
 export const roomDataResolver = resolve<Room, HookContext>({
@@ -169,6 +170,45 @@ export const roomDataResolver = resolve<Room, HookContext>({
 	reactionsEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
 	localRecordingEnabled: async (value = true) => value,
+});
+
+// Schema for creating new entries as SUPERADMIN
+// Same as roomDataSchema, but allows and requires tenantId in the payload
+export const roomDataSuperAdminSchema = Type.Intersect([
+	Type.Pick(roomSchema, [ 'name', 'tenantId' ], { additionalProperties: false }),
+	// Allow all other fields, including tenantId
+	Type.Partial(Type.Omit(roomSchema, [
+		'name',
+		'owners',
+		'groupRoles',
+		'userRoles',
+		'defaultRole',
+		'createdAt',
+		'updatedAt',
+		'creatorId',
+	], { additionalProperties: false }))
+], { $id: 'RoomDataSuperAdmin', additionalProperties: false });
+
+export type RoomDataSuperAdmin = Static<typeof roomDataSuperAdminSchema>;
+export const roomDataSuperAdminValidator = getValidator(roomDataSuperAdminSchema, dataValidator);
+export const roomDataSuperAdminResolver = resolve<Room, HookContext>({
+	// same behavior as roomDataResolver
+	name: async (value, room, context) => context.data.name.toLowerCase(),
+	createdAt: async () => Date.now(),
+	updatedAt: async () => Date.now(),
+	creatorId: async (value, room, context) => context.params.user?.id,
+
+	// SUPERADMIN: if tenantId is provided in the body
+	tenantId: async (value, room, context) => value,
+
+	maxActiveVideos: async (value = 12) => value,
+	locked: async (value = true) => value,
+	breakoutsEnabled: async (value = true) => value,
+	chatEnabled: async (value = true) => value,
+	raiseHandEnabled: async (value = true) => value,
+	reactionsEnabled: async (value = true) => value,
+	filesharingEnabled: async (value = true) => value,
+	localRecordingEnabled: async (value = true) => value
 });
 
 // Schema for updating existing entries
