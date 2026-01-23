@@ -11,7 +11,9 @@ import {
 	roomExternalResolver,
 	roomDataResolver,
 	roomPatchResolver,
-	roomQueryResolver
+	roomQueryResolver,
+	roomDataSuperAdminValidator,
+	roomDataSuperAdminResolver
 } from './rooms.schema';
 
 import type { Application } from '../../declarations';
@@ -62,8 +64,17 @@ export const room = (app: Application) => {
 				iff(notSuperAdmin(), iff(notTenantManager(), tenantUserManagedRoomNumberLimit)), // limits all room count for user under a tenant
 				iff(notSuperAdmin(), iff(!notTenantManager(), tenantManagerManagedRoomNumberLimit)), // limits all room count for tenant admin user under a tenant
 				iff(notSuperAdmin(), tenantRoomLimit), // limits all room count under a tenant
-				schemaHooks.validateData(roomDataValidator),
-				schemaHooks.resolveData(roomDataResolver)
+
+				iff(
+					notSuperAdmin(),
+					// non-superadmin branch
+					schemaHooks.validateData(roomDataValidator),
+					schemaHooks.resolveData(roomDataResolver)
+				).else(
+					// superadmin branch
+					schemaHooks.validateData(roomDataSuperAdminValidator),
+					schemaHooks.resolveData(roomDataSuperAdminResolver)
+				)
 			],
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),

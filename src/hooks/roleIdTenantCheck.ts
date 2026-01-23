@@ -5,7 +5,7 @@ export const roleIdTenantCheck = async (context: HookContext): Promise<void> => 
 	if (context.params.provider && !context.params.user)
 		throw new Error('You are not logged in');
 
-	const { roleId } = context.params.data;
+	const roleId = context.data.roleId;
 
 	if (roleId) {
 		const service = context.app.service('roles');
