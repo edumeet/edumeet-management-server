@@ -34,7 +34,20 @@ export const checkPermissions = (options: CheckPermissionsOptions) => {
 		}
 
 		// Normalize permissions. They can either be a comma separated string or an array.
-		const permissionList = entity[field];
+		let permissionList = entity[field];
+
+		// on mariadb cluster it is returned as a string
+		if (typeof permissionList=='string') {
+			const j = JSON.parse(permissionList);
+
+			if (j)
+				if (typeof j.some == 'undefined') {
+					// return true;
+				} else {
+					permissionList = j;
+				}
+		}
+
 		const requiredPermissions: string[] = [ '*', `*:${method}` ];
 
 		options.roles.forEach((permission: string) => {
