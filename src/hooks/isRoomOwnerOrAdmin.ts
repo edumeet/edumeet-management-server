@@ -11,15 +11,14 @@ export const isRoomOwnerOrAdmin = async (context: HookContext): Promise<void> =>
 
 	const { user } = context.params;
 
-	// TODO: Check properly if the user is an owner of the room
 	let roomId: string | undefined;
 
-	// minimal fix: prefer data.roomId, and for roomOwners/:id resolve via the row
+	// prefer data.roomId, and for roomOwners/:id resolve via the row
 	if (context.data?.roomId) {
 		roomId = String(context.data.roomId);
 	} else if (context.id) {
 		if (context.path === 'roomOwners') {
-			// here context.id is roomOwners.id, not roomId -> load & use its roomId
+			// here context.id is roomOwners.id, not roomId -> load and use its roomId
 			const owner = await context.app.service('roomOwners').get(context.id, {
 				...context.params,
 				provider: undefined, // internal call, avoid re-triggering external hooks
