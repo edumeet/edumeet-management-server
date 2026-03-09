@@ -11,7 +11,7 @@ export type { Room, RoomData, RoomPatch, RoomQuery };
 export type RoomParams = KnexAdapterParams<RoomQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class RoomService<ServiceParams extends Params = RoomParams> extends KnexService<
+export class RoomService<_ServiceParams extends Params = RoomParams> extends KnexService<
 	Room,
 	RoomData,
 	RoomParams,

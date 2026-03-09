@@ -11,7 +11,7 @@ export type { TenantOAuth, TenantOAuthData, TenantOAuthPatch, TenantOAuthQuery }
 export type TenantOAuthParams = KnexAdapterParams<TenantOAuthQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class TenantOAuthService<ServiceParams extends Params = TenantOAuthParams> extends KnexService<
+export class TenantOAuthService<_ServiceParams extends Params = TenantOAuthParams> extends KnexService<
 	TenantOAuth,
 	TenantOAuthData,
 	TenantOAuthParams,

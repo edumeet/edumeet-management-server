@@ -28,7 +28,7 @@ import { tenantUserManagedRoomNumberLimit } from '../../hooks/tenantUserManagedR
 import { tenantRoomLimit } from '../../hooks/tenantUserRoomLimit';
 import { notTenantManager } from '../../hooks/notTenantManager';
 import { tenantManagerManagedRoomNumberLimit } from '../../hooks/managerManagedRoomNumberLimit';
-import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
 export * from './rooms.class';
 export * from './rooms.schema';

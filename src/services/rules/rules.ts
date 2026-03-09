@@ -22,7 +22,6 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { adminOnlyData } from '../../hooks/adminOnlyData';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
-import { isInSameTenantAndTenantOwnerOrAdmin } from '../../hooks/isInSameTenantAndTenantOwnerOrAdmin';
 
 export * from './rules.class';
 

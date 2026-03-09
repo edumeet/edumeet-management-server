@@ -11,7 +11,7 @@ export type { Group, GroupData, GroupPatch, GroupQuery };
 export type GroupParams = KnexAdapterParams<GroupQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class GroupService<ServiceParams extends Params = GroupParams> extends KnexService<
+export class GroupService<_ServiceParams extends Params = GroupParams> extends KnexService<
 	Group,
 	GroupData,
 	GroupParams,

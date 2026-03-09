@@ -198,7 +198,7 @@ export const roomDataSuperAdminResolver = resolve<Room, HookContext>({
 	creatorId: async (value, room, context) => context.params.user?.id,
 
 	// SUPERADMIN: if tenantId is provided in the body
-	tenantId: async (value, room, context) => value,
+	tenantId: async (value, _room, _context) => value,
 
 	maxActiveVideos: async (value = 12) => value,
 	locked: async (value = true) => value,

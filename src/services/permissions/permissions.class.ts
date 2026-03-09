@@ -11,7 +11,7 @@ export type { Permission, PermissionData, PermissionPatch, PermissionQuery };
 export type PermissionParams = KnexAdapterParams<PermissionQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class PermissionService<ServiceParams extends Params = PermissionParams> extends KnexService<
+export class PermissionService<_ServiceParams extends Params = PermissionParams> extends KnexService<
 	Permission,
 	PermissionData,
 	PermissionParams,

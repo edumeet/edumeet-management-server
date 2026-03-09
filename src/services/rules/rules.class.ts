@@ -11,7 +11,7 @@ export type { Rule, RuleData, RulePatch, RuleQuery };
 export type RuleParams = KnexAdapterParams<RuleQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class RuleService<ServiceParams extends Params = RuleParams> extends KnexService<
+export class RuleService<_ServiceParams extends Params = RuleParams> extends KnexService<
 	Rule,
 	RuleData,
 	RuleParams,

@@ -11,7 +11,7 @@ export type { TenantFqdn, TenantFqdnData, TenantFqdnPatch, TenantFqdnQuery };
 export type TenantFqdnParams = KnexAdapterParams<TenantFqdnQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class TenantFqdnService<ServiceParams extends Params = TenantFqdnParams> extends KnexService<
+export class TenantFqdnService<_ServiceParams extends Params = TenantFqdnParams> extends KnexService<
 	TenantFqdn,
 	TenantFqdnData,
 	TenantFqdnParams,
