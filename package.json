@@ -11,7 +11,7 @@
 	"contributors": [],
 	"bugs": {},
 	"engines": {
-		"node": ">= 18.12.0"
+		"node": ">= 24.0.0"
 	},
 	"feathers": {
 		"language": "ts",
@@ -73,7 +73,7 @@
 	"devDependencies": {
 		"@feathersjs/cli": "^5.0.41",
 		"@feathersjs/rest-client": "^5.0.41",
-		"@tsconfig/node20": "^20.1.9",
+		"@tsconfig/node24": "^24.0.4",
 		"@types/bcryptjs": "^3.0.0",
 		"@types/dompurify": "^3.0.5",
 		"@types/koa__router": "^12.0.5",

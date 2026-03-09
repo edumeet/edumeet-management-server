@@ -198,6 +198,7 @@ export const roomDataSuperAdminResolver = resolve<Room, HookContext>({
 	creatorId: async (value, room, context) => context.params.user?.id,
 
 	// SUPERADMIN: if tenantId is provided in the body
+	// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 	tenantId: async (value, room, context) => value,
 
 	maxActiveVideos: async (value = 12) => value,

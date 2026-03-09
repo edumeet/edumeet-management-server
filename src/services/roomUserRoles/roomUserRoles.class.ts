@@ -16,6 +16,7 @@ export type { RoomUserRole, RoomUserRoleData, RoomUserRolePatch, RoomUserRoleQue
 export type RoomUserRoleParams = KnexAdapterParams<RoomUserRoleQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 export class RoomUserRoleService<ServiceParams extends Params = RoomUserRoleParams> extends KnexService<
 	RoomUserRole,
 	RoomUserRoleData,

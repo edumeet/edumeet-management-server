@@ -11,6 +11,7 @@ export type { TenantAdmin, TenantAdminData, TenantAdminPatch, TenantAdminQuery }
 export type TenantAdminParams = KnexAdapterParams<TenantAdminQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 export class TenantAdminService<ServiceParams extends Params = TenantAdminParams> extends KnexService<
 	TenantAdmin,
 	TenantAdminData,

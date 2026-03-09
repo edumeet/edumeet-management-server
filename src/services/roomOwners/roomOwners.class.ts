@@ -11,6 +11,7 @@ export type { RoomOwner, RoomOwnerData, RoomOwnerPatch, RoomOwnerQuery };
 export type RoomOwnerParams = KnexAdapterParams<RoomOwnerQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 export class RoomOwnerService<ServiceParams extends Params = RoomOwnerParams> extends KnexService<
 	RoomOwner,
 	RoomOwnerData,

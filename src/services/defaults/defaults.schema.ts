@@ -5,8 +5,6 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
-import { roleSchema } from '../roles/roles.schema';
-import { permissionSchema } from '../permissions/permissions.schema';
 
 // Main data model schema
 export const defaultSchema = Type.Object(

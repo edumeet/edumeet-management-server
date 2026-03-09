@@ -11,6 +11,7 @@ export type { TenantFqdn, TenantFqdnData, TenantFqdnPatch, TenantFqdnQuery };
 export type TenantFqdnParams = KnexAdapterParams<TenantFqdnQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 export class TenantFqdnService<ServiceParams extends Params = TenantFqdnParams> extends KnexService<
 	TenantFqdn,
 	TenantFqdnData,

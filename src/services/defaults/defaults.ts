@@ -19,7 +19,7 @@ import { DefaultService, getOptions } from './defaults.class';
 import { defaultPath, defaultMethods } from './defaults.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { notInSameTenant } from '../../hooks/notSameTenant';
 import { tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';

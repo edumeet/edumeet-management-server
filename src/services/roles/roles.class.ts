@@ -11,6 +11,7 @@ export type { Role, RoleData, RolePatch, RoleQuery };
 export type RoleParams = KnexAdapterParams<RoleQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 export class RoleService<ServiceParams extends Params = RoleParams> extends KnexService<
 	Role,
 	RoleData,
