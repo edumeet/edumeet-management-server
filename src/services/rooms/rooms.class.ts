@@ -11,7 +11,8 @@ export type { Room, RoomData, RoomPatch, RoomQuery };
 export type RoomParams = KnexAdapterParams<RoomQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class RoomService<_ServiceParams extends Params = RoomParams> extends KnexService<
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
+export class RoomService<ServiceParams extends Params = RoomParams> extends KnexService<
 	Room,
 	RoomData,
 	RoomParams,

@@ -11,7 +11,8 @@ export type { Default, DefaultData, DefaultPatch, DefaultQuery };
 export type DefaultParams = KnexAdapterParams<DefaultQuery>
 
 // By default calls the standard Knex adapter service methods but can be customized with your own functionality.
-export class DefaultService<_ServiceParams extends Params = DefaultParams> extends KnexService<
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
+export class DefaultService<ServiceParams extends Params = DefaultParams> extends KnexService<
 	Default,
 	DefaultData,
 	DefaultParams,
