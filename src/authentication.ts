@@ -37,9 +37,9 @@ export const authentication = (app: Application) => {
 	// The caller must present a valid (non-expired) JWT; the response contains a new token
 	// with a reset expiry window, keeping active users logged in indefinitely.
 	app.use('token-refresh', {
-		async create(_data: unknown, params?: Params): Promise<{ accessToken: string }> {
+		async create(_data: unknown, _params?: Params): Promise<{ accessToken: string }> {
 			const accessToken = await authenticationService.createAccessToken(
-				{ sub: String(params?.user?.id) },
+				{ sub: String(_params?.user?.id) },
 				app.get('authentication').jwtOptions
 			);
 
