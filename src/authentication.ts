@@ -13,7 +13,8 @@ declare module './declarations' {
 	interface ServiceTypes {
 		authentication: AuthenticationService;
 		'oauth/:provider': OAuthService;
-		'token-refresh': { create(_data: unknown, _params?: Params): Promise<{ accessToken: string }> };
+		// eslint-disable-next-line no-unused-vars
+		'token-refresh': { create(data: unknown, params?: Params): Promise<{ accessToken: string }> };
 	}
 }
 
