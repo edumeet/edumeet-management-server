@@ -39,9 +39,10 @@ export const authentication = (app: Application) => {
 	// with a reset expiry window, keeping active users logged in indefinitely.
 	app.use('token-refresh', {
 		async create(_data: unknown, _params?: Params): Promise<{ accessToken: string }> {
+			const jwtOptions = app.get('authentication')?.jwtOptions ?? {};
 			const accessToken = await authenticationService.createAccessToken(
 				{ sub: String(_params?.user?.id) },
-				app.get('authentication').jwtOptions
+				jwtOptions
 			);
 
 			return { accessToken };
