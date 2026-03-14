@@ -13,7 +13,7 @@ declare module './declarations' {
 	interface ServiceTypes {
 		authentication: AuthenticationService;
 		'oauth/:provider': OAuthService;
-		'token-refresh': { create(data: unknown, params?: Params): Promise<{ accessToken: string }> };
+		'token-refresh': { create(_data: unknown, _params?: Params): Promise<{ accessToken: string }> };
 	}
 }
 
