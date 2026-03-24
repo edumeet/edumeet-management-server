@@ -19,6 +19,9 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 			delete context.data['managerManagedRoomNumberLimit'];
 		}
 
+		if (item['disableUnmanagedLock']) {
+			context.data['disableUnmanaged'] = item['disableUnmanaged'];
+		}
 		if (item['lockedLock']) {
 			context.data['lockedUnmanaged'] = item['lockedUnmanaged'];
 		}
