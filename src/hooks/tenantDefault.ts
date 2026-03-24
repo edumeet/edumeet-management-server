@@ -12,6 +12,9 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 	if (originalid) {
 		const item = await defaultsService.get(originalid);
 
+		// numberLimit is super-admin only — tenant admins cannot change the tenant-wide room cap
+		delete context.data['numberLimit'];
+
 		if (item['managerManagedRoomNumberLimit'] && typeof item['managerManagedRoomNumberLimit'] == 'string') {
 			context.data['managerManagedRoomNumberLimit'] = parseInt(String(item['managerManagedRoomNumberLimit']));
 		}
