@@ -53,6 +53,8 @@ export const defaults = (app: Application) => {
 			create: [
 				iff(notSuperAdmin(), isTenantAdmin),
 				// iff(notSuperAdmin(), notInSameTenant),
+				// numberLimit is super-admin only — strip it from create requests by tenant admins
+				iff(notSuperAdmin(), (context) => { delete context.data['numberLimit']; }),
 				schemaHooks.validateData(defaultDataValidator),
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [

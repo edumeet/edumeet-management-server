@@ -19,6 +19,8 @@ export const defaultSchema = Type.Object(
 		managerManagedRoomNumberLimit: Type.Optional(Type.Number()), // (number of managed rooms that can be created by a single user), -unlimited- (if user-room-limit is set to 0, this would meant that only admins can create rooms)
 		//  room features (if disabled here, no one will able to turn it on, if not set they will have the default behaviour)
 		
+		disableUnmanaged: Type.Optional(Type.Boolean()),
+		disableUnmanagedLock: Type.Optional(Type.Boolean()),
 		lockedUnmanaged: Type.Optional(Type.Boolean()),
 		raiseHandEnabledUnmanaged: Type.Optional(Type.Boolean()),
 		localRecordingEnabledUnmanaged: Type.Optional(Type.Boolean()),
