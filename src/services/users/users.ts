@@ -63,6 +63,25 @@ export const user = (app: Application) => {
 		const isSuperAdmin = !notSuperAdmin()(context);
 		const canSeeAll = isSuperAdmin || reqUser.tenantAdmin || reqUser.tenantOwner;
 
+		// Check if the tenant has disabled user detail hiding
+		let tenantHidesDetails = true;
+
+		if (!canSeeAll && reqUser.tenantId != null) {
+			try {
+				const tenant = await context.app.service('tenants').get(reqUser.tenantId, {
+					...context.params,
+					provider: undefined,
+					query: {}
+				});
+
+				if (tenant && tenant.hideUserDetails === false) {
+					tenantHidesDetails = false;
+				}
+			} catch {
+				// If tenant lookup fails, keep hiding details
+			}
+		}
+
 		const sanitizeOne = (item: UserResult | undefined) => {
 			if (!item) return;
 
@@ -71,11 +90,15 @@ export const user = (app: Application) => {
 
 			const isSelf = String(reqUser.id) === String(item.id);
 
-			// Non-admins: hide email + ssoId + name except for their own row
+			// Non-admins: hide ssoId except for their own row (always hidden)
 			if (!canSeeAll && !isSelf) {
-				item.email = undefined;
 				item.ssoId = undefined;
-				item.name = undefined;
+
+				// Hide email + name unless tenant opted out
+				if (tenantHidesDetails) {
+					item.email = undefined;
+					item.name = undefined;
+				}
 			}
 		};
 
