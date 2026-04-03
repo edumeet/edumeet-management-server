@@ -28,6 +28,7 @@ import { assertRules } from '../../hooks/assertRules';
 import { gainRules } from '../../hooks/gainRules';
 
 import { Forbidden } from '@feathersjs/errors';
+import { logger } from '../../logger';
 
 import { requireNonEmptyName } from '../../hooks/requireNonEmptyName';
 import type { User } from './users.schema';
@@ -77,8 +78,30 @@ export const user = (app: Application) => {
 				if (tenant && tenant.hideUserDetails === false) {
 					tenantHidesDetails = false;
 				}
-			} catch {
-				// If tenant lookup fails, keep hiding details
+			} catch (err) {
+				logger.error('sanitizeUsersForPrivacy: tenant lookup failed', err);
+			}
+		}
+
+		// Fetch resolved user IDs for this user
+		const resolvedUserIds = new Set<string>();
+
+		if (!canSeeAll && tenantHidesDetails) {
+			try {
+				const resolved = await context.app.service('resolvedUsers').find({
+					...context.params,
+					provider: undefined,
+					query: { userId: reqUser.id, $limit: 9999 },
+					paginate: false
+				});
+
+				const items = Array.isArray(resolved) ? resolved : (resolved as { data: Array<{ resolvedUserId: number }> }).data;
+
+				for (const r of items) {
+					resolvedUserIds.add(String(r.resolvedUserId));
+				}
+			} catch (err) {
+				logger.error('sanitizeUsersForPrivacy: resolvedUsers lookup failed', err);
 			}
 		}
 
@@ -94,8 +117,8 @@ export const user = (app: Application) => {
 			if (!canSeeAll && !isSelf) {
 				item.ssoId = undefined;
 
-				// Hide email + name unless tenant opted out
-				if (tenantHidesDetails) {
+				// Hide email + name unless tenant opted out or user was resolved
+				if (tenantHidesDetails && !resolvedUserIds.has(String(item.id))) {
 					item.email = undefined;
 					item.name = undefined;
 				}
