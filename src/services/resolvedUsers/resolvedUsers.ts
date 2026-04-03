@@ -43,19 +43,16 @@ export const resolvedUser = (app: Application) => {
 			],
 			find: [],
 			create: [
-				// Auto-set userId from authenticated user
+				schemaHooks.validateData(resolvedUserDataValidator),
+				schemaHooks.resolveData(resolvedUserDataResolver),
+				// Auto-set userId from authenticated user (after validation)
 				async (context: HookContext<ResolvedUserService>) => {
 					if (context.params.user) {
-						context.data = {
-							...context.data,
-							userId: context.params.user.id
-						};
+						(context.data as Record<string, unknown>).userId = context.params.user.id;
 					}
 
 					return context;
-				},
-				schemaHooks.validateData(resolvedUserDataValidator),
-				schemaHooks.resolveData(resolvedUserDataResolver)
+				}
 			],
 			remove: []
 		},
