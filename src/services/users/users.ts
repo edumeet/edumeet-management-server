@@ -28,6 +28,7 @@ import { assertRules } from '../../hooks/assertRules';
 import { gainRules } from '../../hooks/gainRules';
 
 import { Forbidden } from '@feathersjs/errors';
+import { logger } from '../../logger';
 
 import { requireNonEmptyName } from '../../hooks/requireNonEmptyName';
 import type { User } from './users.schema';
@@ -63,6 +64,47 @@ export const user = (app: Application) => {
 		const isSuperAdmin = !notSuperAdmin()(context);
 		const canSeeAll = isSuperAdmin || reqUser.tenantAdmin || reqUser.tenantOwner;
 
+		// Check if the tenant has disabled user detail hiding
+		let tenantHidesDetails = true;
+
+		if (!canSeeAll && reqUser.tenantId != null) {
+			try {
+				const tenant = await context.app.service('tenants').get(reqUser.tenantId, {
+					...context.params,
+					provider: undefined,
+					query: {}
+				});
+
+				if (tenant && tenant.hideUserDetails === false) {
+					tenantHidesDetails = false;
+				}
+			} catch (err) {
+				logger.error('sanitizeUsersForPrivacy: tenant lookup failed', err);
+			}
+		}
+
+		// Fetch resolved user IDs for this user
+		const resolvedUserIds = new Set<string>();
+
+		if (!canSeeAll && tenantHidesDetails) {
+			try {
+				const resolved = await context.app.service('resolvedUsers').find({
+					...context.params,
+					provider: undefined,
+					query: { userId: reqUser.id, $limit: 9999 },
+					paginate: false
+				});
+
+				const items = Array.isArray(resolved) ? resolved : (resolved as { data: Array<{ resolvedUserId: number }> }).data;
+
+				for (const r of items) {
+					resolvedUserIds.add(String(r.resolvedUserId));
+				}
+			} catch (err) {
+				logger.error('sanitizeUsersForPrivacy: resolvedUsers lookup failed', err);
+			}
+		}
+
 		const sanitizeOne = (item: UserResult | undefined) => {
 			if (!item) return;
 
@@ -71,11 +113,15 @@ export const user = (app: Application) => {
 
 			const isSelf = String(reqUser.id) === String(item.id);
 
-			// Non-admins: hide email + ssoId + name except for their own row
+			// Non-admins: hide ssoId except for their own row (always hidden)
 			if (!canSeeAll && !isSelf) {
-				item.email = undefined;
 				item.ssoId = undefined;
-				item.name = undefined;
+
+				// Hide email + name unless tenant opted out or user was resolved
+				if (tenantHidesDetails && !resolvedUserIds.has(String(item.id))) {
+					item.email = undefined;
+					item.name = undefined;
+				}
 			}
 		};
 

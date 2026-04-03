@@ -17,6 +17,7 @@ import { user } from './users/users';
 import type { Application } from '../declarations';
 import { rule } from './rules/rules';
 import { defaults } from './defaults/defaults';
+import { resolvedUser } from './resolvedUsers/resolvedUsers';
 
 export const services = (app: Application) => {
 	app.configure(tenant);
@@ -36,5 +37,6 @@ export const services = (app: Application) => {
 	app.configure(groupUser);
 	app.configure(group);
 	app.configure(user);
+	app.configure(resolvedUser);
 	// All services will be registered here
 };
