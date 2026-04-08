@@ -1013,15 +1013,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/bcryptjs@npm:^3.0.0":
-  version: 3.0.0
-  resolution: "@types/bcryptjs@npm:3.0.0"
-  dependencies:
-    bcryptjs: "npm:*"
-  checksum: 10c0/5d61ce381736f8252627cf32f2bbc17003c0361c6cf63ac23034a651b9c1edfdbf8f786730816e0b5257a927ffa369658562183a68495eb07ca2ddc77fbb171c
-  languageName: node
-  linkType: hard
-
 "@types/body-parser@npm:*":
   version: 1.19.6
   resolution: "@types/body-parser@npm:1.19.6"
@@ -1833,7 +1824,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"bcryptjs@npm:*, bcryptjs@npm:^3.0.3":
+"bcryptjs@npm:^3.0.3":
   version: 3.0.3
   resolution: "bcryptjs@npm:3.0.3"
   bin:
@@ -2647,7 +2638,6 @@ __metadata:
     "@feathersjs/typebox": "npm:^5.0.44"
     "@koa/router": "npm:^15.3.0"
     "@tsconfig/node24": "npm:^24.0.4"
-    "@types/bcryptjs": "npm:^3.0.0"
     "@types/dompurify": "npm:^3.0.5"
     "@types/koa__router": "npm:^12.0.5"
     "@types/mocha": "npm:^10.0.1"
