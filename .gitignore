@@ -10,3 +10,8 @@
 yarn-error.log
 
 *.code-workspace
+
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+.pnp.*
