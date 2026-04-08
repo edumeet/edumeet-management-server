@@ -13,9 +13,10 @@ Postgresql and application config
 docker run  --name edumeet-db -p 5432:5432 -e POSTGRES_PASSWORD=edumeet -d postgres
 docker exec -it edumeet-db psql -U postgres -c "create database edumeet;"
 ```
-Install your dependencies
+Install your dependencies (this project uses Yarn 4 via Corepack)
 ```
-yarn
+corepack enable
+yarn install --immutable
 ```
 Start the service
 ```
