@@ -9,7 +9,17 @@ const filterByRoomOwnership = async (context: HookContext): Promise<void> => {
 	if (!userId) {
 		throw new Error('User is not authenticated.');
 	}
-	if (!context.params.user.tenantAdmin && !context.params.user.tenantOwner) {
+	// Tenant admins/owners normally see all rooms in their tenant.
+	// When ownedOnly is set (e.g. landing page "My Rooms" dropdown),
+	// filter to owned rooms even for tenant admins so they only see
+	// rooms they own.
+	const ownedOnly = context.params.query?.ownedOnly;
+
+	if (ownedOnly) {
+		delete context.params.query.ownedOnly;
+	}
+
+	if (ownedOnly || (!context.params.user.tenantAdmin && !context.params.user.tenantOwner)) {
 		// Get the roomOwners service
 		const roomOwnersService = app.service('roomOwners');
 

@@ -239,7 +239,7 @@ export const roomQuerySchema = Type.Intersect(
 	[
 		querySyntax(roomQueryProperties),
 		// Add additional query properties here
-		Type.Object({}, { additionalProperties: false })
+		Type.Object({ ownedOnly: Type.Optional(Type.Boolean()) }, { additionalProperties: false })
 	],
 	{ additionalProperties: false }
 );
