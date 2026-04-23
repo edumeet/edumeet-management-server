@@ -90,6 +90,14 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 
 	if (!invites?.encryptionKey) return;
 
+	// Guard against misconfigured IMAP: empty user or password would always fail auth.
+	// Log a clear message once per cycle instead of spamming imap errors.
+	if (!tenantConfig.imapUser || !tenantConfig.imapPass) {
+		logger.warn(`[invites/replyPoller] tenant ${tenantConfig.tenantId} IMAP credentials incomplete (user or password empty) — poll skipped`);
+
+		return;
+	}
+
 	let client: ImapFlow | undefined;
 
 	try {
@@ -98,8 +106,8 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			port: tenantConfig.imapPort ?? 993,
 			secure: tenantConfig.imapSecure ?? true,
 			auth: {
-				user: tenantConfig.imapUser ?? '',
-				pass: tenantConfig.imapPass ? decrypt(tenantConfig.imapPass, invites.encryptionKey) : ''
+				user: tenantConfig.imapUser,
+				pass: decrypt(tenantConfig.imapPass, invites.encryptionKey)
 			},
 			logger: false
 		});
