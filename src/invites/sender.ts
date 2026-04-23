@@ -80,7 +80,9 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		const transporter = getTransporter(app, tenantConfig);
 		const roomUrl = await lookupRoomUrl(app, tenantConfig.tenantId, roomName);
 		const template = getTemplate(meeting.locale || 'en');
-		const startsStr = new Date(meeting.startsAt).toISOString();
+		// Postgres bigint columns come back as strings from knex — coerce before Date()
+		// or `new Date()` misinterprets the numeric string as an ISO date → Invalid Date.
+		const startsStr = new Date(Number(meeting.startsAt)).toISOString();
 
 		// "Alice via Tenant Name" — always include the organizing user + tenant so attendees
 		// can tell invites apart even if multiple tenants share an SMTP mailbox.

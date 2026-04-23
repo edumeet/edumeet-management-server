@@ -33,8 +33,9 @@ const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 	const event = cal.createEvent({
 		id: meeting.uid,
 		sequence: meeting.sequence,
-		start: new Date(meeting.startsAt),
-		end: new Date(meeting.endsAt),
+		// Coerce — Postgres bigint serializes as string; new Date(string) misparses.
+		start: new Date(Number(meeting.startsAt)),
+		end: new Date(Number(meeting.endsAt)),
 		timezone: meeting.timezone,
 		summary: meeting.title,
 		description: meeting.description,
