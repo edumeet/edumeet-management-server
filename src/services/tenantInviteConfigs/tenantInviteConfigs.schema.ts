@@ -31,28 +31,12 @@ export const tenantInviteConfigSchema = Type.Object(
 export type TenantInviteConfig = Static<typeof tenantInviteConfigSchema>
 export const tenantInviteConfigResolver = resolve<TenantInviteConfig, HookContext>({});
 
-const adminOnly = async <T>(value: T, _data: unknown, context: HookContext): Promise<T | undefined> => {
-	const u = context.params.user;
-
-	if (u && (u.tenantAdmin || u.tenantOwner)) return value;
-
-	return undefined;
-};
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const adminOnlyAny: any = adminOnly;
-
+// Only passwords are stripped from external responses. Non-admins seeing host/port/user
+// is not a security concern — they can't write (isTenantAdmin blocks create/patch/remove)
+// and they're limited to their own tenant by the query resolver.
 export const tenantInviteConfigExternalResolver = resolve<TenantInviteConfig, HookContext>({
 	smtpPass: async () => undefined,
 	imapPass: async () => undefined,
-	smtpHost: adminOnlyAny,
-	smtpPort: adminOnlyAny,
-	smtpSecure: adminOnlyAny,
-	smtpUser: adminOnlyAny,
-	imapHost: adminOnlyAny,
-	imapPort: adminOnlyAny,
-	imapSecure: adminOnlyAny,
-	imapUser: adminOnlyAny,
 });
 
 const encryptPass = async (value: string | undefined, _data: unknown, context: HookContext): Promise<string | undefined> => {
