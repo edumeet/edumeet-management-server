@@ -60,7 +60,13 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 		// node-ical yields attendee as object or array
 		const attendees = Array.isArray(attendeeEntry) ? attendeeEntry : attendeeEntry ? [ attendeeEntry ] : [];
 
-		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length}`);
+		// RFC 5546 §2.1.5: higher SEQUENCE wins; DTSTAMP is the tiebreaker for equal SEQUENCE.
+		// This guards against out-of-order delivery (MTA queuing, retries) where e.g. an
+		// ACCEPT email arrives after the user's corrective DECLINE sent 10s later.
+		const evDtstampMs = ev.dtstamp ? new Date(ev.dtstamp).getTime() : 0;
+		const evSequence = Number(ev.sequence ?? 0) || 0;
+
+		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs}`);
 
 		for (const att of attendees) {
 			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
@@ -103,9 +109,26 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 				continue;
 			}
 
-			await app.service('meetingAttendees').patch(attendeeRow.id, { partstat }, { provider: undefined });
+			// Skip if the stored reply is newer per (SEQUENCE, DTSTAMP) — prevents an
+			// out-of-order ACCEPT from overwriting a later DECLINE the user sent seconds later.
+			// Coerce because bigint columns deserialize as strings in node-postgres.
+			const storedSeq = attendeeRow.replySequence != null ? Number(attendeeRow.replySequence) : null;
+			const storedDtstamp = attendeeRow.replyDtstamp != null ? Number(attendeeRow.replyDtstamp) : null;
+
+			if (storedSeq != null && storedDtstamp != null) {
+				if (evSequence < storedSeq || (evSequence === storedSeq && evDtstampMs <= storedDtstamp)) {
+					logger.info(`[invites/replyPoller] stale REPLY for attendee id=${attendeeRow.id} (incoming seq=${evSequence} dtstamp=${evDtstampMs} <= stored seq=${storedSeq} dtstamp=${storedDtstamp}), skipping`);
+					continue;
+				}
+			}
+
+			await app.service('meetingAttendees').patch(
+				attendeeRow.id,
+				{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+				{ provider: undefined }
+			);
 			matched++;
-			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat}`);
+			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${evSequence})`);
 		}
 	}
 

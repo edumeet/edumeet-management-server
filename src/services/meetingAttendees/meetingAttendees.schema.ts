@@ -18,6 +18,8 @@ export const meetingAttendeeSchema = Type.Object(
 		partstat: Partstat,
 		rsvpToken: Type.String(),
 		lastNotifiedSequence: Type.Number(),
+		replyDtstamp: Type.Optional(Type.Union([ Type.Number(), Type.Null() ])),
+		replySequence: Type.Optional(Type.Union([ Type.Number(), Type.Null() ])),
 		createdAt: Type.Number(),
 		updatedAt: Type.Number(),
 	},
@@ -33,7 +35,7 @@ export const meetingAttendeeExternalResolver = resolve<MeetingAttendee, HookCont
 
 export const meetingAttendeeDataSchema = Type.Omit(
 	meetingAttendeeSchema,
-	[ 'id', 'partstat', 'rsvpToken', 'lastNotifiedSequence', 'createdAt', 'updatedAt' ],
+	[ 'id', 'partstat', 'rsvpToken', 'lastNotifiedSequence', 'replyDtstamp', 'replySequence', 'createdAt', 'updatedAt' ],
 	{ $id: 'MeetingAttendeeData', additionalProperties: false }
 );
 export type MeetingAttendeeData = Static<typeof meetingAttendeeDataSchema>
