@@ -85,7 +85,12 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 
 		// Dedup: only notify attendees whose lastNotifiedSequence is behind.
 		// sender.sendInviteEmail bumps lastNotifiedSequence after a successful REQUEST.
-		const toNotify = attendees.filter((a) => (a.lastNotifiedSequence ?? -1) < currentSequence);
+		// Also skip the organizer — they created the meeting, they don't need an invite email.
+		const organizerId = meeting.organizerId != null ? Number(meeting.organizerId) : undefined;
+		const toNotify = attendees.filter((a) =>
+			(a.lastNotifiedSequence ?? -1) < currentSequence
+			&& (organizerId == null || Number(a.userId) !== organizerId)
+		);
 
 		await Promise.all(toNotify.map((a) => sendInviteEmail(app, {
 			method,
@@ -134,17 +139,22 @@ export const beforeMeetingRemoveDispatch = async (context: HookContext): Promise
 		const organizerUserName = await loadOrganizerUserName(context.app, meeting.organizerId);
 		const tenantName = await loadTenantName(context.app, meeting.tenantId);
 		const cancelled = { ...meeting, status: 'CANCELLED' as const };
+		const organizerId = meeting.organizerId != null ? Number(meeting.organizerId) : undefined;
 
-		await Promise.all(attendees.map((a) => sendInviteEmail(context.app, {
-			method: 'CANCEL',
-			meeting: cancelled,
-			attendee: a,
-			allAttendees: attendees,
-			tenantConfig,
-			roomName,
-			organizerUserName,
-			tenantName
-		})));
+		await Promise.all(
+			attendees
+				.filter((a) => organizerId == null || Number(a.userId) !== organizerId)
+				.map((a) => sendInviteEmail(context.app, {
+					method: 'CANCEL',
+					meeting: cancelled,
+					attendee: a,
+					allAttendees: attendees,
+					tenantConfig,
+					roomName,
+					organizerUserName,
+					tenantName
+				}))
+		);
 	} catch (err) {
 		logger.warn('[invites/dispatcher] beforeMeetingRemoveDispatch failed (continuing):', err);
 	}

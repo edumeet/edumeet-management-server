@@ -18,6 +18,7 @@ import { MeetingService, getOptions } from './meetings.class';
 import { meetingPath, meetingMethods } from './meetings.shared';
 import { isRoomOwnerOrAdminForMeeting } from '../../hooks/isRoomOwnerOrAdminForMeeting';
 import { beforeMeetingRemoveDispatch } from '../../invites/dispatcher';
+import { logger } from '../../logger';
 
 export * from './meetings.class';
 export * from './meetings.schema';
@@ -78,6 +79,46 @@ const scopeFindVisibility = async (context: HookContext): Promise<void> => {
 		query.id = { $in: visibleIds };
 	}
 	context.params.query = query;
+};
+
+// after.create: auto-add the organizer as an ACCEPTED attendee so the meeting appears
+// in their own attendee list (and in the ICS guest list that goes out to others).
+// Idempotent — skips if the organizer is already in the attendee list.
+// Organizer is never emailed their own invite (dispatcher filters by organizerId).
+const addOrganizerAsAttendee = async (context: HookContext): Promise<void> => {
+	if (!context.result) return;
+	const meeting = context.result as { id?: number | string, organizerId?: number | string };
+
+	if (!meeting.id || !meeting.organizerId) return;
+	try {
+		const organizer = await context.app.service('users').get(Number(meeting.organizerId)) as { email?: string, name?: string };
+		const email = organizer.email?.toLowerCase();
+
+		if (!email) return;
+
+		const existing = await context.app.service('meetingAttendees').find({
+			paginate: false,
+			query: { meetingId: Number(meeting.id), email }
+		});
+		const list = Array.isArray(existing) ? existing : (existing as { data: unknown[] }).data;
+
+		if ((list as unknown[]).length > 0) return;
+
+		const created = await context.app.service('meetingAttendees').create({
+			meetingId: Number(meeting.id),
+			userId: Number(meeting.organizerId),
+			email,
+			name: organizer.name
+		}, { provider: undefined }) as { id: number | string };
+
+		await context.app.service('meetingAttendees').patch(
+			Number(created.id),
+			{ partstat: 'ACCEPTED' },
+			{ provider: undefined }
+		);
+	} catch (err) {
+		logger.warn('[meetings] failed to auto-add organizer as attendee:', err);
+	}
 };
 
 // restricts get — validates context.id is in the visible set for non-admins
@@ -177,7 +218,8 @@ export const meeting = (app: Application) => {
 			remove: [ isRoomOwnerOrAdminForMeeting, beforeMeetingRemoveDispatch ]
 		},
 		after: {
-			all: []
+			all: [],
+			create: [ addOrganizerAsAttendee ]
 		},
 		error: {
 			all: []
