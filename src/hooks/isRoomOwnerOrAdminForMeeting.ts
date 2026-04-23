@@ -37,9 +37,20 @@ const resolveRoomId = async (context: HookContext, path: 'meetings' | 'meetingAt
 		// path === 'meetingOccurrenceRsvps' — route via meetingAttendeeId → meeting
 		let attendeeId: number | undefined;
 
-		if (context.data?.meetingAttendeeId) attendeeId = Number(context.data.meetingAttendeeId);
-		else if (context.params?.query?.meetingAttendeeId) attendeeId = Number(context.params.query.meetingAttendeeId);
-		else if (context.id) {
+		if (context.data?.meetingAttendeeId) {
+			attendeeId = Number(context.data.meetingAttendeeId);
+		} else if (context.params?.query?.meetingAttendeeId) {
+			const q = context.params.query.meetingAttendeeId;
+
+			// Accept plain value OR {$in: [...]} (the UI fetches exceptions for all attendees at once).
+			if (typeof q === 'number' || typeof q === 'string') {
+				attendeeId = Number(q);
+			} else if (q && typeof q === 'object' && Array.isArray((q as { $in?: unknown[] }).$in)) {
+				const list = (q as { $in: unknown[] }).$in;
+
+				if (list.length > 0) attendeeId = Number(list[0]);
+			}
+		} else if (context.id) {
 			const rsvp = await context.app.service('meetingOccurrenceRsvps').get(context.id, {
 				...context.params,
 				provider: undefined,
@@ -49,7 +60,7 @@ const resolveRoomId = async (context: HookContext, path: 'meetings' | 'meetingAt
 			attendeeId = rsvp.meetingAttendeeId;
 		}
 
-		if (attendeeId) {
+		if (attendeeId && !Number.isNaN(attendeeId)) {
 			const attendee = await context.app.service('meetingAttendees').get(attendeeId, {
 				...context.params,
 				provider: undefined,
