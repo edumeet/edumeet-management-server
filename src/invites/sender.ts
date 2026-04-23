@@ -68,10 +68,12 @@ export interface SendOptions {
 	attendee: MeetingAttendee;
 	tenantConfig: TenantInviteConfig;
 	roomName: string;
+	organizerUserName?: string;
+	tenantName?: string;
 }
 
 export const sendInviteEmail = async (app: Application, opts: SendOptions): Promise<void> => {
-	const { method, meeting, attendee, tenantConfig, roomName } = opts;
+	const { method, meeting, attendee, tenantConfig, roomName, organizerUserName, tenantName } = opts;
 
 	try {
 		const transporter = getTransporter(app, tenantConfig);
@@ -79,11 +81,18 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		const template = getTemplate(meeting.locale || 'en');
 		const startsStr = new Date(meeting.startsAt).toISOString();
 
+		// "Alice via Tenant Name" — always include the organizing user + tenant so attendees
+		// can tell invites apart even if multiple tenants share an SMTP mailbox.
+		const userLabel = organizerUserName || tenantConfig.organizerName || 'edumeet';
+		const tenantLabel = tenantName || tenantConfig.organizerName || 'edumeet';
+		const fromDisplay = `${userLabel} via ${tenantLabel}`;
+
 		const icsInput = {
 			meeting,
 			attendees: [ attendee ],
 			tenantConfig,
-			roomUrl
+			roomUrl,
+			organizerUserName: userLabel
 		};
 		const ics = method === 'REQUEST' ? buildRequestIcs(icsInput) : buildCancelIcs(icsInput);
 		const subject = method === 'REQUEST'
@@ -94,19 +103,19 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 				title: meeting.title,
 				description: meeting.description,
 				roomUrl,
-				organizerName: tenantConfig.organizerName,
+				organizerName: userLabel,
 				startsAt: startsStr
 			})
 			: template.bodyCancel({
 				title: meeting.title,
 				description: meeting.description,
 				roomUrl,
-				organizerName: tenantConfig.organizerName,
+				organizerName: userLabel,
 				startsAt: startsStr
 			});
 
 		await transporter.sendMail({
-			from: `"${tenantConfig.organizerName || tenantConfig.organizerAddress}" <${tenantConfig.organizerAddress}>`,
+			from: `"${fromDisplay}" <${tenantConfig.organizerAddress}>`,
 			to: attendee.name ? `"${attendee.name}" <${attendee.email}>` : attendee.email,
 			subject,
 			text,

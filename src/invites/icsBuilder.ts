@@ -8,6 +8,7 @@ export interface IcsBuildInput {
 	attendees: MeetingAttendee[];
 	tenantConfig: TenantInviteConfig;
 	roomUrl: string;
+	organizerUserName?: string;
 }
 
 const PROD_ID = '//edumeet//calendar-invites//EN';
@@ -22,7 +23,7 @@ const partstatToIcs = (p?: string): ICalAttendeeStatus => {
 };
 
 const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
-	const { meeting, attendees, tenantConfig, roomUrl } = input;
+	const { meeting, attendees, tenantConfig, roomUrl, organizerUserName } = input;
 
 	const cal = ical({
 		prodId: PROD_ID,
@@ -39,7 +40,8 @@ const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 		description: meeting.description,
 		location: roomUrl,
 		organizer: {
-			name: tenantConfig.organizerName || tenantConfig.organizerAddress,
+			// CN = the organizing user (for attribution); mailto = the mailbox where replies land.
+			name: organizerUserName || tenantConfig.organizerName || tenantConfig.organizerAddress,
 			email: tenantConfig.organizerAddress
 		},
 		status: meeting.status === 'CANCELLED' ? ICalEventStatus.CANCELLED : ICalEventStatus.CONFIRMED
