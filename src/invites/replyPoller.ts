@@ -158,6 +158,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 		try {
 			let unseenCount = 0;
 			let icsFoundCount = 0;
+			const uidsToMarkSeen: number[] = [];
 
 			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
 				unseenCount++;
@@ -191,7 +192,18 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 				const ok = await processReplyIcs(app, icsMatch[0]);
 
 				if (ok) {
-					await client.messageFlagsAdd(msg.uid, [ '\\Seen' ], { uid: true });
+					uidsToMarkSeen.push(msg.uid);
+				}
+			}
+
+			// Mark all successfully processed messages as Seen in one STORE command AFTER
+			// the FETCH iterator is fully drained. Running STORE inside the FETCH loop
+			// causes some IMAP servers (Gandi observed) to stop responding.
+			if (uidsToMarkSeen.length > 0) {
+				try {
+					await client.messageFlagsAdd(uidsToMarkSeen, [ '\\Seen' ], { uid: true });
+				} catch (err) {
+					logger.warn('[invites/replyPoller] batch flag update failed (messages will reprocess next cycle):', err);
 				}
 			}
 
