@@ -280,6 +280,25 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			if (unseenCount > 0) {
 				logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} polled ${unseenCount} unseen message(s), ${icsFoundCount} had ICS`);
 			}
+
+			// Retention cleanup: purge SEEN messages older than the retention window so the
+			// dedicated invite mailbox doesn't grow unbounded. Only touches messages we've
+			// already flagged as processed — unprocessed mail (welcome emails, junk) is left alone.
+			const retentionDays = Number(invites?.imapRetentionDays ?? 30);
+
+			if (retentionDays > 0) {
+				try {
+					const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+					const oldUids = await client.search({ before: cutoff, seen: true }, { uid: true });
+
+					if (oldUids && oldUids.length > 0) {
+						await client.messageDelete(oldUids, { uid: true });
+						logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} purged ${oldUids.length} message(s) older than ${retentionDays}d`);
+					}
+				} catch (err) {
+					logger.warn('[invites/replyPoller] retention cleanup failed (non-fatal):', err);
+				}
+			}
 		} finally {
 			lock.release();
 		}

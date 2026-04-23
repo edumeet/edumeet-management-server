@@ -9,7 +9,8 @@ import { dataValidator } from './validators';
 export const inviteConfigSchema = Type.Object({
 	encryptionKey: Type.Optional(Type.String()),
 	rsvpTokenSecret: Type.Optional(Type.String()),
-	imapPollIntervalMs: Type.Optional(Type.Number())
+	imapPollIntervalMs: Type.Optional(Type.Number()),
+	imapRetentionDays: Type.Optional(Type.Number())
 });
 
 export const configurationSchema = Type.Intersect([
