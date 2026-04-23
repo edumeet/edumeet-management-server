@@ -3,8 +3,7 @@ import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import { sendInviteEmail } from './sender';
-
-const logger = console;
+import { logger } from '../logger';
 
 // How long to wait for additional events on the same meeting before dispatching.
 // 2s absorbs the client's create-meeting + create-attendees burst into one dispatch.
@@ -221,7 +220,7 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			scheduleDispatch(app, meetingId);
 		} catch (err) {
 			// meeting may already be deleted (cascade) — ignore silently
-			logger.debug?.('[invites/dispatcher] meetingAttendees.removed handler skipped:', err);
+			logger.debug('[invites/dispatcher] meetingAttendees.removed handler skipped:', err);
 		}
 	});
 };

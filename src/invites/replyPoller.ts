@@ -4,12 +4,11 @@ import type { Application } from '../declarations';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import { decrypt } from './crypto';
+import { logger } from '../logger';
 
 const DEFAULT_POLL_MS = 60000;
 
 const pollers = new Map<number, { timer: NodeJS.Timeout, stopped: boolean }>();
-
-const logger = console;
 
 type IcsPartstat = 'ACCEPTED' | 'DECLINED' | 'TENTATIVE' | 'NEEDS-ACTION';
 
@@ -36,7 +35,10 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 
 	const method = (parsed.method || '').toUpperCase();
 
+	logger.debug(`[invites/replyPoller] parsed ICS, METHOD=${method}`);
 	if (method !== 'REPLY') return false;
+
+	let matched = 0;
 
 	for (const key of Object.keys(parsed)) {
 		const ev = parsed[key];
@@ -47,6 +49,8 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 		// node-ical yields attendee as object or array
 		const attendees = Array.isArray(attendeeEntry) ? attendeeEntry : attendeeEntry ? [ attendeeEntry ] : [];
 
+		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length}`);
+
 		for (const att of attendees) {
 			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
 			const email = String(rawVal)
@@ -54,9 +58,14 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 				.trim()
 				.toLowerCase();
 
-			if (!email) continue;
+			if (!email) {
+				logger.warn('[invites/replyPoller] attendee has empty email, skipping:', att);
+				continue;
+			}
 			const params = typeof att === 'string' ? {} : (att?.params ?? {});
 			const partstat = normalizePartstat(params.PARTSTAT);
+
+			logger.debug(`[invites/replyPoller] attendee email=${email} partstat=${partstat}`);
 
 			// find meeting by uid, then attendee by email
 			const meetingsRes = await app.service('meetings').find({
@@ -66,7 +75,10 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 			const list = Array.isArray(meetingsRes) ? meetingsRes : (meetingsRes as { data: unknown[] }).data;
 			const meeting = (list as Array<{ id: number }>)[0];
 
-			if (!meeting) continue;
+			if (!meeting) {
+				logger.warn(`[invites/replyPoller] no meeting found for uid=${uid}`);
+				continue;
+			}
 
 			const attsRes = await app.service('meetingAttendees').find({
 				paginate: false,
@@ -75,11 +87,18 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 			const aList = Array.isArray(attsRes) ? attsRes : (attsRes as { data: unknown[] }).data;
 			const attendeeRow = (aList as MeetingAttendee[])[0];
 
-			if (!attendeeRow?.id) continue;
+			if (!attendeeRow?.id) {
+				logger.warn(`[invites/replyPoller] no attendee row for meetingId=${meeting.id} email=${email}`);
+				continue;
+			}
 
 			await app.service('meetingAttendees').patch(attendeeRow.id, { partstat }, { provider: undefined });
+			matched++;
+			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat}`);
 		}
 	}
+
+	logger.info(`[invites/replyPoller] processed REPLY, ${matched} attendee(s) updated`);
 
 	return true;
 };
@@ -98,6 +117,8 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 		return;
 	}
 
+	logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} polling ${tenantConfig.imapHost}:${tenantConfig.imapPort ?? 993} as ${tenantConfig.imapUser}`);
+
 	let client: ImapFlow | undefined;
 
 	try {
@@ -113,22 +134,51 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 		});
 
 		await client.connect();
+		logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} connected to IMAP`);
 		const lock = await client.getMailboxLock('INBOX');
 
 		try {
+			let unseenCount = 0;
+			let icsFoundCount = 0;
+
 			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
+				unseenCount++;
 				if (!msg.source) continue;
 				const source = msg.source.toString('utf8');
-				// only look at messages that contain a text/calendar part with method REPLY
-				const icsMatch = source.match(/BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/);
+				// The ICS may be base64-encoded inside an attachment part; decode any base64
+				// chunks in the source before searching, in addition to the inline text.
+				const sources: string[] = [ source ];
 
-				if (!icsMatch) continue;
+				for (const b64Match of source.matchAll(/Content-Transfer-Encoding:\s*base64[\s\S]*?\r?\n\r?\n([A-Za-z0-9+/=\s]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi)) {
+					try {
+						const decoded = Buffer.from(b64Match[1].replace(/\s/g, ''), 'base64').toString('utf8');
 
+						if (decoded.includes('BEGIN:VCALENDAR')) sources.push(decoded);
+					} catch { /* noop */ }
+				}
+
+				let icsMatch: RegExpMatchArray | null = null;
+
+				for (const s of sources) {
+					icsMatch = s.match(/BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/);
+					if (icsMatch) break;
+				}
+
+				if (!icsMatch) {
+					logger.debug(`[invites/replyPoller] msg uid=${msg.uid} has no VCALENDAR block`);
+					continue;
+				}
+
+				icsFoundCount++;
 				const ok = await processReplyIcs(app, icsMatch[0]);
 
 				if (ok) {
 					await client.messageFlagsAdd(msg.uid, [ '\\Seen' ], { uid: true });
 				}
+			}
+
+			if (unseenCount > 0) {
+				logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} polled ${unseenCount} unseen message(s), ${icsFoundCount} had ICS`);
 			}
 		} finally {
 			lock.release();
@@ -138,6 +188,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 	} finally {
 		if (client) {
 			try { await client.logout(); } catch { /* noop */ }
+			logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} poll cycle complete`);
 		}
 	}
 };

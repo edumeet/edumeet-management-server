@@ -7,9 +7,9 @@ import { decrypt } from './crypto';
 import { buildRequestIcs, buildCancelIcs } from './icsBuilder';
 import { getTemplate } from './templates';
 
-const senderCache = new Map<number, Transporter>();
+import { logger } from '../logger';
 
-const logger = console;
+const senderCache = new Map<number, Transporter>();
 
 const decryptedPass = (app: Application, encrypted: string | undefined): string => {
 	if (!encrypted) return '';

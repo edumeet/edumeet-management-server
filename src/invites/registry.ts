@@ -4,7 +4,7 @@ import { invalidateSender } from './sender';
 import { startPollerForTenant, stopPollerForTenant, stopAllPollers } from './replyPoller';
 import { registerMeetingEventHandlers } from './dispatcher';
 
-const logger = console;
+import { logger } from '../logger';
 
 const rebuildTenantWorker = (app: Application, cfg: TenantInviteConfig): void => {
 	invalidateSender(cfg.tenantId);
