@@ -115,9 +115,11 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 
 			// Per-occurrence exception: write to meetingOccurrenceRsvps; leave series partstat alone.
 			if (recurrenceId != null) {
+				// Coerce — Postgres bigint columns deserialize as strings and the schema validator rejects non-numbers.
+				const attendeeIdNum = Number(attendeeRow.id);
 				const rsvpRes = await app.service('meetingOccurrenceRsvps').find({
 					paginate: false,
-					query: { meetingAttendeeId: attendeeRow.id, recurrenceId }
+					query: { meetingAttendeeId: attendeeIdNum, recurrenceId }
 				});
 				const rList = Array.isArray(rsvpRes) ? rsvpRes : (rsvpRes as { data: unknown[] }).data;
 				const rsvpRow = (rList as MeetingOccurrenceRsvp[])[0];
@@ -128,19 +130,19 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 
 					if (rSeq != null && rStamp != null &&
 						(evSequence < rSeq || (evSequence === rSeq && evDtstampMs <= rStamp))) {
-						logger.info(`[invites/replyPoller] stale occurrence REPLY for attendee id=${attendeeRow.id} recurrenceId=${recurrenceId}, skipping`);
+						logger.info(`[invites/replyPoller] stale occurrence REPLY for attendee id=${attendeeIdNum} recurrenceId=${recurrenceId}, skipping`);
 						continue;
 					}
 
 					await app.service('meetingOccurrenceRsvps').patch(
-						rsvpRow.id,
+						Number(rsvpRow.id),
 						{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
 						{ provider: undefined }
 					);
 				} else {
 					await app.service('meetingOccurrenceRsvps').create(
 						{
-							meetingAttendeeId: attendeeRow.id,
+							meetingAttendeeId: attendeeIdNum,
 							recurrenceId,
 							partstat,
 							replyDtstamp: evDtstampMs,
@@ -150,7 +152,7 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 					);
 				}
 				matched++;
-				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeRow.id} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
+				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
 				continue;
 			}
 
