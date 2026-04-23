@@ -33,11 +33,16 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 		return false;
 	}
 
-	const method = (parsed.method || '').toUpperCase();
+	// node-ical stores calendar-level properties (PRODID, VERSION, METHOD) under
+	// `parsed.vcalendar`, not at the top level. Fall back to raw-source regex too,
+	// because different node-ical versions vary.
+	const vcalMethod = parsed?.vcalendar?.method || parsed?.vcalendar?.METHOD;
+	const topMethod = parsed?.method || parsed?.METHOD;
+	const rawMatch = icsSource.match(/^METHOD:([A-Z-]+)/mi);
+	const method = String(vcalMethod || topMethod || rawMatch?.[1] || '').toUpperCase();
 
 	logger.debug(`[invites/replyPoller] parsed ICS, METHOD=${method}`);
 	if (method !== 'REPLY') {
-		// Dump first chunk of the ICS content and top-level parsed keys so we can diagnose why METHOD is empty
 		logger.debug(`[invites/replyPoller] ICS preview: ${icsSource.substring(0, 400).replace(/\r?\n/g, ' | ')}`);
 		logger.debug(`[invites/replyPoller] parsed top-level keys: ${Object.keys(parsed).join(', ')}`);
 
