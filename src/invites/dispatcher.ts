@@ -6,6 +6,12 @@ import { sendInviteEmail } from './sender';
 
 const logger = console;
 
+// How long to wait for additional events on the same meeting before dispatching.
+// 2s absorbs the client's create-meeting + create-attendees burst into one dispatch.
+const DISPATCH_DEBOUNCE_MS = 2000;
+
+const pendingDispatches = new Map<number, NodeJS.Timeout>();
+
 const loadTenantConfig = async (app: Application, tenantId: number): Promise<TenantInviteConfig | undefined> => {
 	const res = await app.service('tenantInviteConfigs').find({
 		paginate: false,
@@ -60,24 +66,29 @@ const loadTenantName = async (app: Application, tenantId: number): Promise<strin
 	}
 };
 
-const dispatchForMeeting = async (
-	app: Application,
-	meeting: Meeting,
-	method: 'REQUEST' | 'CANCEL',
-	onlyAttendees?: MeetingAttendee[]
-): Promise<void> => {
+// Runs after the debounce window. Loads current state, filters by lastNotifiedSequence,
+// and sends one REQUEST per attendee whose notified-sequence is behind the meeting's
+// current sequence. Existing attendees skip when they're already up to date.
+const runDispatch = async (app: Application, meetingId: number): Promise<void> => {
 	try {
+		const meeting = await app.service('meetings').get(meetingId);
 		const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
 
 		if (!tenantConfig) return;
 		const roomName = await loadRoomName(app, meeting.roomId);
 
 		if (!roomName) return;
-		const attendees = onlyAttendees ?? await loadAttendees(app, meeting.id as number);
+		const attendees = await loadAttendees(app, meetingId);
 		const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
 		const tenantName = await loadTenantName(app, meeting.tenantId);
+		const method: 'REQUEST' | 'CANCEL' = meeting.status === 'CANCELLED' ? 'CANCEL' : 'REQUEST';
+		const currentSequence = meeting.sequence ?? 0;
 
-		await Promise.all(attendees.map((a) => sendInviteEmail(app, {
+		// Dedup: only notify attendees whose lastNotifiedSequence is behind.
+		// sender.sendInviteEmail bumps lastNotifiedSequence after a successful REQUEST.
+		const toNotify = attendees.filter((a) => (a.lastNotifiedSequence ?? -1) < currentSequence);
+
+		await Promise.all(toNotify.map((a) => sendInviteEmail(app, {
 			method,
 			meeting,
 			attendee: a,
@@ -88,94 +99,126 @@ const dispatchForMeeting = async (
 			tenantName
 		})));
 	} catch (err) {
-		logger.error('[invites/dispatcher] dispatchForMeeting failed:', err);
+		logger.error('[invites/dispatcher] runDispatch failed:', err);
 	}
 };
 
-// before-hook on meetings.remove: capture attendees and send CANCEL before the DB row is gone
+// Schedules a dispatch for a meeting. If one is already scheduled, resets the timer
+// so rapid bursts of events collapse into a single dispatch.
+const scheduleDispatch = (app: Application, meetingId: number): void => {
+	const existing = pendingDispatches.get(meetingId);
+
+	if (existing) clearTimeout(existing);
+	const timer = setTimeout(() => {
+		pendingDispatches.delete(meetingId);
+		runDispatch(app, meetingId).catch((err) => {
+			logger.error('[invites/dispatcher] scheduled dispatch failed:', err);
+		});
+	}, DISPATCH_DEBOUNCE_MS);
+
+	pendingDispatches.set(meetingId, timer);
+};
+
+// before-hook on meetings.remove: capture attendees and send CANCEL before the DB row is gone.
+// Runs synchronously (not debounced) because the cascade-delete is about to wipe attendees.
 export const beforeMeetingRemoveDispatch = async (context: HookContext): Promise<void> => {
 	if (!context.id) return;
 	try {
 		const meeting = await context.app.service('meetings').get(context.id);
+		const tenantConfig = await loadTenantConfig(context.app, meeting.tenantId);
+
+		if (!tenantConfig) return;
+		const roomName = await loadRoomName(context.app, meeting.roomId);
+
+		if (!roomName) return;
 		const attendees = await loadAttendees(context.app, meeting.id as number);
-		// stash for after-hook if needed; for now do the send here synchronously
+		const organizerUserName = await loadOrganizerUserName(context.app, meeting.organizerId);
+		const tenantName = await loadTenantName(context.app, meeting.tenantId);
 		const cancelled = { ...meeting, status: 'CANCELLED' as const };
 
-		await dispatchForMeeting(context.app, cancelled, 'CANCEL', attendees);
+		await Promise.all(attendees.map((a) => sendInviteEmail(context.app, {
+			method: 'CANCEL',
+			meeting: cancelled,
+			attendee: a,
+			allAttendees: attendees,
+			tenantConfig,
+			roomName,
+			organizerUserName,
+			tenantName
+		})));
 	} catch (err) {
 		logger.warn('[invites/dispatcher] beforeMeetingRemoveDispatch failed (continuing):', err);
 	}
 };
 
 export const registerMeetingEventHandlers = (app: Application): void => {
-	// meetings.created → REQUEST to all attendees (attendees may be added right after; we also listen to meetingAttendees.created)
+	// Any event on a meeting or its attendees schedules a debounced dispatch for that meetingId.
+	// runDispatch then picks up the current state and sends to attendees not yet notified at
+	// the current sequence — collapsing bursts into one email per attendee per logical save.
+
 	app.service('meetings').on('created', (meeting: Meeting) => {
-		dispatchForMeeting(app, meeting, 'REQUEST');
+		scheduleDispatch(app, Number(meeting.id));
 	});
 
-	// meetings.patched → REQUEST to all attendees with bumped sequence
 	app.service('meetings').on('patched', (meeting: Meeting) => {
-		if (meeting.status === 'CANCELLED') {
-			dispatchForMeeting(app, meeting, 'CANCEL');
-		} else {
-			dispatchForMeeting(app, meeting, 'REQUEST');
-		}
+		// meeting.sequence already bumped by the patch resolver
+		scheduleDispatch(app, Number(meeting.id));
 	});
 
-	// meetingAttendees.created → bump meeting sequence and re-dispatch REQUEST to EVERYONE
-	// (industry-standard iTIP: all attendees see the updated guest list).
 	app.service('meetingAttendees').on('created', async (attendee: MeetingAttendee) => {
+		const meetingId = Number(attendee.meetingId);
+
 		try {
-			const meetingId = Number(attendee.meetingId);
+			// Bump meeting.sequence so existing attendees qualify for re-dispatch with
+			// updated guest list (industry-standard iTIP). Direct knex avoids triggering
+			// the meetings.patched event loop.
 			const knex = app.get('postgresqlClient');
 
-			// Bump sequence directly (avoids triggering the meetings.patched dispatcher loop)
 			await knex('meetings')
 				.where({ id: meetingId })
 				.increment('sequence', 1);
-			const meeting = await app.service('meetings').get(meetingId);
-
-			await dispatchForMeeting(app, meeting, 'REQUEST');
 		} catch (err) {
-			logger.error('[invites/dispatcher] meetingAttendees.created handler failed:', err);
+			logger.warn('[invites/dispatcher] sequence bump on attendee add failed:', err);
 		}
+		scheduleDispatch(app, meetingId);
 	});
 
-	// meetingAttendees.removed → CANCEL to removed attendee, REQUEST to remaining with updated list.
 	app.service('meetingAttendees').on('removed', async (attendee: MeetingAttendee) => {
+		const meetingId = Number(attendee.meetingId);
+
 		try {
-			const meetingId = Number(attendee.meetingId);
+			// CANCEL to the removed attendee goes out immediately — it's a direct action,
+			// not part of a batched save, and the attendee row is already gone.
 			const meeting = await app.service('meetings').get(meetingId);
 			const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
 
-			if (!tenantConfig) return;
-			const roomName = await loadRoomName(app, meeting.roomId);
+			if (tenantConfig) {
+				const roomName = await loadRoomName(app, meeting.roomId);
 
-			if (!roomName) return;
-			const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
-			const tenantName = await loadTenantName(app, meeting.tenantId);
+				if (roomName) {
+					const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
+					const tenantName = await loadTenantName(app, meeting.tenantId);
 
-			// CANCEL to the removed attendee — their calendar entry disappears.
-			await sendInviteEmail(app, {
-				method: 'CANCEL',
-				meeting: { ...meeting, status: 'CANCELLED' as const },
-				attendee,
-				allAttendees: [ attendee ],
-				tenantConfig,
-				roomName,
-				organizerUserName,
-				tenantName
-			});
+					await sendInviteEmail(app, {
+						method: 'CANCEL',
+						meeting: { ...meeting, status: 'CANCELLED' as const },
+						attendee,
+						allAttendees: [ attendee ],
+						tenantConfig,
+						roomName,
+						organizerUserName,
+						tenantName
+					});
+				}
+			}
 
-			// Bump sequence + re-dispatch REQUEST to remaining so their guest lists update.
+			// Bump sequence + schedule dispatch so remaining attendees see the updated guest list.
 			const knex = app.get('postgresqlClient');
 
 			await knex('meetings')
 				.where({ id: meetingId })
 				.increment('sequence', 1);
-			const updated = await app.service('meetings').get(meetingId);
-
-			await dispatchForMeeting(app, updated, 'REQUEST');
+			scheduleDispatch(app, meetingId);
 		} catch (err) {
 			// meeting may already be deleted (cascade) — ignore silently
 			logger.debug?.('[invites/dispatcher] meetingAttendees.removed handler skipped:', err);
