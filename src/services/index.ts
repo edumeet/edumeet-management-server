@@ -1,8 +1,11 @@
 import { tenant } from './tenants/tenants';
 import { tenantOwner } from './tenantOwners/tenantOwners';
 import { tenantOAuth } from './tenantOAuths/tenantOAuths';
+import { tenantInviteConfig } from './tenantInviteConfigs/tenantInviteConfigs';
 import { tenantFqdn } from './tenantFQDNs/tenantFQDNs';
 import { tenantAdmin } from './tenantAdmins/tenantAdmins';
+import { meeting } from './meetings/meetings';
+import { meetingAttendee } from './meetingAttendees/meetingAttendees';
 import { roomUserRole } from './roomUserRoles/roomUserRoles';
 import { room } from './rooms/rooms';
 import { roomOwner } from './roomOwners/roomOwners';
@@ -23,8 +26,11 @@ export const services = (app: Application) => {
 	app.configure(tenant);
 	app.configure(tenantOwner);
 	app.configure(tenantOAuth);
+	app.configure(tenantInviteConfig);
 	app.configure(tenantFqdn);
 	app.configure(tenantAdmin);
+	app.configure(meeting);
+	app.configure(meetingAttendee);
 	app.configure(roomUserRole);
 	app.configure(room);
 	app.configure(defaults);

@@ -4,7 +4,7 @@ import configuration from '@feathersjs/configuration';
 import { koa, rest, bodyParser, errorHandler, parseAuthentication, cors, serveStatic } from '@feathersjs/koa';
 import socketio from '@feathersjs/socketio';
 
-import type { Application } from './declarations';
+import type { Application, HookContext, NextFunction } from './declarations';
 import { configurationValidator } from './configuration';
 import { logError } from './hooks/log-error';
 import { postgresql } from './postgresql';
@@ -15,6 +15,7 @@ import { authCallback } from './authCallback';
 import { dynamicOAuthSetup } from './hooks/dynamicOAuth';
 import { authLogout } from './authLogout';
 import { authLogoutClose } from './authLogoutClose';
+import { startInviteWorkers, stopInviteWorkers } from './invites/registry';
 // import { setDebug } from '@feathersjs/commons';
  
 // setDebug(() => console.log);
@@ -48,9 +49,18 @@ app.hooks({ around: { all: [ logError ] } });
 
 app.hooks({
 	setup: [
-		dynamicOAuthSetup
+		dynamicOAuthSetup,
+		async (context: HookContext, next: NextFunction) => {
+			await startInviteWorkers(context.app);
+			await next();
+		}
 	],
-	teardown: []
+	teardown: [
+		async (_context: HookContext, next: NextFunction) => {
+			stopInviteWorkers();
+			await next();
+		}
+	]
 });
 
 export { app };
