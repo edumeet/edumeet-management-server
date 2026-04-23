@@ -36,7 +36,13 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 	const method = (parsed.method || '').toUpperCase();
 
 	logger.debug(`[invites/replyPoller] parsed ICS, METHOD=${method}`);
-	if (method !== 'REPLY') return false;
+	if (method !== 'REPLY') {
+		// Dump first chunk of the ICS content and top-level parsed keys so we can diagnose why METHOD is empty
+		logger.debug(`[invites/replyPoller] ICS preview: ${icsSource.substring(0, 400).replace(/\r?\n/g, ' | ')}`);
+		logger.debug(`[invites/replyPoller] parsed top-level keys: ${Object.keys(parsed).join(', ')}`);
+
+		return false;
+	}
 
 	let matched = 0;
 
