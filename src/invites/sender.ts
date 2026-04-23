@@ -1,0 +1,128 @@
+import nodemailer, { Transporter } from 'nodemailer';
+import type { Application } from '../declarations';
+import type { Meeting } from '../services/meetings/meetings.schema';
+import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
+import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
+import { decrypt } from './crypto';
+import { buildRequestIcs, buildCancelIcs } from './icsBuilder';
+import { getTemplate } from './templates';
+
+const senderCache = new Map<number, Transporter>();
+
+const logger = console;
+
+const decryptedPass = (app: Application, encrypted: string | undefined): string => {
+	if (!encrypted) return '';
+	const invites = app.get('invites');
+
+	if (!invites?.encryptionKey) throw new Error('invites.encryptionKey not configured');
+
+	return decrypt(encrypted, invites.encryptionKey);
+};
+
+const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Transporter => {
+	const cached = senderCache.get(tenantConfig.tenantId);
+
+	if (cached) return cached;
+
+	const transporter = nodemailer.createTransport({
+		host: tenantConfig.smtpHost,
+		port: tenantConfig.smtpPort,
+		secure: tenantConfig.smtpSecure,
+		auth: {
+			user: tenantConfig.smtpUser,
+			pass: decryptedPass(app, tenantConfig.smtpPass)
+		}
+	});
+
+	senderCache.set(tenantConfig.tenantId, transporter);
+
+	return transporter;
+};
+
+export const invalidateSender = (tenantId: number): void => {
+	const existing = senderCache.get(tenantId);
+
+	if (existing) {
+		try { existing.close(); } catch { /* noop */ }
+		senderCache.delete(tenantId);
+	}
+};
+
+const lookupRoomUrl = async (app: Application, tenantId: number, roomName: string): Promise<string> => {
+	const fqdns = await app.service('tenantFQDNs').find({
+		paginate: false,
+		query: { tenantId, $limit: 1 }
+	});
+	const list = Array.isArray(fqdns) ? fqdns : (fqdns as { data: unknown[] }).data;
+	const primary = (list as Array<{ fqdn: string }>)[0];
+
+	const host = primary?.fqdn ?? 'meet.example.com';
+
+	return `https://${host}/${roomName}`;
+};
+
+export interface SendOptions {
+	method: 'REQUEST' | 'CANCEL';
+	meeting: Meeting;
+	attendee: MeetingAttendee;
+	tenantConfig: TenantInviteConfig;
+	roomName: string;
+}
+
+export const sendInviteEmail = async (app: Application, opts: SendOptions): Promise<void> => {
+	const { method, meeting, attendee, tenantConfig, roomName } = opts;
+
+	try {
+		const transporter = getTransporter(app, tenantConfig);
+		const roomUrl = await lookupRoomUrl(app, tenantConfig.tenantId, roomName);
+		const template = getTemplate(meeting.locale || 'en');
+		const startsStr = new Date(meeting.startsAt).toISOString();
+
+		const icsInput = {
+			meeting,
+			attendees: [ attendee ],
+			tenantConfig,
+			roomUrl
+		};
+		const ics = method === 'REQUEST' ? buildRequestIcs(icsInput) : buildCancelIcs(icsInput);
+		const subject = method === 'REQUEST'
+			? template.subjectRequest(meeting.title)
+			: template.subjectCancel(meeting.title);
+		const text = method === 'REQUEST'
+			? template.bodyRequest({
+				title: meeting.title,
+				description: meeting.description,
+				roomUrl,
+				organizerName: tenantConfig.organizerName,
+				startsAt: startsStr
+			})
+			: template.bodyCancel({
+				title: meeting.title,
+				description: meeting.description,
+				roomUrl,
+				organizerName: tenantConfig.organizerName,
+				startsAt: startsStr
+			});
+
+		await transporter.sendMail({
+			from: `"${tenantConfig.organizerName || tenantConfig.organizerAddress}" <${tenantConfig.organizerAddress}>`,
+			to: attendee.name ? `"${attendee.name}" <${attendee.email}>` : attendee.email,
+			subject,
+			text,
+			icalEvent: {
+				method,
+				content: ics
+			}
+		});
+
+		// record that we've notified this attendee of the current sequence
+		if (method === 'REQUEST' && attendee.id) {
+			await app.service('meetingAttendees').patch(attendee.id, {
+				lastNotifiedSequence: meeting.sequence
+			}, { provider: undefined });
+		}
+	} catch (err) {
+		logger.error(`[invites/sender] failed to send ${method} for meeting ${meeting.id} to ${attendee.email}:`, err);
+	}
+};
