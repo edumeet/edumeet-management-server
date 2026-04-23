@@ -41,12 +41,19 @@ export const tenantInviteConfigExternalResolver = resolve<TenantInviteConfig, Ho
 
 const encryptPass = async (value: string | undefined, _data: unknown, context: HookContext): Promise<string | undefined> => {
 	if (value === undefined || value === '') return undefined;
+	// Trim whitespace defensively — paste operations sometimes capture a trailing
+	// newline or space that silently breaks IMAP/SMTP auth (servers differ on whether
+	// they tolerate it; some tolerate it for SMTP but reject for IMAP).
+	const trimmed = value.trim();
+
+	if (trimmed === '') return undefined;
+
 	const invites = context.app.get('invites');
 
 	if (!invites?.encryptionKey)
 		throw new Error('invites.encryptionKey not configured');
 
-	return encrypt(value, invites.encryptionKey);
+	return encrypt(trimmed, invites.encryptionKey);
 };
 
 export const tenantInviteConfigDataSchema = Type.Omit(

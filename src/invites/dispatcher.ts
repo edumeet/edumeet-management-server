@@ -130,7 +130,9 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			const knex = app.get('postgresqlClient');
 
 			// Bump sequence directly (avoids triggering the meetings.patched dispatcher loop)
-			await knex('meetings').where({ id: meetingId }).increment('sequence', 1);
+			await knex('meetings')
+				.where({ id: meetingId })
+				.increment('sequence', 1);
 			const meeting = await app.service('meetings').get(meetingId);
 
 			await dispatchForMeeting(app, meeting, 'REQUEST');
@@ -168,7 +170,9 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			// Bump sequence + re-dispatch REQUEST to remaining so their guest lists update.
 			const knex = app.get('postgresqlClient');
 
-			await knex('meetings').where({ id: meetingId }).increment('sequence', 1);
+			await knex('meetings')
+				.where({ id: meetingId })
+				.increment('sequence', 1);
 			const updated = await app.service('meetings').get(meetingId);
 
 			await dispatchForMeeting(app, updated, 'REQUEST');

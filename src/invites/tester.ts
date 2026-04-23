@@ -82,9 +82,14 @@ export const testInviteConfig = async (app: Application, tenantId: number): Prom
 			await client.connect();
 			result.imap = { ok: true };
 		} catch (err) {
-			const e = err as Error;
+			// imapflow wraps server errors with generic "Command failed" as .message;
+			// the actual useful detail lives on non-standard fields. Surface those.
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const e = err as any;
+			const detail = e?.responseText || e?.response || e?.message || String(err);
+			const code = e?.serverResponseCode ? ` [${e.serverResponseCode}]` : '';
 
-			result.imap = { ok: false, error: e?.message ?? String(err) };
+			result.imap = { ok: false, error: `${detail}${code}` };
 		} finally {
 			if (client) {
 				try { await client.logout(); } catch { /* noop */ }
