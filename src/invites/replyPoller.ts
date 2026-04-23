@@ -3,6 +3,7 @@ import ical from 'node-ical';
 import type { Application } from '../declarations';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
+import type { MeetingOccurrenceRsvp } from '../services/meetingOccurrenceRsvps/meetingOccurrenceRsvps.schema';
 import { decrypt } from './crypto';
 import { logger } from '../logger';
 
@@ -65,8 +66,11 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 		// ACCEPT email arrives after the user's corrective DECLINE sent 10s later.
 		const evDtstampMs = ev.dtstamp ? new Date(ev.dtstamp).getTime() : 0;
 		const evSequence = Number(ev.sequence ?? 0) || 0;
+		// RECURRENCE-ID (epoch ms) = per-occurrence exception to a recurring series.
+		// Absent = series-level response.
+		const recurrenceId = ev.recurrenceid ? new Date(ev.recurrenceid).getTime() : null;
 
-		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs}`);
+		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs} recurrenceId=${recurrenceId ?? 'none'}`);
 
 		for (const att of attendees) {
 			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
@@ -109,7 +113,48 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 				continue;
 			}
 
-			// Skip if the stored reply is newer per (SEQUENCE, DTSTAMP) — prevents an
+			// Per-occurrence exception: write to meetingOccurrenceRsvps; leave series partstat alone.
+			if (recurrenceId != null) {
+				const rsvpRes = await app.service('meetingOccurrenceRsvps').find({
+					paginate: false,
+					query: { meetingAttendeeId: attendeeRow.id, recurrenceId }
+				});
+				const rList = Array.isArray(rsvpRes) ? rsvpRes : (rsvpRes as { data: unknown[] }).data;
+				const rsvpRow = (rList as MeetingOccurrenceRsvp[])[0];
+
+				if (rsvpRow?.id) {
+					const rSeq = rsvpRow.replySequence != null ? Number(rsvpRow.replySequence) : null;
+					const rStamp = rsvpRow.replyDtstamp != null ? Number(rsvpRow.replyDtstamp) : null;
+
+					if (rSeq != null && rStamp != null &&
+						(evSequence < rSeq || (evSequence === rSeq && evDtstampMs <= rStamp))) {
+						logger.info(`[invites/replyPoller] stale occurrence REPLY for attendee id=${attendeeRow.id} recurrenceId=${recurrenceId}, skipping`);
+						continue;
+					}
+
+					await app.service('meetingOccurrenceRsvps').patch(
+						rsvpRow.id,
+						{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+						{ provider: undefined }
+					);
+				} else {
+					await app.service('meetingOccurrenceRsvps').create(
+						{
+							meetingAttendeeId: attendeeRow.id,
+							recurrenceId,
+							partstat,
+							replyDtstamp: evDtstampMs,
+							replySequence: evSequence
+						},
+						{ provider: undefined }
+					);
+				}
+				matched++;
+				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeRow.id} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
+				continue;
+			}
+
+			// Series-level: skip if the stored reply is newer per (SEQUENCE, DTSTAMP) — prevents an
 			// out-of-order ACCEPT from overwriting a later DECLINE the user sent seconds later.
 			// Coerce because bigint columns deserialize as strings in node-postgres.
 			const storedSeq = attendeeRow.replySequence != null ? Number(attendeeRow.replySequence) : null;

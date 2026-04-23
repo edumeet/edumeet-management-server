@@ -1,6 +1,6 @@
 import { HookContext } from '../declarations';
 
-const resolveRoomId = async (context: HookContext, path: 'meetings' | 'meetingAttendees'): Promise<string | undefined> => {
+const resolveRoomId = async (context: HookContext, path: 'meetings' | 'meetingAttendees' | 'meetingOccurrenceRsvps'): Promise<string | undefined> => {
 	if (context.data?.roomId) return String(context.data.roomId);
 
 	if (path === 'meetings') {
@@ -19,19 +19,45 @@ const resolveRoomId = async (context: HookContext, path: 'meetings' | 'meetingAt
 		return undefined;
 	}
 
-	// path === 'meetingAttendees'
 	let meetingId: number | undefined;
 
-	if (context.data?.meetingId) meetingId = Number(context.data.meetingId);
-	else if (context.params?.query?.meetingId) meetingId = Number(context.params.query.meetingId);
-	else if (context.id) {
-		const attendee = await context.app.service('meetingAttendees').get(context.id, {
-			...context.params,
-			provider: undefined,
-			query: {}
-		});
+	if (path === 'meetingAttendees') {
+		if (context.data?.meetingId) meetingId = Number(context.data.meetingId);
+		else if (context.params?.query?.meetingId) meetingId = Number(context.params.query.meetingId);
+		else if (context.id) {
+			const attendee = await context.app.service('meetingAttendees').get(context.id, {
+				...context.params,
+				provider: undefined,
+				query: {}
+			});
 
-		meetingId = attendee.meetingId;
+			meetingId = attendee.meetingId;
+		}
+	} else {
+		// path === 'meetingOccurrenceRsvps' — route via meetingAttendeeId → meeting
+		let attendeeId: number | undefined;
+
+		if (context.data?.meetingAttendeeId) attendeeId = Number(context.data.meetingAttendeeId);
+		else if (context.params?.query?.meetingAttendeeId) attendeeId = Number(context.params.query.meetingAttendeeId);
+		else if (context.id) {
+			const rsvp = await context.app.service('meetingOccurrenceRsvps').get(context.id, {
+				...context.params,
+				provider: undefined,
+				query: {}
+			});
+
+			attendeeId = rsvp.meetingAttendeeId;
+		}
+
+		if (attendeeId) {
+			const attendee = await context.app.service('meetingAttendees').get(attendeeId, {
+				...context.params,
+				provider: undefined,
+				query: {}
+			});
+
+			meetingId = attendee.meetingId;
+		}
 	}
 
 	if (!meetingId) return undefined;
@@ -89,6 +115,17 @@ export const isRoomOwnerOrAdminForMeetingAttendee = async (context: HookContext)
 
 	if (!roomId)
 		throw new Error('meetingId required');
+
+	await assertRoomAccess(context, roomId);
+};
+
+export const isRoomOwnerOrAdminForMeetingOccurrenceRsvp = async (context: HookContext): Promise<void> => {
+	if (!context.params.provider) return;
+
+	const roomId = await resolveRoomId(context, 'meetingOccurrenceRsvps');
+
+	if (!roomId)
+		throw new Error('meetingAttendeeId required');
 
 	await assertRoomAccess(context, roomId);
 };

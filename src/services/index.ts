@@ -6,6 +6,7 @@ import { tenantFqdn } from './tenantFQDNs/tenantFQDNs';
 import { tenantAdmin } from './tenantAdmins/tenantAdmins';
 import { meeting } from './meetings/meetings';
 import { meetingAttendee } from './meetingAttendees/meetingAttendees';
+import { meetingOccurrenceRsvp } from './meetingOccurrenceRsvps/meetingOccurrenceRsvps';
 import { inviteTest } from './inviteTests/inviteTests';
 import { roomUserRole } from './roomUserRoles/roomUserRoles';
 import { room } from './rooms/rooms';
@@ -32,6 +33,7 @@ export const services = (app: Application) => {
 	app.configure(tenantAdmin);
 	app.configure(meeting);
 	app.configure(meetingAttendee);
+	app.configure(meetingOccurrenceRsvp);
 	app.configure(inviteTest);
 	app.configure(roomUserRole);
 	app.configure(room);
