@@ -221,7 +221,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 
 			// Mark all successfully processed messages as Seen in one STORE command AFTER
 			// the FETCH iterator is fully drained. Running STORE inside the FETCH loop
-			// causes some IMAP servers (Gandi observed) to stop responding.
+			// causes some IMAP servers to stop responding until the socket times out.
 			if (uidsToMarkSeen.length > 0) {
 				try {
 					await client.messageFlagsAdd(uidsToMarkSeen, [ '\\Seen' ], { uid: true });
