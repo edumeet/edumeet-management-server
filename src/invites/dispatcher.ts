@@ -81,6 +81,7 @@ const dispatchForMeeting = async (
 			method,
 			meeting,
 			attendee: a,
+			allAttendees: attendees,
 			tenantConfig,
 			roomName,
 			organizerUserName,
@@ -121,37 +122,28 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 		}
 	});
 
-	// meetingAttendees.created → REQUEST just this attendee
+	// meetingAttendees.created → bump meeting sequence and re-dispatch REQUEST to EVERYONE
+	// (industry-standard iTIP: all attendees see the updated guest list).
 	app.service('meetingAttendees').on('created', async (attendee: MeetingAttendee) => {
 		try {
-			const meeting = await app.service('meetings').get(attendee.meetingId);
-			const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
+			const meetingId = Number(attendee.meetingId);
+			const knex = app.get('postgresqlClient');
 
-			if (!tenantConfig) return;
-			const roomName = await loadRoomName(app, meeting.roomId);
+			// Bump sequence directly (avoids triggering the meetings.patched dispatcher loop)
+			await knex('meetings').where({ id: meetingId }).increment('sequence', 1);
+			const meeting = await app.service('meetings').get(meetingId);
 
-			if (!roomName) return;
-			const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
-			const tenantName = await loadTenantName(app, meeting.tenantId);
-
-			await sendInviteEmail(app, {
-				method: 'REQUEST',
-				meeting,
-				attendee,
-				tenantConfig,
-				roomName,
-				organizerUserName,
-				tenantName
-			});
+			await dispatchForMeeting(app, meeting, 'REQUEST');
 		} catch (err) {
 			logger.error('[invites/dispatcher] meetingAttendees.created handler failed:', err);
 		}
 	});
 
-	// meetingAttendees.removed → CANCEL just this attendee (their calendar drops the event)
+	// meetingAttendees.removed → CANCEL to removed attendee, REQUEST to remaining with updated list.
 	app.service('meetingAttendees').on('removed', async (attendee: MeetingAttendee) => {
 		try {
-			const meeting = await app.service('meetings').get(attendee.meetingId);
+			const meetingId = Number(attendee.meetingId);
+			const meeting = await app.service('meetings').get(meetingId);
 			const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
 
 			if (!tenantConfig) return;
@@ -161,15 +153,25 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
 			const tenantName = await loadTenantName(app, meeting.tenantId);
 
+			// CANCEL to the removed attendee — their calendar entry disappears.
 			await sendInviteEmail(app, {
 				method: 'CANCEL',
 				meeting: { ...meeting, status: 'CANCELLED' as const },
 				attendee,
+				allAttendees: [ attendee ],
 				tenantConfig,
 				roomName,
 				organizerUserName,
 				tenantName
 			});
+
+			// Bump sequence + re-dispatch REQUEST to remaining so their guest lists update.
+			const knex = app.get('postgresqlClient');
+
+			await knex('meetings').where({ id: meetingId }).increment('sequence', 1);
+			const updated = await app.service('meetings').get(meetingId);
+
+			await dispatchForMeeting(app, updated, 'REQUEST');
 		} catch (err) {
 			// meeting may already be deleted (cascade) — ignore silently
 			logger.debug?.('[invites/dispatcher] meetingAttendees.removed handler skipped:', err);

@@ -65,7 +65,8 @@ const lookupRoomUrl = async (app: Application, tenantId: number, roomName: strin
 export interface SendOptions {
 	method: 'REQUEST' | 'CANCEL';
 	meeting: Meeting;
-	attendee: MeetingAttendee;
+	attendee: MeetingAttendee; // the recipient
+	allAttendees: MeetingAttendee[]; // full guest list included in ICS ATTENDEE lines
 	tenantConfig: TenantInviteConfig;
 	roomName: string;
 	organizerUserName?: string;
@@ -73,7 +74,7 @@ export interface SendOptions {
 }
 
 export const sendInviteEmail = async (app: Application, opts: SendOptions): Promise<void> => {
-	const { method, meeting, attendee, tenantConfig, roomName, organizerUserName, tenantName } = opts;
+	const { method, meeting, attendee, allAttendees, tenantConfig, roomName, organizerUserName, tenantName } = opts;
 
 	try {
 		const transporter = getTransporter(app, tenantConfig);
@@ -89,7 +90,8 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 
 		const icsInput = {
 			meeting,
-			attendees: [ attendee ],
+			// Industry-standard iTIP: every recipient sees the full guest list in their ICS
+			attendees: allAttendees,
 			tenantConfig,
 			roomUrl,
 			organizerUserName: userLabel
