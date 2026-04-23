@@ -79,6 +79,8 @@ export const testInviteConfig = async (app: Application, tenantId: number): Prom
 				},
 				logger: false
 			});
+			// Swallow async socket errors so they don't crash the process
+			client.on('error', () => { /* no-op */ });
 			await client.connect();
 			result.imap = { ok: true };
 		} catch (err) {

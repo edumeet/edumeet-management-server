@@ -144,6 +144,13 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			logger: false
 		});
 
+		// ImapFlow emits 'error' asynchronously for socket issues (e.g. ETIMEOUT)
+		// that can arrive AFTER our try/catch completes. Without a listener,
+		// Node treats it as unhandled and crashes the whole process.
+		client.on('error', (err) => {
+			logger.warn(`[invites/replyPoller] tenant ${tenantConfig.tenantId} IMAP async error (ignored): ${(err as Error)?.message ?? err}`);
+		});
+
 		await client.connect();
 		logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} connected to IMAP`);
 		const lock = await client.getMailboxLock('INBOX');
