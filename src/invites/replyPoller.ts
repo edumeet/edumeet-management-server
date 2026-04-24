@@ -211,7 +211,11 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 				user: tenantConfig.imapUser,
 				pass: decrypt(tenantConfig.imapPass, invites.encryptionKey)
 			},
-			logger: false
+			logger: false,
+			// Bound every phase so a hung TCP / firewall blackhole can't freeze the poller.
+			// 30s is well under the 60s default poll interval — if a cycle exceeds it, the
+			// socket raises and the outer try/catch recovers for the next cycle.
+			socketTimeout: 30000
 		});
 
 		// ImapFlow emits 'error' asynchronously for socket issues (e.g. ETIMEOUT)

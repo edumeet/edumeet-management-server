@@ -25,6 +25,9 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 
 	if (cached) return cached;
 
+	// Timeouts prevent a firewall blackhole or provider outage from hanging the
+	// dispatcher for minutes. Values are generous vs. the 10s tester bounds — real
+	// send operations with large recipient lists can legitimately take longer.
 	const transporter = nodemailer.createTransport({
 		host: tenantConfig.smtpHost,
 		port: tenantConfig.smtpPort,
@@ -32,7 +35,10 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 		auth: {
 			user: tenantConfig.smtpUser,
 			pass: decryptedPass(app, tenantConfig.smtpPass)
-		}
+		},
+		connectionTimeout: 30000,
+		greetingTimeout: 30000,
+		socketTimeout: 60000
 	});
 
 	senderCache.set(tenantConfig.tenantId, transporter);
