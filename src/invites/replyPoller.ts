@@ -284,16 +284,21 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			// Retention cleanup: purge SEEN messages older than the retention window so the
 			// dedicated invite mailbox doesn't grow unbounded. Only touches messages we've
 			// already flagged as processed — unprocessed mail (welcome emails, junk) is left alone.
-			const retentionDays = Number(invites?.imapRetentionDays ?? 30);
+			//   retentionDays === 0 → delete immediately after processing (cutoff = now)
+			//   retentionDays > 0   → delete messages older than N days
+			//   retentionDays < 0   → cleanup fully disabled (e.g. -1)
+			//   omitted / non-numeric → default 30
+			const retentionRaw = invites?.imapRetentionDays;
+			const retentionDays = typeof retentionRaw === 'number' ? retentionRaw : 30;
 
-			if (retentionDays > 0) {
+			if (retentionDays >= 0) {
 				try {
 					const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 					const oldUids = await client.search({ before: cutoff, seen: true }, { uid: true });
 
 					if (oldUids && oldUids.length > 0) {
 						await client.messageDelete(oldUids, { uid: true });
-						logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} purged ${oldUids.length} message(s) older than ${retentionDays}d`);
+						logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} purged ${oldUids.length} message(s) (retention=${retentionDays}d)`);
 					}
 				} catch (err) {
 					logger.warn('[invites/replyPoller] retention cleanup failed (non-fatal):', err);
