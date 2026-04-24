@@ -297,7 +297,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 
 			if (retentionDays >= 0) {
 				try {
-					const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+					const cutoff = new Date(Date.now() - (retentionDays * 24 * 60 * 60 * 1000));
 					const oldUids = await client.search({ before: cutoff, seen: true }, { uid: true });
 
 					if (oldUids && oldUids.length > 0) {
