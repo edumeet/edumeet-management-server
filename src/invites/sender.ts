@@ -104,6 +104,7 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		// options like `timeZoneName`. We need the timezone abbreviation in the
 		// rendered string, so use individual hour/minute fields for the time formatter.
 		// `dateStyle: 'full'` alone is fine and produces the localized weekday/date form.
+		// eslint-disable-next-line no-unused-vars
 		const tryBuildFormatter = (locale: string, tz: string): ((d: Date) => string) | null => {
 			try {
 				const fmtDate = new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeZone: tz });
