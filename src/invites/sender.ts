@@ -100,10 +100,34 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		//   pl: "czwartek, 30 kwietnia 2026, 16:00 CEST"
 		// The ICS attachment carries the canonical UTC time for actual scheduling — these
 		// strings are only the human-readable hint in the plain-text body.
-		const tz = meeting.timezone || 'UTC';
-		const fmtDate = new Intl.DateTimeFormat(intlLocale, { dateStyle: 'full', timeZone: tz });
-		const fmtTime = new Intl.DateTimeFormat(intlLocale, { timeStyle: 'short', timeZone: tz, timeZoneName: 'short' });
-		const formatWhen = (d: Date): string => `${fmtDate.format(d)}, ${fmtTime.format(d)}`;
+		// Note: ECMA-402 forbids combining the `timeStyle` shortcut with individual
+		// options like `timeZoneName`. We need the timezone abbreviation in the
+		// rendered string, so use individual hour/minute fields for the time formatter.
+		// `dateStyle: 'full'` alone is fine and produces the localized weekday/date form.
+		const tryBuildFormatter = (locale: string, tz: string): ((d: Date) => string) | null => {
+			try {
+				const fmtDate = new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeZone: tz });
+				const fmtTime = new Intl.DateTimeFormat(locale, {
+					hour: 'numeric',
+					minute: '2-digit',
+					timeZone: tz,
+					timeZoneName: 'short'
+				});
+
+				return (d: Date) => `${fmtDate.format(d)}, ${fmtTime.format(d)}`;
+			} catch {
+				return null;
+			}
+		};
+		// Defensive fallback if the meeting carries a malformed locale/timezone.
+		let formatWhen = tryBuildFormatter(intlLocale, meeting.timezone || 'UTC');
+
+		if (!formatWhen) {
+			logger.warn(`[invites/sender] meeting ${meeting.id} has invalid locale/timezone (locale=${meeting.locale} tz=${meeting.timezone}); using en-US/UTC fallback`);
+			formatWhen = tryBuildFormatter('en-US', 'UTC')
+				// Last-ditch — should never trigger since en-US/UTC is always valid in V8.
+				?? ((d: Date) => d.toISOString());
+		}
 		const startsStr = formatWhen(startsDate);
 		const endsStr = formatWhen(endsDate);
 
