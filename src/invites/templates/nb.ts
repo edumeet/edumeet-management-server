@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const nbTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Invitasjon: ${title}`,
 	subjectCancel: (title) => `Avlyst: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Du er invitert til et møte${organizerName ? ` av ${organizerName}` : ''}.`,
 		'',
 		`Tittel: ${title}`,
 		description ? `Beskrivelse: ${description}` : null,
 		`Starter: ${startsAt}`,
+		`Slutter: ${endsAt}`,
 		`Bli med: ${roomUrl}`,
 		'',
 		'Denne invitasjonen administreres av edumeet. Godta eller avslå fra kalenderen din for å varsle arrangøren.'

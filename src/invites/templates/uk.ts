@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const ukTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Запрошення: ${title}`,
 	subjectCancel: (title) => `Скасовано: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Вас запрошено на зустріч${organizerName ? ` від ${organizerName}` : ''}.`,
 		'',
 		`Назва: ${title}`,
 		description ? `Опис: ${description}` : null,
 		`Початок: ${startsAt}`,
+		`Завершення: ${endsAt}`,
 		`Приєднатися: ${roomUrl}`,
 		'',
 		'Це запрошення керується edumeet. Прийміть або відхиліть у своєму календарі, щоб повідомити організатора.'

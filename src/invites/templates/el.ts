@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const elTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Πρόσκληση: ${title}`,
 	subjectCancel: (title) => `Ακυρώθηκε: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Έχετε προσκληθεί σε συνάντηση${organizerName ? ` από ${organizerName}` : ''}.`,
 		'',
 		`Τίτλος: ${title}`,
 		description ? `Περιγραφή: ${description}` : null,
 		`Έναρξη: ${startsAt}`,
+		`Λήξη: ${endsAt}`,
 		`Συμμετοχή: ${roomUrl}`,
 		'',
 		'Αυτή η πρόσκληση διαχειρίζεται από το edumeet. Αποδεχτείτε ή απορρίψτε από το ημερολόγιό σας για να ενημερώσετε τον διοργανωτή.'

@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const kkTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Шақыру: ${title}`,
 	subjectCancel: (title) => `Болдырылмады: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Сіз кездесуге шақырылдыңыз${organizerName ? `, ${organizerName} тарапынан` : ''}.`,
 		'',
 		`Атауы: ${title}`,
 		description ? `Сипаттамасы: ${description}` : null,
 		`Басталуы: ${startsAt}`,
+		`Аяқталуы: ${endsAt}`,
 		`Қосылу: ${roomUrl}`,
 		'',
 		'Бұл шақыруды edumeet басқарады. Ұйымдастырушыны хабардар ету үшін күнтізбеңізден қабылдаңыз немесе қабылдамаңыз.'

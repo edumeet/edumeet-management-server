@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const csTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Pozvánka: ${title}`,
 	subjectCancel: (title) => `Zrušeno: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Byli jste pozváni na schůzku${organizerName ? ` uživatelem ${organizerName}` : ''}.`,
 		'',
 		`Název: ${title}`,
 		description ? `Popis: ${description}` : null,
 		`Začátek: ${startsAt}`,
+		`Konec: ${endsAt}`,
 		`Připojit se: ${roomUrl}`,
 		'',
 		'Toto pozvání je spravováno systémem edumeet. Přijměte nebo odmítněte ve svém kalendáři, abyste informovali organizátora.'

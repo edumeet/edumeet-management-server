@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const huTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Meghívó: ${title}`,
 	subjectCancel: (title) => `Lemondva: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Meghívást kapott egy megbeszélésre${organizerName ? ` ${organizerName} részéről` : ''}.`,
 		'',
 		`Cím: ${title}`,
 		description ? `Leírás: ${description}` : null,
 		`Kezdés: ${startsAt}`,
+		`Befejezés: ${endsAt}`,
 		`Csatlakozás: ${roomUrl}`,
 		'',
 		'Ezt a meghívót az edumeet kezeli. Fogadja el vagy utasítsa el a naptárában, hogy értesítse a szervezőt.'

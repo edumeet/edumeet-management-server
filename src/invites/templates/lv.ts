@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const lvTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Uzaicinājums: ${title}`,
 	subjectCancel: (title) => `Atcelts: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Jūs esat uzaicināts uz sanāksmi${organizerName ? `, ko organizē ${organizerName}` : ''}.`,
 		'',
 		`Nosaukums: ${title}`,
 		description ? `Apraksts: ${description}` : null,
 		`Sākums: ${startsAt}`,
+		`Beigas: ${endsAt}`,
 		`Pievienoties: ${roomUrl}`,
 		'',
 		'Šo uzaicinājumu pārvalda edumeet. Apstipriniet vai atsakiet kalendārā, lai informētu organizatoru.'

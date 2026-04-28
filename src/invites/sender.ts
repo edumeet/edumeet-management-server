@@ -88,7 +88,24 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		const template = getTemplate(meeting.locale || 'en');
 		// Postgres bigint columns come back as strings from knex — coerce before Date()
 		// or `new Date()` misinterprets the numeric string as an ISO date → Invalid Date.
-		const startsStr = new Date(Number(meeting.startsAt)).toISOString();
+		const startsDate = new Date(Number(meeting.startsAt));
+		const endsDate = new Date(Number(meeting.endsAt));
+		// Map our internal locale codes to BCP 47 tags Intl understands (cn → zh-CN etc.).
+		// Anything not in the map passes through; Intl falls back to en for unknown tags.
+		const intlLocaleMap: Record<string, string> = { cn: 'zh-CN', tw: 'zh-TW', dk: 'da' };
+		const intlLocale = intlLocaleMap[meeting.locale || 'en'] ?? (meeting.locale || 'en');
+		// `dateStyle` and `timeZoneName` aren't always honored together, so format the
+		// date and time portions separately and combine. Output:
+		//   en: "Thursday, April 30, 2026, 4:00 PM CEST"
+		//   pl: "czwartek, 30 kwietnia 2026, 16:00 CEST"
+		// The ICS attachment carries the canonical UTC time for actual scheduling — these
+		// strings are only the human-readable hint in the plain-text body.
+		const tz = meeting.timezone || 'UTC';
+		const fmtDate = new Intl.DateTimeFormat(intlLocale, { dateStyle: 'full', timeZone: tz });
+		const fmtTime = new Intl.DateTimeFormat(intlLocale, { timeStyle: 'short', timeZone: tz, timeZoneName: 'short' });
+		const formatWhen = (d: Date): string => `${fmtDate.format(d)}, ${fmtTime.format(d)}`;
+		const startsStr = formatWhen(startsDate);
+		const endsStr = formatWhen(endsDate);
 
 		// "Alice via Tenant Name" — always include the organizing user + tenant so attendees
 		// can tell invites apart even if multiple tenants share an SMTP mailbox.
@@ -114,14 +131,16 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 				description: meeting.description,
 				roomUrl,
 				organizerName: userLabel,
-				startsAt: startsStr
+				startsAt: startsStr,
+				endsAt: endsStr
 			})
 			: template.bodyCancel({
 				title: meeting.title,
 				description: meeting.description,
 				roomUrl,
 				organizerName: userLabel,
-				startsAt: startsStr
+				startsAt: startsStr,
+				endsAt: endsStr
 			});
 
 		await transporter.sendMail({

@@ -3,7 +3,11 @@ export interface InviteContext {
 	description?: string;
 	roomUrl: string;
 	organizerName?: string;
+	// startsAt and endsAt are pre-formatted human-readable strings (locale + timezone aware)
+	// produced in sender.ts via Intl.DateTimeFormat. The ICS attachment carries the
+	// machine-readable times — these fields are only for the plain-text email body.
 	startsAt: string;
+	endsAt: string;
 }
 
 // eslint-disable-next-line no-unused-vars

@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const ruTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Приглашение: ${title}`,
 	subjectCancel: (title) => `Отменено: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Вас пригласили на встречу${organizerName ? ` от ${organizerName}` : ''}.`,
 		'',
 		`Название: ${title}`,
 		description ? `Описание: ${description}` : null,
 		`Начало: ${startsAt}`,
+		`Окончание: ${endsAt}`,
 		`Присоединиться: ${roomUrl}`,
 		'',
 		'Это приглашение управляется edumeet. Примите или отклоните в своём календаре, чтобы уведомить организатора.'

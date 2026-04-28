@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const trTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Davet: ${title}`,
 	subjectCancel: (title) => `İptal edildi: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Bir toplantıya davet edildiniz${organizerName ? `; davet eden: ${organizerName}` : ''}.`,
 		'',
 		`Başlık: ${title}`,
 		description ? `Açıklama: ${description}` : null,
 		`Başlangıç: ${startsAt}`,
+		`Bitiş: ${endsAt}`,
 		`Katıl: ${roomUrl}`,
 		'',
 		'Bu davetiye edumeet tarafından yönetilmektedir. Düzenleyiciyi bilgilendirmek için takviminizden kabul edin veya reddedin.'

@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const hrTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Poziv: ${title}`,
 	subjectCancel: (title) => `Otkazano: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Pozvani ste na sastanak${organizerName ? ` od ${organizerName}` : ''}.`,
 		'',
 		`Naslov: ${title}`,
 		description ? `Opis: ${description}` : null,
 		`Početak: ${startsAt}`,
+		`Kraj: ${endsAt}`,
 		`Pridruži se: ${roomUrl}`,
 		'',
 		'Ovim pozivom upravlja edumeet. Prihvatite ili odbijte iz svog kalendara kako biste obavijestili organizatora.'

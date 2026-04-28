@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const dkTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Invitation: ${title}`,
 	subjectCancel: (title) => `Aflyst: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Du er blevet inviteret til et møde${organizerName ? ` af ${organizerName}` : ''}.`,
 		'',
 		`Titel: ${title}`,
 		description ? `Beskrivelse: ${description}` : null,
 		`Start: ${startsAt}`,
+		`Slut: ${endsAt}`,
 		`Deltag: ${roomUrl}`,
 		'',
 		'Denne invitation styres af edumeet. Accepter eller afvis i din kalender for at informere arrangøren.'

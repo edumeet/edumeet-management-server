@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const plTemplate: InviteTemplate = {
 	subjectRequest: (title) => `Zaproszenie: ${title}`,
 	subjectCancel: (title) => `Odwołane: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`Zostałeś zaproszony na spotkanie${organizerName ? ` przez ${organizerName}` : ''}.`,
 		'',
 		`Tytuł: ${title}`,
 		description ? `Opis: ${description}` : null,
 		`Rozpoczęcie: ${startsAt}`,
+		`Zakończenie: ${endsAt}`,
 		`Dołącz: ${roomUrl}`,
 		'',
 		'To zaproszenie jest zarządzane przez edumeet. Zaakceptuj lub odrzuć w swoim kalendarzu, aby powiadomić organizatora.'

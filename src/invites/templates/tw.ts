@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const twTemplate: InviteTemplate = {
 	subjectRequest: (title) => `會議邀請：${title}`,
 	subjectCancel: (title) => `已取消：${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`您被邀請參加一個會議${organizerName ? `（邀請人：${organizerName}）` : ''}。`,
 		'',
 		`主題：${title}`,
 		description ? `描述：${description}` : null,
 		`開始時間：${startsAt}`,
+		`結束時間：${endsAt}`,
 		`加入：${roomUrl}`,
 		'',
 		'本邀請由 edumeet 管理。請在您的日曆中接受或拒絕以通知組織者。'

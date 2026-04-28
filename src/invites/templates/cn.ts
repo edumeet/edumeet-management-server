@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const cnTemplate: InviteTemplate = {
 	subjectRequest: (title) => `会议邀请：${title}`,
 	subjectCancel: (title) => `已取消：${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`您被邀请参加一个会议${organizerName ? `（邀请人：${organizerName}）` : ''}。`,
 		'',
 		`主题：${title}`,
 		description ? `描述：${description}` : null,
 		`开始时间：${startsAt}`,
+		`结束时间：${endsAt}`,
 		`加入：${roomUrl}`,
 		'',
 		'本邀请由 edumeet 管理。请在您的日历中接受或拒绝以通知组织者。'

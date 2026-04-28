@@ -3,12 +3,13 @@ import { InviteTemplate } from './types';
 export const hiTemplate: InviteTemplate = {
 	subjectRequest: (title) => `आमंत्रण: ${title}`,
 	subjectCancel: (title) => `रद्द: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt }) => [
+	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
 		`आपको एक बैठक में आमंत्रित किया गया है${organizerName ? `, ${organizerName} द्वारा` : ''}।`,
 		'',
 		`शीर्षक: ${title}`,
 		description ? `विवरण: ${description}` : null,
 		`आरंभ: ${startsAt}`,
+		`समाप्ति: ${endsAt}`,
 		`शामिल हों: ${roomUrl}`,
 		'',
 		'यह आमंत्रण edumeet द्वारा प्रबंधित है। आयोजक को सूचित करने के लिए अपने कैलेंडर से स्वीकार या अस्वीकार करें।'
