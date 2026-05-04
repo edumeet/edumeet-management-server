@@ -7,6 +7,14 @@ const MAX_FAILURES = 10;
 const TIMING_PAD_MS = 400;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 
+// When TRUST_PROXY=true, the management server is behind a reverse proxy
+// (nginx in the docker stack, or nginx-on-host) that appends the real client
+// IP to X-Forwarded-For via `$proxy_add_x_forwarded_for`. The RIGHTMOST entry
+// is what the proxy itself observed as the connection peer, and is the only
+// entry not forgeable by the client. Leftmost entries are client-supplied
+// and must never be trusted.
+const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
+
 interface IpEntry {
 	failures: number[];
 	blockedUntil: number;
@@ -32,16 +40,21 @@ const ensureCleanup = () => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const extractIp = (params: any): string => {
+	if (TRUST_PROXY) {
+		const xff = params?.headers?.['x-forwarded-for'];
+
+		if (typeof xff === 'string' && xff.length > 0) {
+			const parts = xff
+				.split(',')
+				.map((s: string) => s.trim())
+				.filter(Boolean);
+
+			if (parts.length > 0) return parts[parts.length - 1];
+		}
+	}
 	const ip = params?.ip;
 
 	if (ip) return String(ip);
-	const xff = params?.headers?.['x-forwarded-for'];
-
-	if (typeof xff === 'string') {
-		const first = xff.split(',')[0]?.trim();
-
-		if (first) return first;
-	}
 
 	return 'unknown';
 };
