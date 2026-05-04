@@ -8,6 +8,7 @@ import type { Application } from './declarations';
 import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
 import { OAuthService } from '@feathersjs/authentication-oauth/lib/service';
 import { dynamicOAuth } from './hooks/dynamicOAuth';
+import { loginThrottleBefore, loginThrottleError } from './hooks/loginThrottle';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -26,6 +27,13 @@ export const authentication = (app: Application) => {
 	authenticationService.register('tenant', new OAuthTenantStrategy());
 
 	app.use('authentication', authenticationService);
+
+	// Per-IP brute-force throttle + timing pad for the local strategy.
+	app.service('authentication').hooks({
+		before: { create: [ loginThrottleBefore ] },
+		error: { create: [ loginThrottleError ] }
+	});
+
 	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
 
