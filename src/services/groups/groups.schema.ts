@@ -5,6 +5,7 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 // Main data model schema
 export const groupSchema = Type.Object(
@@ -24,15 +25,16 @@ export const groupResolver = resolve<Group, HookContext>({});
 export const groupExternalResolver = resolve<Group, HookContext>({});
 
 // Schema for creating new entries
-export const groupDataSchema = Type.Pick(groupSchema, [ 'name' ], {
+export const groupDataSchema = Type.Pick(groupSchema, [ 'name', 'tenantId' ], {
 	$id: 'GroupData'
 });
 export type GroupData = Static<typeof groupDataSchema>
 export const groupDataValidator = getValidator(groupDataSchema, dataValidator);
 export const groupDataResolver = resolve<Group, HookContext>({
 	tenantId: async (value, query, context) => {
-		// Make sure the user is limited to their own tenant
-		if (context.params.user)
+		// Non-super-admins are pinned to their own tenant. Super admins keep
+		// whatever tenantId they sent so they can create groups for any tenant.
+		if (notSuperAdmin()(context) && context.params.user)
 			return context.params.user.tenantId;
 
 		return value;

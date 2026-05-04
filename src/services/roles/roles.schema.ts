@@ -7,6 +7,7 @@ import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { permissionSchema } from '../permissions/permissions.schema';
 import { RolePermission } from '../rolePermissions/rolePermissions.schema';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 // Main data model schema
 export const roleSchema = Type.Object(
@@ -43,8 +44,10 @@ export type RoleData = Static<typeof roleDataSchema>
 export const roleDataValidator = getValidator(roleDataSchema, dataValidator);
 export const roleDataResolver = resolve<Role, HookContext>({
 	tenantId: async (value, query, context) => {
-		// Make sure the user is limited to their own tenant
-		if (context.params.user)
+		// Non-super-admins are pinned to their own tenant. The create hook chain
+		// dropped the explicit notInSameTenant check, so this resolver is what
+		// enforces it now. Super admins keep whatever tenantId they sent.
+		if (notSuperAdmin()(context) && context.params.user)
 			return context.params.user.tenantId;
 
 		return value;

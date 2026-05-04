@@ -19,7 +19,7 @@ import { DefaultService, getOptions } from './defaults.class';
 import { defaultPath, defaultMethods } from './defaults.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant } from '../../hooks/notSameTenant';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
@@ -59,7 +59,9 @@ export const defaults = (app: Application) => {
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [
 				iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
+				// Verify the *record's* tenant matches the user's, not just the body's
+				// tenantId — otherwise a tenant admin can patch another tenant's row by id.
+				iff(notSuperAdmin(), notInSameTenantByContextId),
 				iff(notSuperAdmin(), tenantDefault),
 				schemaHooks.validateData(defaultPatchValidator),
 				schemaHooks.resolveData(defaultPatchResolver) ],
