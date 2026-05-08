@@ -38,6 +38,28 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		};
 	}
 
+	// Fall back to (tenantId, email) when the ssoId lookup misses. Handles IdP
+	// migrations / user recreations where an existing user gets a new `sub`:
+	// without this, the create-path runs and trips the (tenantId, email) unique
+	// constraint. On a hit, getEntityData rewrites ssoId to the new value.
+	async findEntity(profile: OAuthProfile, params: Params) {
+		const found = await super.findEntity(profile, params);
+
+		if (found || !profile?.email || !params.query?.tenantId) return found;
+
+		const result = await this.entityService.find({
+			...params,
+			query: {
+				tenantId: parseInt(params.query.tenantId),
+				email: profile.email,
+				$limit: 1,
+			},
+			provider: undefined,
+		});
+
+		return Array.isArray(result) ? result[0] : result.data?.[0];
+	}
+
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async getEntityData(profile: OAuthProfile, _existingEntity: any, params: Params) {
 		if (!profile?.email || !params?.query?.tenantId) throw new Error('Missing paramenter(s)');
