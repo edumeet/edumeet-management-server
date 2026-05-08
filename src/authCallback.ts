@@ -3,11 +3,13 @@ import DOMPurify from 'isomorphic-dompurify';
 
 export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 	// eslint-disable-next-line camelcase
-	const { access_token, error } = ctx.request.query;
+	const { access_token, id_token, error } = ctx.request.query;
 
 	// eslint-disable-next-line camelcase
 	const clean = DOMPurify.sanitize(access_token as string);
-	
+	// eslint-disable-next-line camelcase
+	const cleanIdToken = id_token ? DOMPurify.sanitize(id_token as string) : '';
+
 	if (error) {
 		const message = DOMPurify.sanitize(error as string);
 
@@ -38,12 +40,14 @@ export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
 			<body>
 				<script type='text/javascript'>
 					let data = ${JSON.stringify(clean)};
-		
+					let idToken = ${JSON.stringify(cleanIdToken)};
+
 					window.opener.postMessage({
 						type: 'edumeet-login',
-						data
+						data,
+						idToken
 					}, '*');
-		
+
 					window.close();
 				</script>
 			</body>

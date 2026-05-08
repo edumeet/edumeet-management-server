@@ -29,6 +29,11 @@ export const authLogout = () => {
 		const tenantIdRaw = ctx.request.query.tenantId as string | undefined;
 		const tenantId = Number(DOMPurify.sanitize(tenantIdRaw ?? ''));
 
+		const idTokenHintRaw = ctx.request.query.id_token_hint as string | undefined;
+		const idTokenHint = idTokenHintRaw
+			? DOMPurify.sanitize(idTokenHintRaw)
+			: undefined;
+
 		if (!tenantId) {
 			ctx.throw(400, 'tenantId is required');
 
@@ -68,6 +73,12 @@ export const authLogout = () => {
 
 		if (row?.key) {
 			url.searchParams.set('client_id', row.key);
+		}
+
+		// id_token_hint is REQUIRED by spec-strict OPs whenever
+		// post_logout_redirect_uri is supplied (RP-Initiated Logout 1.0 §2.1).
+		if (idTokenHint) {
+			url.searchParams.set('id_token_hint', idTokenHint);
 		}
 
 		ctx.redirect(url.toString());

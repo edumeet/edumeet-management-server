@@ -1,9 +1,22 @@
 import { OAuthProfile, OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
-import { AuthenticationResult } from '@feathersjs/authentication/lib';
+import { AuthenticationRequest, AuthenticationResult } from '@feathersjs/authentication/lib';
 import { Params } from '@feathersjs/feathers';
 import qs from 'qs';
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
+	// Capture the OIDC id_token from the raw grant response so it can be
+	// forwarded to the client and used as id_token_hint at logout time
+	// (required by spec-strict OPs when post_logout_redirect_uri is sent).
+	async authenticate(authentication: AuthenticationRequest, originalParams: Params) {
+		const result = await super.authenticate(authentication, originalParams);
+
+		if (authentication?.id_token) {
+			(result as AuthenticationResult).idToken = authentication.id_token;
+		}
+
+		return result;
+	}
+
 	// name attribute can come from displayName or sn + givenName
 	async getEntityQuery(profile: OAuthProfile, params: Params) {
 		if (profile?.error)	throw new Error(profile.error);
@@ -44,9 +57,11 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 	): Promise<string | null> {
 		const redirectUrl = '/auth/callback?';
 		const authResult: AuthenticationResult = data;
-		// eslint-disable-next-line camelcase
-		const query = authResult.accessToken ? { access_token: authResult.accessToken } : { error: data.message || 'OAuth Authentication not successful' };
-	
+		const query = authResult.accessToken
+			// eslint-disable-next-line camelcase
+			? { access_token: authResult.accessToken, ...(authResult.idToken && { id_token: authResult.idToken }) }
+			: { error: data.message || 'OAuth Authentication not successful' };
+
 		return `${redirectUrl}${qs.stringify(query)}`;
 	}
 }
