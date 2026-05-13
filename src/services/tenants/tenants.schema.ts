@@ -13,6 +13,14 @@ export const tenantSchema = Type.Object(
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
 		hideUserDetails: Type.Optional(Type.Boolean()),
+
+		/**
+		 * Limit which media-node regions (e.g. ['EEA'], ['UA','EEA']) this
+		 * tenant's rooms are allowed to use. Undefined or empty array means
+		 * no restriction. Region codes are deployment-defined and resolved
+		 * against the room-server's countryToRegion map.
+		 */
+		allowedMediaNodeRegions: Type.Optional(Type.Array(Type.String())),
 	},
 	{ $id: 'Tenant', additionalProperties: false }
 );
@@ -22,7 +30,7 @@ export const tenantResolver = resolve<Tenant, HookContext>({});
 export const tenantExternalResolver = resolve<Tenant, HookContext>({});
 
 // Schema for creating new entries
-export const tenantDataSchema = Type.Pick(tenantSchema, [ 'name', 'description', 'hideUserDetails' ], {
+export const tenantDataSchema = Type.Pick(tenantSchema, [ 'name', 'description', 'hideUserDetails', 'allowedMediaNodeRegions' ], {
 	$id: 'TenantData'
 });
 export type TenantData = Static<typeof tenantDataSchema>
