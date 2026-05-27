@@ -110,10 +110,14 @@ export const loginThrottleError = async (context: HookContext) => {
 	if (!context.params.provider) return;
 	if (!isLocalLogin(context.data)) return;
 
-	// Don't double-count throttle rejections we threw ourselves.
 	const errCode = (context.error as { code?: number } | undefined)?.code;
 
+	// Don't double-count throttle rejections we threw ourselves.
 	if (errCode === 429) return;
+
+	// Only count real credential failures. 5xx (PG blip, internal error) is the
+	// server's fault — the caller did nothing wrong, don't burn their bucket.
+	if (errCode !== 401) return;
 
 	const ip = extractIp(context.params);
 	const email = extractEmail(context.data);
