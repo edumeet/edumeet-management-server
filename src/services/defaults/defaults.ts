@@ -23,6 +23,7 @@ import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
+import { normalizeDefaults } from '../../hooks/normalizeDefaults';
 
 export * from './defaults.class';
 export * from './defaults.schema';
@@ -55,6 +56,7 @@ export const defaults = (app: Application) => {
 				// iff(notSuperAdmin(), notInSameTenant),
 				// numberLimit is super-admin only — strip it from create requests by tenant admins
 				iff(notSuperAdmin(), (context) => { delete context.data['numberLimit']; }),
+				normalizeDefaults,
 				schemaHooks.validateData(defaultDataValidator),
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [
@@ -63,6 +65,7 @@ export const defaults = (app: Application) => {
 				// tenantId — otherwise a tenant admin can patch another tenant's row by id.
 				iff(notSuperAdmin(), notInSameTenantByContextId),
 				iff(notSuperAdmin(), tenantDefault),
+				normalizeDefaults,
 				schemaHooks.validateData(defaultPatchValidator),
 				schemaHooks.resolveData(defaultPatchResolver) ],
 			remove: [

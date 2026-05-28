@@ -5,6 +5,7 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
 // Main data model schema
 export const defaultSchema = Type.Object(
@@ -89,8 +90,9 @@ export type DefaultData = Static<typeof defaultDataSchema>
 export const defaultDataValidator = getValidator(defaultDataSchema, dataValidator);
 export const defaultDataResolver = resolve<Default, HookContext>({
 	tenantId: async (value, query, context) => {
-		// Make sure the user is limited to their own tenant
-		if (context.params.user)
+		// Non-super-admins are pinned to their own tenant; super admins keep the
+		// tenantId they chose in the create dialog. (Mirrors roleDataResolver.)
+		if (notSuperAdmin()(context) && context.params.user)
 			return context.params.user.tenantId;
 
 		return value;

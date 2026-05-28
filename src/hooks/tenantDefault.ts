@@ -15,6 +15,10 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 		// numberLimit is super-admin only — tenant admins cannot change the tenant-wide room cap
 		delete context.data['numberLimit'];
 
+		// tenant admins cannot move their default to another tenant — the row's
+		// tenant is fixed at creation, so never let a patched tenantId through
+		delete context.data['tenantId'];
+
 		if (item['managerManagedRoomNumberLimit'] && typeof item['managerManagedRoomNumberLimit'] == 'string') {
 			context.data['managerManagedRoomNumberLimit'] = parseInt(String(item['managerManagedRoomNumberLimit']));
 		}
@@ -22,26 +26,29 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 			delete context.data['managerManagedRoomNumberLimit'];
 		}
 
+		// These values come straight from the DB. On MySQL a boolean column is a
+		// TINYINT(1) that reads back as 0/1, which would fail the strict boolean
+		// schema, so coerce with Boolean() (a no-op on Postgres' native boolean).
 		if (item['disableUnmanagedLock']) {
-			context.data['disableUnmanaged'] = item['disableUnmanaged'];
+			context.data['disableUnmanaged'] = Boolean(item['disableUnmanaged']);
 		}
 		if (item['lockedLock']) {
-			context.data['lockedUnmanaged'] = item['lockedUnmanaged'];
+			context.data['lockedUnmanaged'] = Boolean(item['lockedUnmanaged']);
 		}
 		if (item['raiseHandEnabledLock']) {
-			context.data['raiseHandEnabledUnmanaged'] = item['raiseHandEnabledUnmanaged'];
+			context.data['raiseHandEnabledUnmanaged'] = Boolean(item['raiseHandEnabledUnmanaged']);
 		}
 		if (item['localRecordingEnabledLock']) {
-			context.data['localRecordingEnabledUnmanaged'] = item['localRecordingEnabledUnmanaged'];
+			context.data['localRecordingEnabledUnmanaged'] = Boolean(item['localRecordingEnabledUnmanaged']);
 		}
 		if (item['chatEnabledLock']) {
-			context.data['chatEnabledUnmanaged'] = item['chatEnabledUnmanaged'];
+			context.data['chatEnabledUnmanaged'] = Boolean(item['chatEnabledUnmanaged']);
 		}
 		if (item['breakoutsEnabledLock']) {
-			context.data['breakoutsEnabledUnmanaged'] = item['breakoutsEnabledUnmanaged'];
+			context.data['breakoutsEnabledUnmanaged'] = Boolean(item['breakoutsEnabledUnmanaged']);
 		}
 		if (item['filesharingEnabledLock']) {
-			context.data['filesharingEnabledUnmanaged'] = item['filesharingEnabledUnmanaged'];
+			context.data['filesharingEnabledUnmanaged'] = Boolean(item['filesharingEnabledUnmanaged']);
 		}
 		
 	}
