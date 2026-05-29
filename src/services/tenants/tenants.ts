@@ -14,15 +14,30 @@ import {
 	tenantQueryResolver
 } from './tenants.schema';
 
-import type { Application } from '../../declarations';
+import type { Application, HookContext } from '../../declarations';
 import { TenantService, getOptions } from './tenants.class';
 import { tenantPath, tenantMethods } from './tenants.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { checkPermissions } from '../../hooks/checkPermissions';
+import { isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { Forbidden } from '@feathersjs/errors';
 
 export * from './tenants.class';
 export * from './tenants.schema';
+
+// A tenant admin may patch their OWN tenant only. The tenant record has no separate
+// tenantId column — its own id IS the tenant id — so scope against context.id rather
+// than a body field (which a client could omit or spoof). Super-admin / edumeet-server
+// skip this via the notSuperAdmin() guard and may patch any tenant.
+const ownTenantOnly = async (context: HookContext): Promise<HookContext> => {
+	const user = context.params.user;
+
+	if (user && context.id != null && parseInt(String(context.id)) !== parseInt(String(user.tenantId)))
+		throw new Forbidden('You can only modify your own tenant.');
+
+	return context;
+};
 
 // A configure function that registers the service and its hooks via `app.configure`
 export const tenant = (app: Application) => {
@@ -55,7 +70,8 @@ export const tenant = (app: Application) => {
 				schemaHooks.resolveData(tenantDataResolver)
 			],
 			patch: [
-				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
+				iff(notSuperAdmin(), isTenantAdmin),
+				iff(notSuperAdmin(), ownTenantOnly),
 				schemaHooks.validateData(tenantPatchValidator),
 				schemaHooks.resolveData(tenantPatchResolver)
 			],

@@ -48,6 +48,13 @@ export const checkPermissions = (options: CheckPermissionsOptions) => {
 				}
 		}
 
+		// A user with no roles (e.g. tenant admins, whose privileges come from the
+		// tenantAdmins/tenantOwners tables) has roles === null. Treat a missing or
+		// non-array value as "no roles" so the check cleanly denies instead of
+		// throwing on .some — this also covers a mariadb string that failed to parse.
+		if (!Array.isArray(permissionList))
+			permissionList = [];
+
 		const requiredPermissions: string[] = [ '*', `*:${method}` ];
 
 		options.roles.forEach((permission: string) => {
