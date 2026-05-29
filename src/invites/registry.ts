@@ -1,18 +1,26 @@
 import type { Application } from '../declarations';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import { invalidateSender } from './sender';
-import { startPollerForTenant, stopPollerForTenant, stopAllPollers } from './replyPoller';
+import { reconcilePollers, stopAllPollers } from './replyPoller';
 import { registerMeetingEventHandlers } from './dispatcher';
 
 import { logger } from '../logger';
 
-const rebuildTenantWorker = (app: Application, cfg: TenantInviteConfig): void => {
-	invalidateSender(cfg.tenantId);
-	if (cfg.enabled) {
-		startPollerForTenant(app, cfg);
-	} else {
-		stopPollerForTenant(cfg.tenantId);
-	}
+const loadConfigs = async (app: Application): Promise<TenantInviteConfig[]> => {
+	const res = await app.service('tenantInviteConfigs').find({
+		paginate: false,
+		query: {}
+	});
+	const list = Array.isArray(res) ? res : (res as { data: unknown[] }).data;
+
+	return list as TenantInviteConfig[];
+};
+
+// Pollers are deduped per mailbox, so any config change requires the full picture to know
+// whether a shared mailbox still has other tenants keeping it alive. Re-fetch all configs
+// and reconcile. (The SMTP sender cache is still invalidated per tenant — independent of IMAP.)
+const refreshPollers = async (app: Application): Promise<void> => {
+	reconcilePollers(app, await loadConfigs(app));
 };
 
 export const startInviteWorkers = async (app: Application): Promise<void> => {
@@ -26,27 +34,21 @@ export const startInviteWorkers = async (app: Application): Promise<void> => {
 
 	registerMeetingEventHandlers(app);
 
-	// boot per-tenant pollers
-	const res = await app.service('tenantInviteConfigs').find({
-		paginate: false,
-		query: {}
-	});
-	const list = Array.isArray(res) ? res : (res as { data: unknown[] }).data;
+	// boot pollers (one per unique mailbox across all tenant configs)
+	await refreshPollers(app);
 
-	for (const cfg of list as TenantInviteConfig[]) {
-		rebuildTenantWorker(app, cfg);
-	}
-
-	// react to config changes
+	// react to config changes — invalidate that tenant's sender, then reconcile mailbox pollers
 	app.service('tenantInviteConfigs').on('created', (cfg: TenantInviteConfig) => {
-		rebuildTenantWorker(app, cfg);
+		invalidateSender(cfg.tenantId);
+		refreshPollers(app);
 	});
 	app.service('tenantInviteConfigs').on('patched', (cfg: TenantInviteConfig) => {
-		rebuildTenantWorker(app, cfg);
+		invalidateSender(cfg.tenantId);
+		refreshPollers(app);
 	});
 	app.service('tenantInviteConfigs').on('removed', (cfg: TenantInviteConfig) => {
 		invalidateSender(cfg.tenantId);
-		stopPollerForTenant(cfg.tenantId);
+		refreshPollers(app);
 	});
 };
 

@@ -9,7 +9,19 @@ import { logger } from '../logger';
 
 const DEFAULT_POLL_MS = 60000;
 
-const pollers = new Map<number, { timer: NodeJS.Timeout, stopped: boolean }>();
+// Pollers are keyed by MAILBOX identity (host:port:user), NOT by tenant. Multiple tenants
+// commonly share one invite mailbox (e.g. invitation@edumeet.eu); running one poller per
+// tenant means N pollers race on the same inbox — whichever fetches first marks a reply
+// \Seen, so the others never see it and replies for some tenants get silently consumed.
+// One poller per unique mailbox fixes that; reply→meeting resolution is global-by-uid, so a
+// single poller correctly updates partstat for every tenant sharing the mailbox.
+const pollers = new Map<string, { timer: NodeJS.Timeout, stopped: boolean }>();
+
+const mailboxKey = (cfg: TenantInviteConfig): string =>
+	`${cfg.imapHost}:${cfg.imapPort ?? 993}:${cfg.imapUser}`;
+
+const mailboxLabel = (cfg: TenantInviteConfig): string =>
+	`${cfg.imapUser}@${cfg.imapHost}`;
 
 type IcsPartstat = 'ACCEPTED' | 'DECLINED' | 'TENTATIVE' | 'NEEDS-ACTION';
 
@@ -189,16 +201,17 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 	const invites = app.get('invites');
 
 	if (!invites?.encryptionKey) return;
+	const mb = mailboxLabel(tenantConfig);
 
 	// Guard against misconfigured IMAP: empty user or password would always fail auth.
 	// Log a clear message once per cycle instead of spamming imap errors.
 	if (!tenantConfig.imapUser || !tenantConfig.imapPass) {
-		logger.warn(`[invites/replyPoller] tenant ${tenantConfig.tenantId} IMAP credentials incomplete (user or password empty) — poll skipped`);
+		logger.warn(`[invites/replyPoller] mailbox ${mb} IMAP credentials incomplete (user or password empty) — poll skipped`);
 
 		return;
 	}
 
-	logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} polling ${tenantConfig.imapHost}:${tenantConfig.imapPort ?? 993} as ${tenantConfig.imapUser}`);
+	logger.info(`[invites/replyPoller] mailbox ${mb} polling ${tenantConfig.imapHost}:${tenantConfig.imapPort ?? 993}`);
 
 	let client: ImapFlow | undefined;
 
@@ -222,11 +235,11 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 		// that can arrive AFTER our try/catch completes. Without a listener,
 		// Node treats it as unhandled and crashes the whole process.
 		client.on('error', (err) => {
-			logger.warn(`[invites/replyPoller] tenant ${tenantConfig.tenantId} IMAP async error (ignored): ${(err as Error)?.message ?? err}`);
+			logger.warn(`[invites/replyPoller] mailbox ${mb} IMAP async error (ignored): ${(err as Error)?.message ?? err}`);
 		});
 
 		await client.connect();
-		logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} connected to IMAP`);
+		logger.info(`[invites/replyPoller] mailbox ${mb} connected to IMAP`);
 		const lock = await client.getMailboxLock('INBOX');
 
 		try {
@@ -282,7 +295,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			}
 
 			if (unseenCount > 0) {
-				logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} polled ${unseenCount} unseen message(s), ${icsFoundCount} had ICS`);
+				logger.info(`[invites/replyPoller] mailbox ${mb} polled ${unseenCount} unseen message(s), ${icsFoundCount} had ICS`);
 			}
 
 			// Retention cleanup: purge SEEN messages older than the retention window so the
@@ -302,7 +315,7 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 
 					if (oldUids && oldUids.length > 0) {
 						await client.messageDelete(oldUids, { uid: true });
-						logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} purged ${oldUids.length} message(s) (retention=${retentionDays}d)`);
+						logger.info(`[invites/replyPoller] mailbox ${mb} purged ${oldUids.length} message(s) (retention=${retentionDays}d)`);
 					}
 				} catch (err) {
 					logger.warn('[invites/replyPoller] retention cleanup failed (non-fatal):', err);
@@ -312,44 +325,65 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			lock.release();
 		}
 	} catch (err) {
-		logger.warn(`[invites/replyPoller] tenant ${tenantConfig.tenantId} poll failed:`, err);
+		logger.warn(`[invites/replyPoller] mailbox ${mb} poll failed:`, err);
 	} finally {
 		if (client) {
 			try { await client.logout(); } catch { /* noop */ }
-			logger.info(`[invites/replyPoller] tenant ${tenantConfig.tenantId} poll cycle complete`);
+			logger.info(`[invites/replyPoller] mailbox ${mb} poll cycle complete`);
 		}
 	}
 };
 
-export const startPollerForTenant = (app: Application, tenantConfig: TenantInviteConfig): void => {
-	stopPollerForTenant(tenantConfig.tenantId);
-	if (!tenantConfig.imapHost || !tenantConfig.enabled) return;
-
+const startPoller = (app: Application, key: string, cfg: TenantInviteConfig): void => {
 	const intervalMs = app.get('invites')?.imapPollIntervalMs ?? DEFAULT_POLL_MS;
 	const state = { timer: undefined as unknown as NodeJS.Timeout, stopped: false };
 
 	const tick = async () => {
 		if (state.stopped) return;
-		await pollOnce(app, tenantConfig);
+		await pollOnce(app, cfg);
 		if (!state.stopped) state.timer = setTimeout(tick, intervalMs);
 	};
 
 	state.timer = setTimeout(tick, 5000); // small delay on boot
-	pollers.set(tenantConfig.tenantId, state);
+	pollers.set(key, state);
 };
 
-export const stopPollerForTenant = (tenantId: number): void => {
-	const existing = pollers.get(tenantId);
+const stopPoller = (key: string): void => {
+	const existing = pollers.get(key);
 
 	if (existing) {
 		existing.stopped = true;
 		if (existing.timer) clearTimeout(existing.timer);
-		pollers.delete(tenantId);
+		pollers.delete(key);
+	}
+};
+
+// Reconcile running pollers against the full set of tenant invite configs. Collapses
+// tenants that share a mailbox (host:port:user) into a single poller. Call this on boot
+// and on every tenantInviteConfig create/patch/remove. Simple + correct: tear everything
+// down and rebuild for the desired mailbox set — config changes are infrequent (admin
+// action), so the brief reconnect is irrelevant, and a full rebuild guarantees current
+// credentials (we can't reliably diff AES-GCM-encrypted passwords, which re-encrypt each save).
+export const reconcilePollers = (app: Application, configs: TenantInviteConfig[]): void => {
+	stopAllPollers();
+
+	// One representative config per unique mailbox (first enabled config with full IMAP creds wins).
+	const desired = new Map<string, TenantInviteConfig>();
+
+	for (const cfg of configs) {
+		if (!cfg.enabled || !cfg.imapHost || !cfg.imapUser || !cfg.imapPass) continue;
+		const key = mailboxKey(cfg);
+
+		if (!desired.has(key)) desired.set(key, cfg);
+	}
+
+	for (const [ key, cfg ] of desired) {
+		startPoller(app, key, cfg);
 	}
 };
 
 export const stopAllPollers = (): void => {
-	for (const tenantId of Array.from(pollers.keys())) {
-		stopPollerForTenant(tenantId);
+	for (const key of Array.from(pollers.keys())) {
+		stopPoller(key);
 	}
 };

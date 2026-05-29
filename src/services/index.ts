@@ -8,6 +8,7 @@ import { meeting } from './meetings/meetings';
 import { meetingAttendee } from './meetingAttendees/meetingAttendees';
 import { meetingOccurrenceRsvp } from './meetingOccurrenceRsvps/meetingOccurrenceRsvps';
 import { inviteTest } from './inviteTests/inviteTests';
+import { inviteServerStatus } from './inviteServerStatus/inviteServerStatus';
 import { roomUserRole } from './roomUserRoles/roomUserRoles';
 import { room } from './rooms/rooms';
 import { roomOwner } from './roomOwners/roomOwners';
@@ -35,6 +36,7 @@ export const services = (app: Application) => {
 	app.configure(meetingAttendee);
 	app.configure(meetingOccurrenceRsvp);
 	app.configure(inviteTest);
+	app.configure(inviteServerStatus);
 	app.configure(roomUserRole);
 	app.configure(room);
 	app.configure(defaults);

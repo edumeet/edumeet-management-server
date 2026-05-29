@@ -28,6 +28,14 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 	// Timeouts prevent a firewall blackhole or provider outage from hanging the
 	// dispatcher for minutes. Values are generous vs. the 10s tester bounds — real
 	// send operations with large recipient lists can legitimately take longer.
+	//
+	// Pool + rate limit: the dispatcher fires sendInviteEmail for every attendee via
+	// Promise.all. Without pooling that's N simultaneous SMTP connections + a burst of
+	// N messages, which trips provider caps (Gandi etc.) on a large meeting. Pooling
+	// funnels everything through a single connection; rateLimit/rateDelta cap the send
+	// rate; nodemailer queues the rest internally, so the dispatcher's Promise.all keeps
+	// working unchanged. This smooths bursts — it does NOT protect against per-day caps
+	// (that would need a persistent cross-hour queue).
 	const transporter = nodemailer.createTransport({
 		host: tenantConfig.smtpHost,
 		port: tenantConfig.smtpPort,
@@ -38,7 +46,15 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 		},
 		connectionTimeout: 30000,
 		greetingTimeout: 30000,
-		socketTimeout: 60000
+		socketTimeout: 60000,
+		pool: true,
+		// one connection per tenant mailbox — gentle on connection caps
+		maxConnections: 1,
+		// recycle the connection after 100 messages
+		maxMessages: 100,
+		// at most 10 messages per 1000 ms
+		rateLimit: 10,
+		rateDelta: 1000
 	});
 
 	senderCache.set(tenantConfig.tenantId, transporter);

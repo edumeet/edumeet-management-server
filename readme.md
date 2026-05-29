@@ -93,9 +93,10 @@ for deploy/config: secrets (`invites.encryptionKey`, `invites.rsvpTokenSecret`),
 | `meetingAttendees` | RSVP rows; `partstat` updated by IMAP reply poller |
 | `meetingOccurrenceRsvps` | per-occurrence exceptions (RECURRENCE-ID replies) |
 | `inviteTests` | server-side nodemailer `verify()` + imapflow connect; validates a tenant's config |
+| `invite-server-status` | read-only: whether the server has `encryptionKey` + `rsvpTokenSecret` (booleans only) — drives the client's "invites not configured" warning |
 
 Permissions (all hooks run before any write):
-- `tenantInviteConfigs`, `inviteTests` — tenant admins (scoped to their own tenant) or super admin.
+- `tenantInviteConfigs`, `inviteTests`, `invite-server-status` — tenant admins (scoped to their own tenant) or super admin. `tenantInviteConfigs` create/patch additionally rejects `enabled=true` without a complete SMTP block.
 - `meetings`, `meetingAttendees`, `meetingOccurrenceRsvps` — room owners of the meeting's room, tenant admins of the room's tenant, or super admin. Non-admin find/get is additionally scoped to meetings where the user is organizer / attendee / room-owner.
 - Landing-page "my meetings" filter: pass `?upcomingForMe=true` on `find meetings`.
 
@@ -129,10 +130,11 @@ in the env to see the poller's per-message decisions.
 
 | File | Role |
 | --- | --- |
-| `src/invites/registry.ts` | starts/stops per-tenant pollers on tenantInviteConfig changes |
-| `src/invites/dispatcher.ts` | debounced emit of REQUEST/CANCEL on meeting & attendee events |
-| `src/invites/sender.ts` | nodemailer wrapper, cached per tenant |
-| `src/invites/replyPoller.ts` | IMAP FETCH → parse ICS → update `partstat`; handles RECURRENCE-ID + dtstamp/sequence dedup; retention cleanup |
+| `src/invites/registry.ts` | reconciles IMAP pollers on tenantInviteConfig changes (deduped per mailbox, not per tenant) |
+| `src/invites/dispatcher.ts` | debounced emit of REQUEST/CANCEL on meeting & attendee events; organizer is included as a recipient |
+| `src/invites/sender.ts` | nodemailer wrapper, cached per tenant; pooled + rate-limited (≤10/s); Intl-formatted Start/End in the meeting's timezone |
+| `src/invites/replyPoller.ts` | one poller per unique mailbox; IMAP FETCH → parse ICS → update `partstat`; RECURRENCE-ID + dtstamp/sequence dedup; retention cleanup |
+| `src/invites/templates/` | per-locale email subject/body (`getTemplate(locale)`, falls back to en) |
 | `src/invites/icsBuilder.ts` | RFC 5545 ICS generation (UTC; no VTIMEZONE for max client compatibility) |
 | `src/invites/crypto.ts` | AES-256-GCM encrypt/decrypt (passwords), HMAC-SHA256 (RSVP tokens) |
 | `src/invites/tester.ts` | test-connection endpoint implementation |
