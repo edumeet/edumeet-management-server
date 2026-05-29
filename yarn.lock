@@ -1110,15 +1110,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/dompurify@npm:^3.2.0":
-  version: 3.2.0
-  resolution: "@types/dompurify@npm:3.2.0"
-  dependencies:
-    dompurify: "npm:*"
-  checksum: 10c0/e83fec586ffbb1b43f7c8479f2a99c223814d240db912d53fb126aaeea52a4091deceeb75632b5d76004d88ef0fbf444984887b121dece6fa69f4172ed4b2b07
-  languageName: node
-  linkType: hard
-
 "@types/esrecurse@npm:^4.3.1":
   version: 4.3.1
   resolution: "@types/esrecurse@npm:4.3.1"
@@ -2618,7 +2609,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dompurify@npm:*, dompurify@npm:^3.3.1, dompurify@npm:^3.4.1":
+"dompurify@npm:^3.3.1":
   version: 3.4.3
   resolution: "dompurify@npm:3.4.3"
   dependencies:
@@ -2627,6 +2618,18 @@ __metadata:
     "@types/trusted-types":
       optional: true
   checksum: 10c0/88b9e1a6d0a990e15fab46f4eb96163ef79f20634705b21c82651ffce1ccc5236e4007397d920234afab86123d49be863f2367bd6aacdf28a401aef4d177e0f9
+  languageName: node
+  linkType: hard
+
+"dompurify@npm:^3.4.7":
+  version: 3.4.7
+  resolution: "dompurify@npm:3.4.7"
+  dependencies:
+    "@types/trusted-types": "npm:^2.0.7"
+  dependenciesMeta:
+    "@types/trusted-types":
+      optional: true
+  checksum: 10c0/b39940e95259bfaea658cb2bec819d47f271f9fe47e4e3cfff1fb7876089264d7c21e36ea09dad0d9a0f70add502ce6787ba9e7467f2c7b996382eb1d8daa375
   languageName: node
   linkType: hard
 
@@ -2681,7 +2684,6 @@ __metadata:
     "@feathersjs/typebox": "npm:^5.0.44"
     "@koa/router": "npm:^15.3.0"
     "@tsconfig/node24": "npm:^24.0.4"
-    "@types/dompurify": "npm:^3.2.0"
     "@types/koa__router": "npm:^12.0.5"
     "@types/mocha": "npm:^10.0.10"
     "@types/node": "npm:^24.10.1"
@@ -2691,22 +2693,22 @@ __metadata:
     axios: "npm:^1.15.2"
     bcryptjs: "npm:^3.0.3"
     cross-env: "npm:^10.1.0"
-    dompurify: "npm:^3.4.1"
+    dompurify: "npm:^3.4.7"
     eslint: "npm:^10.0.3"
     feathers-hooks-common: "npm:^8.2.1"
     globals: "npm:^17.4.0"
     ical-generator: "npm:^10.2.0"
-    imapflow: "npm:^1.3.2"
+    imapflow: "npm:^1.3.3"
     isomorphic-dompurify: "npm:^2.36.0"
     knex: "npm:^3.1.0"
-    mocha: "npm:^11.7.5"
+    mocha: "npm:^11.7.6"
     mysql: "npm:^2.18.1"
     mysql2: "npm:^3.20.0"
     node-ical: "npm:^0.26.0"
     nodemailer: "npm:^8.0.5"
     nodemon: "npm:^3.1.14"
     pg: "npm:^8.20.0"
-    qs: "npm:^6.14.0"
+    qs: "npm:^6.15.2"
     rrule: "npm:^2.8.1"
     shx: "npm:^0.4.0"
     ts-node: "npm:^10.9.2"
@@ -3857,9 +3859,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"imapflow@npm:^1.3.2":
-  version: 1.3.2
-  resolution: "imapflow@npm:1.3.2"
+"imapflow@npm:^1.3.3":
+  version: 1.3.3
+  resolution: "imapflow@npm:1.3.3"
   dependencies:
     "@zone-eu/mailsplit": "npm:5.4.9"
     encoding-japanese: "npm:2.2.0"
@@ -3867,10 +3869,10 @@ __metadata:
     libbase64: "npm:1.3.0"
     libmime: "npm:5.3.8"
     libqp: "npm:2.1.1"
-    nodemailer: "npm:8.0.5"
+    nodemailer: "npm:8.0.7"
     pino: "npm:10.3.1"
-    socks: "npm:2.8.7"
-  checksum: 10c0/9f4832e0995d4e43d8791ec5bfbc1b0d452a0ec8daf2e91898da895f8e136e397fda51291f7843b9f5f0492edf2fc66ec7ff03daebfe31f0137e0dd198c74f74
+    socks: "npm:2.8.8"
+  checksum: 10c0/b4546613a1382c2debbcd8179a87fbd8e3c70ca0920e53dff61833d019b7216d4e952dbebc21f10aed0d4127a5edc925074a921d61eb51961310a89eeaba25ef
   languageName: node
   linkType: hard
 
@@ -3943,13 +3945,6 @@ __metadata:
   version: 2.2.0
   resolution: "interpret@npm:2.2.0"
   checksum: 10c0/c0ef90daec6c4120bb7a226fa09a9511f6b5618aa9c94cf4641472f486948e643bb3b36efbd0136bbffdee876435af9fdf7bbb4622f5a16778eed5397f8a1946
-  languageName: node
-  linkType: hard
-
-"ip-address@npm:^10.0.1":
-  version: 10.1.0
-  resolution: "ip-address@npm:10.1.0"
-  checksum: 10c0/0103516cfa93f6433b3bd7333fa876eb21263912329bfa47010af5e16934eeeff86f3d2ae700a3744a137839ddfad62b900c7a445607884a49b5d1e32a3d7566
   languageName: node
   linkType: hard
 
@@ -4847,9 +4842,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mocha@npm:^11.7.5":
-  version: 11.7.5
-  resolution: "mocha@npm:11.7.5"
+"mocha@npm:^11.7.6":
+  version: 11.7.6
+  resolution: "mocha@npm:11.7.6"
   dependencies:
     browser-stdout: "npm:^1.3.1"
     chokidar: "npm:^4.0.1"
@@ -4875,7 +4870,7 @@ __metadata:
   bin:
     _mocha: bin/_mocha
     mocha: bin/mocha.js
-  checksum: 10c0/e6150cba85345aaabbc5b2e7341b1e6706b878f5a9782960cad57fd4cc458730a76d08c5f1a3e05d3ebb49cad93b455764bb00727bd148dcaf0c6dd4fa665b3d
+  checksum: 10c0/95b3eeb52eaf253167d335d1c1a46659f6f282dc112a74fd0ac46380637ae3ee52894319e00a46412a1e5a6e3056128153dc87c1fe36565c748b9fbe8d705ad0
   languageName: node
   linkType: hard
 
@@ -5018,7 +5013,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nodemailer@npm:8.0.5, nodemailer@npm:^8.0.5":
+"nodemailer@npm:8.0.7":
+  version: 8.0.7
+  resolution: "nodemailer@npm:8.0.7"
+  checksum: 10c0/f1580263ad7fba64a493c47c4d78f06679c0da9cc3becbe6b628311a16474c07286fc4e530006ea262537594ccc475dc569fd519275222fd01f99c315976aeac
+  languageName: node
+  linkType: hard
+
+"nodemailer@npm:^8.0.5":
   version: 8.0.5
   resolution: "nodemailer@npm:8.0.5"
   checksum: 10c0/5e8450499bd059c56d74ba96fa5f9928de2ecdae0d53c083dba5661d797114c1f9524d30f992d0263cc5a7dcf5a54b9c1d92dc1f766da150c9d0bde7d3798431
@@ -5567,6 +5569,15 @@ __metadata:
   dependencies:
     side-channel: "npm:^1.1.0"
   checksum: 10c0/ff341078a78a991d8a48b4524d52949211447b4b1ad907f489cac0770cbc346a28e47304455c0320e5fb000f8762d64b03331e3b71865f663bf351bcba8cdb4b
+  languageName: node
+  linkType: hard
+
+"qs@npm:^6.15.2":
+  version: 6.15.2
+  resolution: "qs@npm:6.15.2"
+  dependencies:
+    side-channel: "npm:^1.1.0"
+  checksum: 10c0/e6fd5f6f0aab06d480fe9ab15cebfc4ce4235303e2f91dc69a8f7f4df1e668a61c11d1cfbabacf4295cbbeb7b670ed23db45307480726259761f98e5695e93a7
   languageName: node
   linkType: hard
 
@@ -6130,13 +6141,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"socks@npm:2.8.7":
-  version: 2.8.7
-  resolution: "socks@npm:2.8.7"
+"socks@npm:2.8.8":
+  version: 2.8.8
+  resolution: "socks@npm:2.8.8"
   dependencies:
-    ip-address: "npm:^10.0.1"
+    ip-address: "npm:^10.1.1"
     smart-buffer: "npm:^4.2.0"
-  checksum: 10c0/2805a43a1c4bcf9ebf6e018268d87b32b32b06fbbc1f9282573583acc155860dc361500f89c73bfbb157caa1b4ac78059eac0ef15d1811eb0ca75e0bdadbc9d2
+  checksum: 10c0/4777edf8b554182ddf472524a1855c0fc684c7a3778466851dca687ae81cfa19ea9261856765789e51f7cec12e575e2652d5bd69d98fdbbbc947eabd12e9891d
   languageName: node
   linkType: hard
 
