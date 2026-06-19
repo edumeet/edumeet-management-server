@@ -1353,12 +1353,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/nodemailer@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "@types/nodemailer@npm:8.0.0"
+"@types/nodemailer@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "@types/nodemailer@npm:8.0.1"
   dependencies:
     "@types/node": "npm:*"
-  checksum: 10c0/e5031df5d6557f4cdb9a0dbe1a96f3f54dc59c23d47477103fd42b5c9bc925ea1b4e51be560af5620b4d0c66fcfb015ce5ca8f914ed2f3a3086be6149d5932da
+  checksum: 10c0/4370ac478a6811faaa64fcf769556515c72b78c66961cde22be75bb975ce8a964cfbe5e7c0988a99250f3250faa34357c73958b019b3c63dd138ea3784442032
   languageName: node
   linkType: hard
 
@@ -2638,15 +2638,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dompurify@npm:^3.4.8":
-  version: 3.4.8
-  resolution: "dompurify@npm:3.4.8"
+"dompurify@npm:^3.4.11":
+  version: 3.4.11
+  resolution: "dompurify@npm:3.4.11"
   dependencies:
     "@types/trusted-types": "npm:^2.0.7"
   dependenciesMeta:
     "@types/trusted-types":
       optional: true
-  checksum: 10c0/8f56a53d0ac80c76068772c9b72721f31fad68cac64a528e2420699ce2bd26b3516e29a5a7bd2205c2732d7114b9859998bf922d20cdb9361c4a05dab8352570
+  checksum: 10c0/31439481c7e8fc3805d40c376936fd66936620fb1b1a31a2ec097f6165412c37f2d868e082c9ceba62bb37661c1ea132a5db4d5213434317e30df68d4aca9cc9
   languageName: node
   linkType: hard
 
@@ -2704,13 +2704,13 @@ __metadata:
     "@types/koa__router": "npm:^12.0.5"
     "@types/mocha": "npm:^10.0.10"
     "@types/node": "npm:^24.10.1"
-    "@types/nodemailer": "npm:^8.0.0"
+    "@types/nodemailer": "npm:^8.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.57.1"
     "@typescript-eslint/parser": "npm:^8.57.1"
     axios: "npm:^1.17.0"
     bcryptjs: "npm:^3.0.3"
     cross-env: "npm:^10.1.0"
-    dompurify: "npm:^3.4.8"
+    dompurify: "npm:^3.4.11"
     eslint: "npm:^10.0.3"
     feathers-hooks-common: "npm:^8.2.1"
     globals: "npm:^17.4.0"
@@ -2722,7 +2722,7 @@ __metadata:
     mysql: "npm:^2.18.1"
     mysql2: "npm:^3.20.0"
     node-ical: "npm:^0.26.1"
-    nodemailer: "npm:^8.0.10"
+    nodemailer: "npm:^9.0.1"
     nodemon: "npm:^3.1.14"
     pg: "npm:^8.20.0"
     qs: "npm:^6.15.2"
@@ -5040,10 +5040,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nodemailer@npm:8.0.10, nodemailer@npm:^8.0.10":
+"nodemailer@npm:8.0.10":
   version: 8.0.10
   resolution: "nodemailer@npm:8.0.10"
   checksum: 10c0/b96fd2ea7146de58141219061e094509fd0f19aac5ac86ac35d9ce9c479dbf6c12b143fa7e7050a1be539a3542eb59520c33aabf5a119c8d28fc7d151bde329f
+  languageName: node
+  linkType: hard
+
+"nodemailer@npm:^9.0.1":
+  version: 9.0.1
+  resolution: "nodemailer@npm:9.0.1"
+  checksum: 10c0/4213f01aa211127c1ce33243c5e45e7f831601a933d03fa864cd827b1bd5ea2782cb4b43722bee7028cbc193733d9802dad1120fe67181448eb0b7de52218a37
   languageName: node
   linkType: hard
 
