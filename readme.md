@@ -160,7 +160,7 @@ Each row is one condition plus an outcome:
 | --- | --- |
 | `tenantId` | the tenant the rule belongs to; a rule never applies outside it |
 | `parameter` | which attribute to test. Only `email`, `name`, `ssoId` and `tenantId` are ever carried by a login, so nothing else can match |
-| `method` | `contains` \| `equals` \| `startswith` \| `endswith` |
+| `method` | `contains` \| `equals` \| `startswith` \| `endswith` \| `anyone`. The last is the catch-all: it tests nothing, always matches, and ranks below every other rule |
 | `negate` | inverts the condition. Meaningful only on a Grant rule, where "grant to everyone except X" has no other spelling. Access rules carry their direction in `type`, so the migration clears it there. Not offered in the dialog: it is honoured for rules that already use it, but new ones are written with plain comparisons |
 | `value` | what to test `parameter` against |
 | `type` | `block` \| `allow` \| `gain` |
@@ -172,20 +172,31 @@ profile: `{ ssoId, email, name, tenantId }`.
 
 ### How access is decided
 
-Think of it as a firewall: **deny all, then Allow rules punch holes in it.** The one difference from a
-firewall is the starting point - a tenant with **no Allow rules at all is open**, so a tenant that only
-wants to keep a few domains out does not have to enumerate everyone it wants to keep in.
+Think of it as a firewall, including the `deny all` at the bottom - except here you write that line
+yourself, as an ordinary rule.
 
 ```
-if   any Block matches                  -> deny
-elif no evaluatable Allow rule exists   -> permit      (nothing to punch holes in, so open)
-elif any Allow matches                  -> permit
-else                                    -> deny
+the most specific matching rule decides
+a Block wins a tie at the same level
+nothing matched at all                  -> permit
 ```
 
-> **Adding your first Allow rule closes the tenant.** Before it, everyone not blocked could sign in.
-> After it, only people matching an Allow rule can. This is the single most surprising thing about
-> rules, and it is deliberate: an Allow rule states who may in, not merely who is exempt from a Block.
+Specificity has three levels, and it is what makes the default expressible as a rule:
+
+| level | comparison | describes |
+| --- | --- | --- |
+| 2 | `equals` | one person |
+| 1 | `contains`, `startswith`, `endswith` | a group |
+| 0 | `anyone` | nobody in particular, so it always loses to a real rule |
+
+A rule still carrying the old `negate` flag counts as level 1 whatever its comparison, because
+inverting a test turns it into a statement about everyone else: "does not equal `bob@x.com`" describes
+a group, not an individual, so it must not outrank a real Block.
+
+> **A tenant is open by default.** To admit only the people you list, add a rule with the `anyone`
+> comparison set to Block. Because it sits at level 0 it applies only to people no other rule
+> mentions, which turns your Allow rules into the guest list. Its presence closes the tenant and its
+> absence leaves it open, and either way it is a row an admin can see rather than a hidden default.
 
 > **Administrators are never refused.** The super admin, and the admins and owners of the tenant being
 > entered, are exempt from access rules. Without that, one careless rule would lock out the very people
@@ -193,14 +204,16 @@ else                                    -> deny
 > only consulted for a sign in that the rules refused, and a brand new account cannot be an
 > administrator, so first registration is still governed normally.
 
-Block always wins, so an explicit Block is never defeated by a broader Allow. In practice the two
-rarely collide: an Allow list plus one extra address is written as two Allow rules, not as a Block
-with an exception, so no precedence question arises.
+Specificity is what makes exceptions work in both directions, without any rule ordering to maintain:
 
-The two types compose in opposite directions on purpose. Blocks are AND-ed (deny if *any* matches),
-Allows are OR-ed (permit if *any* matches). That is also why comparisons are only offered in their
-plain form: a negated Allow looks like a way to say "everyone except", but two of them OR together
-and stop excluding anything at all. Allow and Block express the same intent correctly.
+- `Block ends with @gmail.com` plus `Allow equals someone@gmail.com` admits that one address, because
+  naming a person (level 2) outranks describing a group (level 1).
+- `Allow ends with @acme.edu` plus `Block ends with @students.acme.edu` still refuses the students,
+  because both describe groups (level 1) and Block breaks the tie.
+
+Comparisons are only offered in their plain form. A negated Allow looks like a way to say "everyone
+except", but two of them combine to exclude nobody at all; Allow and Block express the same intent
+correctly.
 
 "Evaluatable" is deliberate. A rule whose `parameter` is absent from the login, or whose `method` is
 not recognised, cannot be evaluated. It is skipped, logged, and does **not** count towards "an allow
@@ -208,12 +221,14 @@ list exists" - otherwise a single typo in the only Allow rule would lock out the
 
 ### Setting a tenant up
 
-Work in two steps. **Allow rules broaden, Block rules narrow.**
+**Allow rules broaden, Block rules narrow, and the catch-all sets the default.**
 
 1. **Add Allow rules for the groups of people who should get in.** One per organisation, domain or
    whatever else identifies them. They combine, so listing three domains admits all three.
-2. **Add Block rules for anyone inside those groups who should not get in.** A Block always wins, so
-   it carves back out of what the Allow rules let in.
+2. **Add `Block` with the `anyone` comparison** to shut out everyone else. Without it the tenant stays
+   open and your Allow rules only act as exceptions.
+3. **Add Block rules for anyone inside those groups who should not get in.** They outrank the
+   catch-all, and beat an Allow rule of the same specificity.
 
 Watching a tenant on a federated login as the rules are added:
 
@@ -222,81 +237,73 @@ Watching a tenant on a federated login as the rules are added:
                                     @man.poznan  @students.man  @agh.edu   @renater.fr
 
 0. no rules (fresh tenant)          IN           IN             IN         IN
-1. + Allow man.poznan.pl            IN           IN             OUT        OUT
-2. + Allow agh.edu.pl               IN           IN             IN         OUT
-3. + Block students.man.poznan.pl   IN           OUT            IN         OUT
+1. + Allow man.poznan.pl            IN           IN             IN         IN     <- still open
+2. + Block anyone                   IN           IN             OUT        OUT    <- now closed
+3. + Allow agh.edu.pl               IN           IN             IN         OUT
+4. + Block students.man.poznan.pl   IN           OUT            IN         OUT
 ```
 
 Three things to know before you start:
 
-- **Step 1 closes the tenant.** A tenant with no Allow rules is open to everyone the identity provider
-  offers, which on a federation means every organisation in it. The moment the first Allow rule
-  exists, anyone who matches no Allow rule is refused. That is the biggest jump in behaviour and it
-  happens on your very first rule.
-- **A Block is final.** Nothing overrides it, in any order. Blocks are for people you are certain
-  about. They work well for a sub-domain like `students.*` and badly as "block a domain, but let one
-  person in" - for that, list the people you want as Allow rules instead.
-- **You can skip step 1 entirely.** Block rules with no Allow rules leave the tenant open and simply
-  subtract, which reads as "everyone, except these". That is a perfectly good configuration if a
-  tenant really is open to the whole federation.
+- **Step 2 is what closes the tenant**, and nothing else does. Adding an Allow rule on its own never
+  changes the default, so you can admit one extra address to an open tenant without shutting out
+  everybody else by accident.
+- **A Block can have exceptions, if the exception is more specific.** `Block ends with @gmail.com`
+  plus `Allow equals someone@gmail.com` admits that one address. Two rules of the same specificity
+  tie, and Block wins, which is what keeps a `students.*` carve-out working.
+- **You can skip steps 2 and 3.** Block rules on an open tenant simply subtract, which reads as
+  "everyone, except these". That is a perfectly good configuration for a tenant that really is open.
 
 ### Examples
 
 A federated login (eduGAIN and similar) presents users from every organisation in the federation, so
-the common case is a tenant admitting only their own. Everyone else in the federation is refused
-because the Allow rule closed the tenant, and a sub-domain is carved out with a Block:
+the common case is a tenant admitting only their own. The catch-all shuts out the rest of the
+federation, and a sub-domain is carved out with a Block:
 
 ```
 { "type": "allow", "parameter": "email", "method": "endswith", "value": "man.poznan.pl" }
 { "type": "block", "parameter": "email", "method": "endswith", "value": "students.man.poznan.pl" }
+{ "type": "block", "method": "anyone" }
 ```
 
 `alice@man.poznan.pl` signs in, `bob@students.man.poznan.pl` does not, and neither does anyone from
-another NREN. The Block is required because `students.man.poznan.pl` also ends with `man.poznan.pl`,
-so the Allow rule matches it too and Block winning is what settles it. Writing the Allow as
-`endswith "@man.poznan.pl"` excludes every sub-domain on its own, if that is what you want.
+another NREN. The Block on the sub-domain is required because `students.man.poznan.pl` also ends with
+`man.poznan.pl`, so the Allow rule matches it too; both describe groups, and Block wins the tie.
+Writing the Allow as `endswith "@man.poznan.pl"` excludes every sub-domain on its own, if that is what
+you want.
 
-Only two domains may sign in. Allow rules compose, so one per domain is correct:
+Only two domains may sign in. Allow rules compose, so one per domain, plus the catch-all:
 
 ```
 { "type": "allow", "parameter": "email", "method": "endswith", "value": "@acme.edu" }
 { "type": "allow", "parameter": "email", "method": "endswith", "value": "@partner.org" }
+{ "type": "block", "method": "anyone" }
 ```
 
-Your own domain plus one outside collaborator. An Allow list is a list, so the collaborator is simply
-another entry on it. No Block rule is involved, and everyone else, including the rest of that
-collaborator's provider, is refused because the Allow rules closed the tenant:
+Keep one consumer domain out and leave everything else open. No catch-all, so the tenant stays open
+and the Block simply subtracts:
 
 ```
-{ "type": "allow", "parameter": "email", "method": "endswith", "value": "@acme.edu" }
-{ "type": "allow", "parameter": "email", "method": "equals",   "value": "test@gmail.com" }
+{ "type": "block", "parameter": "email", "method": "endswith", "value": "@gmail.com" }
 ```
 
-It is tempting to write that as a Block with an exception, and it does **not** work:
+The same, but admitting one address from that domain. Naming an exact address outranks a rule about a
+group, so the Allow wins for that one person and the Block still holds for everyone else on it:
 
 ```
 { "type": "block", "parameter": "email", "method": "endswith", "value": "@gmail.com" }
 { "type": "allow", "parameter": "email", "method": "equals",   "value": "test@gmail.com" }
 ```
 
-That refuses everybody. `test@gmail.com` is refused because Block wins, and everyone else is refused
-because the Allow rule closed the tenant and they match no Allow rule. **A Block rule cannot have
-exceptions.** Whenever you catch yourself reaching for one, write the whole permitted set as Allow
-rules instead, as above.
+`test@gmail.com` signs in, the rest of gmail does not, and everyone else is unaffected because the
+tenant has no catch-all and so remains open.
 
-Admit a whole university except one account. Here a Block is the right tool, since Allow rules can
-only add to the set, never subtract:
+Admit a whole university except one account. The exact Block outranks the pattern Allow:
 
 ```
 { "type": "allow", "parameter": "email", "method": "endswith", "value": "@acme.edu" }
 { "type": "block", "parameter": "email", "method": "equals",   "value": "bad@acme.edu" }
-```
-
-Keep one consumer domain out and leave everything else open. With no Allow rules the tenant stays
-open, so a single Block is enough:
-
-```
-{ "type": "block", "parameter": "email", "method": "endswith", "value": "@gmail.com" }
+{ "type": "block", "method": "anyone" }
 ```
 
 Everyone whose address starts with `staff-` becomes a tenant admin, re-checked at every login:
@@ -336,6 +343,12 @@ untouched:
 | `assert` with `negate` off or unset | `block`, condition unchanged |
 | `assert` with `negate` on | `allow`, condition unchanged, `negate` reset to false |
 | `gain` | unchanged, and `negate` keeps its literal meaning as a condition inverter |
+| any tenant left holding an `allow` rule | gains a `Block anyone` row, so its allow list keeps restricting |
+
+The last row is what preserves an allow list. Before, an allow-list rule restricted the tenant simply
+by existing; now a tenant restricts only when it says so with a catch-all. Without that row an
+existing allow list would open on upgrade, so it is added automatically and logged. It is an ordinary
+rule, visible in the list, and can be deleted if the tenant should in fact be open.
 
 **What actually changes for you:**
 
@@ -347,14 +360,21 @@ untouched:
    rules means "deny unless A" *and* "deny unless B", which no one satisfies, so the tenant could
    onboard nobody. After the migration they compose as an OR allow list and work as intended. This is
    the one change that **admits people who are currently being refused**, so review those tenants.
-3. **The negate checkbox is gone, and so are the negated comparisons.** Whether a rule lets people in
-   or keeps them out is now the Effect dropdown, Block or Allow. The "does not ..." comparisons went
-   too: they looked like a way to write "everyone except", but two of them combine to exclude nobody
-   at all, so Allow and Block are the correct way to express that.
+3. **The negate checkbox is gone.** Whether a rule lets people in or keeps them out is the Effect
+   dropdown now, Block or Allow, and negated conditions are not offered at all. Two of them combine
+   to exclude nobody, so Allow and Block are the correct way to say "everyone except".
    **Nothing changes for rules you already have.** The `negate` column is kept and still honoured, so
    an existing rule keeps working and still reads correctly in the list. This matters most for Grant
    rules, where "grant to everyone except X" genuinely has no other spelling and the column is a
    permanent part of the model. You simply cannot create a new negated rule from the dialog.
+4. **A tenant's default is now a rule instead of being implied.** An allow-list rule used to restrict
+   the tenant just by existing, which is invisible in the list and means one exception shuts out
+   everybody else. A tenant is now open unless it holds a `Block` rule with the `anyone` comparison.
+   Your existing allow lists get that row added by the migration, so nothing changes, and you can
+   delete it if the tenant should be open.
+   It also means a Block rule can have exceptions: `Block ends with @gmail.com` plus
+   `Allow equals someone@gmail.com` admits that one address, because naming a person outranks a rule
+   about a group.
 
 Worth running before you upgrade, to see what you will hit:
 

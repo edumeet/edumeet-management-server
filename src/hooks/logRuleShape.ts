@@ -57,6 +57,22 @@ const logOne = (data: Record<string, unknown>): void => {
 		);
 	}
 
+	// The catch-all tests nothing, so it has no parameter or value to check.
+	if (data.method === 'anyone') {
+		// As an Allow it does nothing at all: someone no rule matches is permitted
+		// anyway, and it loses every tie to a Block. Only a Block catch-all has an
+		// effect, so flag the other one rather than let an admin think it opened a
+		// tenant that is still closed.
+		if (data.type === 'allow') {
+			logger.warn(
+				'rules: %s is an allow rule with the "anyone" comparison, which has no effect - only a block rule uses it, to close the tenant',
+				label
+			);
+		}
+
+		return;
+	}
+
 	if (data.parameter !== undefined && !isOneOf(data.parameter, RULE_PARAMETERS)) {
 		logger.warn(
 			'rules: %s tests parameter "%s", which SSO logins do not carry - expected one of %s',

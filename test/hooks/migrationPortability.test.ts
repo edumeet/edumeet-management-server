@@ -41,6 +41,32 @@ const statements = (k: Knex): string[] => [
 	k('rules')
 		.where({ type: 'block' })
 		.update({ type: 'assert', negate: false })
+		.toString(),
+	// 20260821000001_rules_catch_all
+	k('rules')
+		.where({ type: 'allow' })
+		.distinct('tenantId')
+		.toString(),
+	k('rules')
+		.where({ method: 'anyone' })
+		.distinct('tenantId')
+		.toString(),
+	k('rules')
+		.insert({
+			tenantId: 1,
+			name: 'everyone else',
+			type: 'block',
+			method: 'anyone',
+			parameter: '',
+			value: '',
+			action: '',
+			accessId: '',
+			negate: false
+		})
+		.toString(),
+	k('rules')
+		.where({ type: 'block', method: 'anyone' })
+		.delete()
 		.toString()
 ];
 
@@ -64,6 +90,13 @@ describe('rules migration runs on Postgres and MySQL', () => {
 		// `negate` is nullable and MySQL stores it as tinyint(1); a row that never had
 		// the flag set must still be converted, so `is null` cannot be dropped.
 		assert.ok(mysql.some((s) => s.includes('is null')), 'no statement handles a null negate');
+	});
+
+	it('the catch-all insert carries no RETURNING, which MySQL does not support', () => {
+		const insert = mysql.find((s) => s.startsWith('insert into'));
+
+		assert.ok(insert, 'expected an insert statement');
+		assert.ok(!insert.toLowerCase().includes('returning'), insert);
 	});
 
 	it('uses no Postgres-only syntax', () => {

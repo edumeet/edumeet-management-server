@@ -14,17 +14,29 @@ interface Options {
 	owners?: { tenantId: number; userId: number }[];
 }
 
-// deny everyone: an allow list that nothing matches
-const SHUT_OUT = [ {
-	id: 1,
-	name: 'only acme',
-	tenantId: 1,
-	type: 'allow',
-	parameter: 'email',
-	method: 'endswith',
-	value: '@acme.edu',
-	negate: false
-} ];
+// an allow list that nothing matches, closed with the catch-all
+const SHUT_OUT = [
+	{
+		id: 1,
+		name: 'only acme',
+		tenantId: 1,
+		type: 'allow',
+		parameter: 'email',
+		method: 'endswith',
+		value: '@acme.edu',
+		negate: false
+	},
+	{
+		id: 2,
+		name: 'everyone else',
+		tenantId: 1,
+		type: 'block',
+		parameter: '',
+		method: 'anyone',
+		value: '',
+		negate: false
+	}
+];
 
 const makeApp = (options: Options = {}) => {
 	const { rules = SHUT_OUT, admins = [], owners = [] } = options;

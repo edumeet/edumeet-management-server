@@ -18,7 +18,28 @@ export interface MatchableRule {
 	value?: string | null;
 }
 
-export const RULE_METHODS = [ 'contains', 'equals', 'startswith', 'endswith' ] as const;
+// `anyone` is the catch-all: it tests nothing and always matches. It is how a
+// tenant states its default as a visible rule rather than having it inferred.
+export const RULE_METHODS = [ 'contains', 'equals', 'startswith', 'endswith', 'anyone' ] as const;
+
+/**
+ * How specifically a rule identifies someone. The most specific matching rule
+ * decides, and Block wins a tie.
+ *
+ *   2  equals            names one person
+ *   1  contains, starts/ends with, and any negated form   describes a group
+ *   0  anyone            describes nobody in particular, so it always loses
+ *
+ * Level 0 is what lets `Block anyone` act as a default without overruling the real
+ * rules above it. A negated `equals` ("does not equal") describes everyone bar one
+ * person, so it ranks as a group rather than as an exact match.
+ */
+export const ruleLevel = (rule: MatchableRule): number => {
+	if (rule.method === 'anyone') return 0;
+	if (rule.method === 'equals' && !rule.negate) return 2;
+
+	return 1;
+};
 
 // `block` and `allow` answer "may this person sign in"; `gain` answers "what do
 // they get once they are in". They are two categories, not three alternatives.
@@ -79,6 +100,11 @@ export const findTenantRules = async (
  * rule locks every user of the tenant out.
  */
 export const matchRule = (rule: MatchableRule, data: Record<string, unknown>): boolean | undefined => {
+	// The catch-all has no parameter by design, so it must be answered before the
+	// missing-parameter check below. Otherwise every catch-all would be treated as
+	// an unevaluatable rule and skipped, and an allow list would fail open.
+	if (rule.method === 'anyone') return !rule.negate;
+
 	const parameter = rule.parameter;
 
 	if (!parameter) return undefined;

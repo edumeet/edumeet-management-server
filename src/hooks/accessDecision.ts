@@ -6,7 +6,8 @@ import {
 	asArray,
 	findTenantRules,
 	logUnevaluatableRule,
-	matchRule
+	matchRule,
+	ruleLevel
 } from './ruleMatch';
 
 export interface AccessDecision {
@@ -18,34 +19,37 @@ export interface AccessDecision {
 /**
  * Decide whether a set of user attributes may sign in under a tenant's rules.
  *
- *     if   any Block matches                  -> deny
- *     elif no evaluatable Allow rule exists   -> permit
- *     elif any Allow matches                  -> permit
- *     else                                    -> deny
+ *     the most specific matching rule decides
+ *     a Block wins a tie at the same level
+ *     nothing matched at all -> permit
  *
- * Block wins outright, so a targeted block is never defeated by a broad allow.
- * The two types compose in opposite directions on purpose: blocks are AND-ed
- * (deny if any matches), allows are OR-ed (permit if any matches), which is why
- * a block cannot be expressed as "an allow with a negated condition".
+ * Specificity (see ruleLevel) is what lets a tenant state its own default as an
+ * ordinary rule: `Block anyone` sits at level 0, so it applies only to people no
+ * real rule mentions. Its presence closes the tenant, its absence leaves it open,
+ * and either way an admin can see the row rather than having to infer it.
  *
- * The `evaluatable` qualifier is load bearing. `matchRule` returns undefined for a
- * rule whose parameter is absent or whose method is unknown, and such a rule is
- * skipped. If it still counted towards "an Allow rule exists", a tenant whose only
- * allow rule has a typo would fall through to deny and lock everybody out. Counting
- * only rules we could actually evaluate keeps a typo fail-open.
+ * That also makes exceptions work in both directions. `Block ends with @gmail.com`
+ * plus `Allow equals someone@gmail.com` admits that one address, because naming a
+ * person outranks describing a group. `Allow ends with @acme.edu` plus
+ * `Block ends with @students.acme.edu` still refuses the students, because two
+ * groups tie and Block breaks it.
+ *
+ * A rule that cannot be evaluated - unknown method, or a parameter the login does
+ * not carry - is skipped and never decides.
  */
 export const decideAccess = (
 	rules: MatchableRule[],
 	attributes: Record<string, unknown>,
 	hookName = 'accessRules'
 ): AccessDecision => {
-	let evaluatableAllows = 0;
-	let matchedAllow: MatchableRule | undefined;
+	let decided: MatchableRule | undefined;
+	let decidedLevel = -1;
+	let decidedBlocks = false;
 
 	for (const rule of rules) {
 		// Only access rules decide access. loadAccessRules already filters, but this
 		// must not depend on that: treating "anything that is not a block" as an allow
-		// would let a grant rule, or a row with a typo in its type, close the tenant.
+		// would let a grant rule, or a row with a typo in its type, decide a login.
 		if (rule.type !== 'block' && rule.type !== 'allow') continue;
 
 		const matched = matchRule(rule, attributes);
@@ -55,19 +59,23 @@ export const decideAccess = (
 			continue;
 		}
 
-		if (rule.type === 'block') {
-			if (matched) return { permitted: false, rule };
+		if (!matched) continue;
 
-			continue;
+		const level = ruleLevel(rule);
+		const blocks = rule.type === 'block';
+
+		if (level > decidedLevel || (level === decidedLevel && blocks && !decidedBlocks)) {
+			decided = rule;
+			decidedLevel = level;
+			decidedBlocks = blocks;
 		}
-
-		evaluatableAllows++;
-		if (matched && !matchedAllow) matchedAllow = rule;
 	}
 
-	if (evaluatableAllows === 0) return { permitted: true };
+	// No rule says anything about this person, so nothing stands in their way. A
+	// tenant that wants the opposite says so with a `Block anyone` rule.
+	if (!decided) return { permitted: true };
 
-	return matchedAllow ? { permitted: true, rule: matchedAllow } : { permitted: false };
+	return { permitted: !decidedBlocks, rule: decided };
 };
 
 /**

@@ -18,6 +18,9 @@ const rule = (over: Partial<MatchableRule> = {}): MatchableRule => ({
 const block = (method: string, value: string, id = 1) => rule({ id, type: 'block', method, value });
 const allow = (method: string, value: string, id = 1) => rule({ id, type: 'allow', method, value });
 
+// the catch-all: how a tenant states "refuse anyone no other rule mentions"
+const shutTheRest = (id = 99) => rule({ id, type: 'block', method: 'anyone', parameter: '', value: '' });
+
 const permits = (rules: MatchableRule[], email: string): boolean =>
 	decideAccess(rules, { email }, 'test').permitted;
 
@@ -38,72 +41,82 @@ describe('decideAccess', () => {
 		assert.strictEqual(permits(rules, 'a@acme.edu'), true);
 	});
 
+	it('an Allow rule on its own does NOT close the tenant', () => {
+		// the change this design makes. Adding an exception must not silently turn the
+		// tenant into an allow list, which is what caught people before.
+		const rules = [ allow('equals', 'guest@partner.org') ];
+
+		assert.strictEqual(permits(rules, 'guest@partner.org'), true);
+		assert.strictEqual(permits(rules, 'anyone@anywhere.com'), true, 'still open');
+	});
+
+	it('the catch-all is what closes the tenant', () => {
+		const rules = [ allow('endswith', '@acme.edu', 1), shutTheRest() ];
+
+		assert.strictEqual(permits(rules, 'a@acme.edu'), true);
+		assert.strictEqual(permits(rules, 'a@elsewhere.com'), false);
+	});
+
 	it('two Allow rules for two domains admit BOTH', () => {
-		// the regression that motivated the redesign: as one negated assert type
-		// these AND-ed together and blocked everybody
-		const rules = [ allow('endswith', '@acme.edu', 1), allow('endswith', '@partner.org', 2) ];
+		const rules = [ allow('endswith', '@acme.edu', 1), allow('endswith', '@partner.org', 2), shutTheRest() ];
 
 		assert.strictEqual(permits(rules, 'a@acme.edu'), true);
 		assert.strictEqual(permits(rules, 'a@partner.org'), true);
 		assert.strictEqual(permits(rules, 'a@gmail.com'), false);
 	});
 
-	it('an Allow list refuses anyone it does not name', () => {
-		assert.strictEqual(permits([ allow('endswith', '@acme.edu') ], 'a@elsewhere.com'), false);
+	it('a Block rule CAN have an exception: an exact Allow beats a pattern Block', () => {
+		// the case that motivated specificity: block a provider, admit one address
+		const rules = [ block('endswith', 'gmail.com', 1), allow('equals', 'astagor@gmail.com', 2) ];
+
+		assert.strictEqual(permits(rules, 'astagor@gmail.com'), true, 'the named exception');
+		assert.strictEqual(permits(rules, 'someone@gmail.com'), false, 'the rest of the provider');
+		assert.strictEqual(permits(rules, 'alice@man.poznan.pl'), true, 'unrelated, tenant is open');
 	});
 
-	it('admits a domain plus one outside collaborator, as two Allow rules', () => {
-		// the natural spelling: an allow list is a list, so the collaborator is just
-		// another entry. No Block rule and so no precedence question.
-		const rules = [ allow('endswith', '@acme.edu', 1), allow('equals', 'test@gmail.com', 2) ];
+	it('a sub-domain carve-out still works: two patterns tie and Block wins', () => {
+		const rules = [
+			allow('endswith', 'man.poznan.pl', 1),
+			block('endswith', 'students.man.poznan.pl', 2),
+			shutTheRest()
+		];
 
-		assert.strictEqual(permits(rules, 'alice@acme.edu'), true);
-		assert.strictEqual(permits(rules, 'test@gmail.com'), true, 'the collaborator');
-		assert.strictEqual(permits(rules, 'other@gmail.com'), false, 'the rest of their provider');
+		assert.strictEqual(permits(rules, 'alice@man.poznan.pl'), true);
+		assert.strictEqual(permits(rules, 'bob@students.man.poznan.pl'), false, 'matches the Allow too, Block wins');
+		assert.strictEqual(permits(rules, 'eva@agh.edu.pl'), false, 'only the catch-all matches');
 	});
 
-	it('a Block rule cannot have exceptions', () => {
-		// documents why the collaborator case must be written as Allow rules: this
-		// spelling refuses everyone. test@ because Block wins, and the rest because
-		// the Allow rule closed the tenant.
-		const rules = [ block('endswith', '@gmail.com', 1), allow('equals', 'test@gmail.com', 2) ];
-
-		assert.strictEqual(permits(rules, 'test@gmail.com'), false, 'Block wins');
-		assert.strictEqual(permits(rules, 'other@gmail.com'), false);
-		assert.strictEqual(permits(rules, 'alice@acme.edu'), false, 'the Allow closed the tenant');
-	});
-
-	it('still honours negate on rules written before it was withdrawn', () => {
-		// the comparison is no longer offered, but the column is still read, so an
-		// existing row must keep behaving exactly as it did
-		const legacy = rule({ type: 'allow', method: 'endswith', value: '@gmail.com', negate: true });
-
-		assert.strictEqual(permits([ legacy ], 'alice@acme.edu'), true);
-		assert.strictEqual(permits([ legacy ], 'other@gmail.com'), false);
-	});
-
-	it('admits a whole domain except one account, using Allow plus Block', () => {
-		const rules = [ allow('endswith', '@acme.edu', 1), block('equals', 'bad@acme.edu', 2) ];
+	it('admits a whole domain except one account: an exact Block beats a pattern Allow', () => {
+		const rules = [ allow('endswith', '@acme.edu', 1), block('equals', 'bad@acme.edu', 2), shutTheRest() ];
 
 		assert.strictEqual(permits(rules, 'bad@acme.edu'), false);
 		assert.strictEqual(permits(rules, 'good@acme.edu'), true);
-		assert.strictEqual(permits(rules, 'a@gmail.com'), false, 'an allow list still applies');
+		assert.strictEqual(permits(rules, 'a@gmail.com'), false, 'the catch-all still applies');
 	});
 
-	it('Block wins over a matching Allow', () => {
+	it('Block wins when two rules of the same specificity match', () => {
 		const rules = [ allow('endswith', '@acme.edu', 1), block('endswith', '@acme.edu', 2) ];
 
 		assert.strictEqual(permits(rules, 'a@acme.edu'), false);
 	});
 
-	it('a Block rule still applies when no Allow rules exist', () => {
-		assert.strictEqual(permits([ block('endswith', '@gmail.com') ], 'a@gmail.com'), false);
-		assert.strictEqual(permits([ block('endswith', '@gmail.com') ], 'a@acme.edu'), true);
+	it('an Allow catch-all does nothing in any configuration', () => {
+		const allowAnyone = rule({ id: 50, type: 'allow', method: 'anyone', parameter: '', value: '' });
+
+		// on its own it matches everyone, but an unmatched user is permitted anyway
+		assert.strictEqual(permits([ allowAnyone ], 'a@acme.edu'), true);
+		// it cannot rescue anyone from a real Block, which outranks it
+		assert.strictEqual(permits([ allowAnyone, block('endswith', '@gmail.com', 1) ], 'a@gmail.com'), false);
+		// and it cannot re-open a closed tenant, because a tie goes to Block
+		assert.strictEqual(permits([ allowAnyone, shutTheRest() ], 'a@acme.edu'), false);
+	});
+
+	it('a real rule always outranks the catch-all', () => {
+		assert.strictEqual(permits([ allow('endswith', '@acme.edu', 1), shutTheRest() ], 'a@acme.edu'), true);
+		assert.strictEqual(permits([ block('endswith', '@acme.edu', 1), rule({ id: 99, type: 'allow', method: 'anyone', parameter: '', value: '' }) ], 'a@acme.edu'), false);
 	});
 
 	it('a tenant whose only Allow rule is unevaluatable stays OPEN', () => {
-		// the lock-everyone-out trap: an unevaluatable rule must not count towards
-		// "an allow list exists", or one typo takes the tenant down
 		const typo = rule({ type: 'allow', parameter: 'emial' });
 
 		assert.strictEqual(permits([ typo ], 'anyone@anywhere.com'), true);
@@ -114,7 +127,7 @@ describe('decideAccess', () => {
 	});
 
 	it('an unevaluatable Allow alongside a working one behaves as a normal allow list', () => {
-		const rules = [ rule({ id: 1, type: 'allow', parameter: 'emial' }), allow('endswith', '@acme.edu', 2) ];
+		const rules = [ rule({ id: 1, type: 'allow', parameter: 'emial' }), allow('endswith', '@acme.edu', 2), shutTheRest() ];
 
 		assert.strictEqual(permits(rules, 'a@acme.edu'), true);
 		assert.strictEqual(permits(rules, 'a@gmail.com'), false);
@@ -124,6 +137,12 @@ describe('decideAccess', () => {
 		assert.strictEqual(permits([ rule({ type: 'allow', method: 'matches' }) ], 'a@acme.edu'), true);
 	});
 
+	it('the catch-all is never treated as unevaluatable despite having no parameter', () => {
+		// it must be answered before matchRule's missing-parameter check, or an allow
+		// list would silently fail open
+		assert.strictEqual(permits([ allow('endswith', '@acme.edu', 1), shutTheRest() ], 'a@gmail.com'), false);
+	});
+
 	it('reports which rule refused', () => {
 		const decision = decideAccess([ block('endswith', '@gmail.com', 7) ], { email: 'a@gmail.com' }, 'test');
 
@@ -131,8 +150,15 @@ describe('decideAccess', () => {
 		assert.strictEqual(decision.rule?.id, 7);
 	});
 
+	it('still honours negate on rules written before it was withdrawn', () => {
+		const legacy = rule({ type: 'allow', method: 'endswith', value: '@gmail.com', negate: true });
+
+		assert.strictEqual(permits([ legacy, shutTheRest() ], 'alice@acme.edu'), true);
+		assert.strictEqual(permits([ legacy, shutTheRest() ], 'other@gmail.com'), false);
+	});
+
 	it('accepts the 0/1 mysql2 returns for a tinyint negate', () => {
-		const rules = [ rule({ type: 'allow', method: 'endswith', value: '@gmail.com', negate: 1 }) ];
+		const rules = [ rule({ type: 'allow', method: 'endswith', value: '@gmail.com', negate: 1 }), shutTheRest() ];
 
 		assert.strictEqual(permits(rules, 'a@acme.edu'), true, 'not gmail, so allowed');
 		assert.strictEqual(permits(rules, 'a@gmail.com'), false, 'gmail, so not allowed');

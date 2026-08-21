@@ -41,15 +41,31 @@ const permittedBefore = (rules: LegacyRule[], email: string): boolean => {
 	return true;
 };
 
-// What migrations/20260821000000_rules_block_allow.ts does to each row. Rows that
-// are not `assert` are left completely alone, negate included.
-const migrate = (rules: LegacyRule[]): MatchableRule[] => rules.map((rule, index) => {
-	const base = { id: index, tenantId: 1, parameter: 'email', method: rule.method, value: rule.value };
+// Both migrations, in the order knex runs them.
+//
+// 20260821000000_rules_block_allow: assert becomes block or allow depending on
+// negate. Rows that are not `assert` are left completely alone, negate included.
+//
+// 20260821000001_rules_catch_all: a tenant that ends up with any allow rule gets a
+// `Block anyone` row, because an allow list now restricts only when it says so
+// explicitly. Without this step an existing allow list would open on upgrade.
+const migrate = (rules: LegacyRule[]): MatchableRule[] => {
+	const converted: MatchableRule[] = rules.map((rule, index) => {
+		const base = { id: index, tenantId: 1, parameter: 'email', method: rule.method, value: rule.value };
 
-	if (rule.type !== 'assert') return { ...base, type: rule.type, negate: rule.negate };
+		if (rule.type !== 'assert') return { ...base, type: rule.type, negate: rule.negate };
 
-	return { ...base, type: rule.negate ? 'allow' : 'block', negate: false };
-});
+		return { ...base, type: rule.negate ? 'allow' : 'block', negate: false };
+	});
+
+	if (converted.some((r) => r.type === 'allow')) {
+		converted.push({
+			id: 999, tenantId: 1, name: 'everyone else', type: 'block', method: 'anyone', parameter: '', value: '', negate: false
+		});
+	}
+
+	return converted;
+};
 
 const permittedAfter = (rules: LegacyRule[], email: string): boolean =>
 	decideAccess(migrate(rules), { email }, 'test').permitted;
