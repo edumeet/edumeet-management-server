@@ -139,3 +139,94 @@ in the env to see the poller's per-message decisions.
 | `src/invites/crypto.ts` | AES-256-GCM encrypt/decrypt (passwords), HMAC-SHA256 (RSVP tokens) |
 | `src/invites/tester.ts` | test-connection endpoint implementation |
 
+## Rules
+
+Rules are per-tenant policy attached to SSO user provisioning. They let a tenant express
+"only my domain may sign in" and "staff@ become tenant admins" without anyone administering
+users by hand. They are managed in the client under Management → Rules, and stored in the
+`rules` service.
+
+### Data model
+
+Each row is one predicate plus an outcome:
+
+| Column | Meaning |
+| --- | --- |
+| `tenantId` | the tenant the rule belongs to; a rule never applies outside it |
+| `parameter` | which field of the incoming user data to test — only `email`, `name`, `ssoId` and `tenantId` are ever carried, so nothing else can match |
+| `method` | `contains` \| `equals` \| `startswith` \| `endswith` |
+| `value` | what to test `parameter` against |
+| `negate` | inverts the result of `method` |
+| `type` | `assert` (deny) or `gain` (grant) |
+| `action` | `gain` only — `groupUsers`, `tenantOwners`, `tenantAdmins`, `superAdmin` |
+| `accessId` | `groupUsers` only — the id of the group to add the user to |
+
+The data being tested is what `OAuthTenantStrategy.getEntityData()` builds from the OIDC
+profile: `{ ssoId, email, name, tenantId }`.
+
+### When they fire
+
+| Hook | Registered on | Fires |
+| --- | --- | --- |
+| `assertRules` | `before.create` of `users` | when a new account is provisioned, i.e. a user's **first** SSO login |
+| `gainRules` | `after.all` of `users`, guarded to `create` + `patch` | on **every** SSO login — the OAuth strategy patches the existing user each time, which is what keeps group membership in sync |
+
+**`assert` gates account creation, not login.** Once a user row exists they can keep signing
+in even if a matching deny rule is added later, and accounts created by hand are never
+subject to assert rules at all. Revoking access for an existing user means deleting the user.
+
+A matching `assert` rule makes the SSO callback fail with `403 Action not allowed by rule`.
+
+`gain` grants are idempotent — each action checks for the row before creating it — so
+repeated logins do not accumulate duplicates.
+
+### Evaluation and failure behaviour
+
+`src/hooks/ruleMatch.ts` holds the shared evaluator used by both hooks.
+
+- If `parameter` is absent from the profile (typo in the rule, or the IdP did not send the
+  attribute), or `method` is not one of the four known values, the rule is **unevaluatable**:
+  it is skipped and a warning naming the rule id is logged. `negate` is not applied in this
+  case — otherwise a single typo on a negated assert rule would lock out the whole tenant.
+- A `gain` action that fails at runtime (group deleted, DB error) is logged at error level
+  and the login proceeds. One broken rule must not take sign-in down for a tenant.
+- `type`, `method`, `parameter` and `action` are stored as free strings and are not
+  enum-validated, so existing rows keep working. Off-list values are reported instead:
+  `logRuleShape` warns when a rule is **saved** in a shape that can never do anything, and
+  the hooks warn again at evaluation time — including for a rule whose `type` is neither
+  `assert` nor `gain`, which is why they query the tenant's rules without a type filter
+  (filtering in SQL would make such a rule invisible rather than merely inert).
+
+Grep the logs for `assertRules:` / `gainRules:` / `rules:` when a rule appears not to apply.
+
+### Who can manage rules
+
+Reads and writes are tenant-scoped: a tenant admin or owner only ever sees and edits rules
+of their own tenant (`ruleQueryResolver` / `ruleDataResolver` pin `tenantId`), while a super
+admin manages every tenant and picks the tenant in the UI. Creating a rule with
+`action: superAdmin` is rejected for anyone who is not a super admin (`adminOnlyData`).
+
+A rule's `accessId` is **not** validated against the rule's tenant, so the tenant boundary is
+enforced where the grant lands instead: `groupAndUserInSameTenant` rejects any `groupUsers`
+create whose group and user belong to different tenants. An external super admin is exempt —
+they manage every tenant — but **internal calls are not**, because `gainRules` is itself the
+internal caller and the rule it is acting on may have been written by a tenant admin.
+
+### Examples
+
+Only `@our.edu` addresses may auto-provision — everyone else is refused at first login:
+
+```
+{ "tenantId": 1, "name": "our.edu only", "type": "assert",
+  "parameter": "email", "method": "endswith", "value": "@our.edu",
+  "negate": true, "action": "", "accessId": "" }
+```
+
+Anyone whose address starts with `staff-` becomes a tenant admin, re-checked at every login:
+
+```
+{ "tenantId": 1, "name": "staff are admins", "type": "gain",
+  "parameter": "email", "method": "startswith", "value": "staff-",
+  "negate": false, "action": "tenantAdmins", "accessId": "" }
+```
+

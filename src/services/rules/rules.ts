@@ -22,6 +22,7 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { adminOnlyData } from '../../hooks/adminOnlyData';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { logRuleShape } from '../../hooks/logRuleShape';
 
 export * from './rules.class';
 
@@ -51,15 +52,20 @@ export const rule = (app: Application) => {
 			],
 			get: [
 			],
-			create: [ 
+			create: [
 				iff(notSuperAdmin(), adminOnlyData),
 				schemaHooks.validateData(ruleDataValidator),
-				schemaHooks.resolveData(ruleDataResolver)
+				logRuleShape,
+				// ruleDataResolver pins tenantId to the caller's own tenant. Super-admins
+				// manage every tenant and pick one in the UI, so only apply it to them.
+				// notSuperAdmin() is false for internal calls, which have no user anyway.
+				iff(notSuperAdmin(), schemaHooks.resolveData(ruleDataResolver))
 			],
 			patch: [ 
 				iff(notSuperAdmin(), adminOnlyData),
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rulePatchValidator),
+				logRuleShape,
 				schemaHooks.resolveData(rulePatchResolver)
 			],
 			remove: [

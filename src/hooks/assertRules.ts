@@ -1,62 +1,51 @@
+import { Forbidden } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
+import { logger } from '../logger';
+import { findTenantRules, logUnevaluatableRule, matchRule } from './ruleMatch';
 
+/**
+ * Deny-list for user provisioning. Registered on `before.create` of the users
+ * service, so it gates the creation of a new account (typically the first SSO
+ * login of a user). It deliberately does NOT run on subsequent logins - those
+ * patch an existing user - so accounts already provisioned, including ones added
+ * manually, keep working.
+ */
 export const assertRules = async (context: HookContext): Promise<void> => {
 	// ignore tenantid for local admin
-	if (context.data?.tenantId) {
-		const rulesService = context.app.service('rules');
+	if (!context.data?.tenantId) return;
 
-		const rules = await rulesService.find({
-			paginate: false, // Fetch all relevant records
-			query: {
-				tenantId: parseInt(context.data.tenantId),
-				type: 'assert'
-			}
-		});
-	
-		if (rules && rules.length!=0) {
-			rules.forEach((rule) => {
-				const parameter = rule.parameter; // user parameter to check for method (like: email)
-				const method = rule.method; // contains, equals, startswith, endswith
-				const negate = rule.negate; // true/false  negates method
-				const value = rule.value; // int / string that parameter is matched with
-						
-				const userParameter = context.data?.[parameter];
+	const tenantId = parseInt(context.data.tenantId);
 
-				let condition = false;
+	if (Number.isNaN(tenantId)) return;
 
-				if (userParameter) {
-					switch (method) { 
-						case 'contains': { 
-							condition = userParameter.includes(value);
-							break; 
-						} 
-						case 'equals': { 
-							condition = (userParameter === value);
-							break; 
-						} 
-						case 'startswith': { 
-							condition = userParameter.startsWith(value);
-							break;
-						} 
-						case 'endswith': { 
-							condition = userParameter.endsWith(value);
-							break; 
-						}  
-						default: { 
-							// should not be possible; 
-							break; 
-						} 
-					} 
-				}
-				if (negate) {
-					condition = !condition;
-				}
-				if (condition) {
-					// user creation is not allowed contact Administrator
-					throw new Error('Action not allowed by rule');
-				} 
+	const rulesService = context.app.service('rules');
 
-			});
+	const rules = await findTenantRules(
+		// Fetch all relevant records
+		(query) => rulesService.find({ paginate: false, query }),
+		'assertRules',
+		tenantId,
+		'assert'
+	);
+
+	if (rules.length === 0) return;
+
+	for (const rule of rules) {
+		const condition = matchRule(rule, context.data);
+
+		if (condition === undefined) {
+			logUnevaluatableRule('assertRules', rule);
+			continue;
+		}
+
+		if (condition) {
+			// user creation is not allowed contact Administrator
+			logger.info(
+				'assertRules: blocking user creation in tenant %s by rule (id:%s name:%s)',
+				context.data.tenantId, rule.id, rule.name
+			);
+
+			throw new Forbidden('Action not allowed by rule');
 		}
 	}
 };

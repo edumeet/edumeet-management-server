@@ -1,142 +1,154 @@
 import { HookContext } from '../declarations';
+import { logger } from '../logger';
+import { MatchableRule, asArray, findTenantRules, logUnevaluatableRule, matchRule } from './ruleMatch';
 
+interface GainRule extends MatchableRule {
+	action?: string | null;
+	accessId?: string | null;
+}
+
+export const GAIN_ACTIONS = [ 'groupUsers', 'tenantOwners', 'tenantAdmins', 'superAdmin' ] as const;
+
+/**
+ * Add the user to a tenantOwners/tenantAdmins table, unless they are in it already.
+ */
+const grantTenantRole = async (
+	context: HookContext,
+	service: 'tenantOwners' | 'tenantAdmins',
+	userId: number,
+	tenantId: number
+): Promise<void> => {
+	const existing = asArray(await context.app.service(service).find({
+		paginate: false, // Fetch all relevant records
+		query: { tenantId, userId }
+	}));
+
+	if (existing.length === 0)
+		await context.app.service(service).create({ tenantId, userId });
+};
+
+const applyGain = async (
+	context: HookContext,
+	rule: GainRule,
+	userId: number,
+	tenantId: number
+): Promise<void> => {
+	switch (rule.action) {
+		case 'groupUsers': {
+			// -> action db/service -> currentuser id + accessId assigment
+			const groupId = rule.accessId == null ? NaN : parseInt(rule.accessId);
+
+			if (Number.isNaN(groupId)) {
+				logger.warn(
+					'gainRules: rule (id:%s name:%s) has action groupUsers but no usable accessId (group) "%s"',
+					rule.id, rule.name, rule.accessId
+				);
+				break;
+			}
+
+			const existing = asArray(await context.app.service('groupUsers').find({
+				paginate: false, // Fetch all relevant records
+				query: { groupId, userId }
+			}));
+
+			if (existing.length === 0)
+				await context.app.service('groupUsers').create({ groupId, userId });
+
+			break;
+		}
+		case 'tenantOwners': {
+			// Make user tenant Owner (tenant owner table)
+			await grantTenantRole(context, 'tenantOwners', userId, tenantId);
+			break;
+		}
+		case 'tenantAdmins': {
+			// Make user tenant Admin (tenant admin table)
+			await grantTenantRole(context, 'tenantAdmins', userId, tenantId);
+			break;
+		}
+		case 'userRole': {
+			// TODO
+			logger.warn('gainRules: rule (id:%s name:%s) uses action userRole, which is not implemented', rule.id, rule.name);
+			break;
+		}
+		case 'superAdmin': {
+			// Make user super-admin (user table)
+			const roles = context.result.roles;
+			const alreadySuperAdmin = roles != null && roles.includes('super-admin');
+
+			if (!alreadySuperAdmin) {
+				// This patch re-enters this hook, but its data carries no tenantId so the
+				// guard at the top of gainRules() stops it immediately.
+				if (context.app.get('postgresql')?.client == 'mysql2')
+					await context.app.service('users').patch(userId, { roles: [ '["super-admin"]' ] });
+				else
+					await context.app.service('users').patch(userId, { roles: [ 'super-admin' ] });
+			}
+
+			break;
+		}
+		default: {
+			logger.warn(
+				'gainRules: rule (id:%s name:%s) has unknown action "%s", expected one of %s',
+				rule.id, rule.name, rule.action, GAIN_ACTIONS.join(', ')
+			);
+			break;
+		}
+	}
+};
+
+/**
+ * Auto-provisioning for user accounts. Registered on `after.all` of the users
+ * service; it runs for `create` (first SSO login) and for `patch`, which is what
+ * OAuthStrategy.updateEntity does on every subsequent login - that is what keeps
+ * group membership in sync for returning users.
+ */
 export const gainRules = async (context: HookContext): Promise<void> => {
 	// ignore tenantid for local admin
-	if (context.data?.tenantId) {
+	if (!context.data?.tenantId) return;
 
-		const rulesService = context.app.service('rules');
+	// Only create/patch produce a user to grant anything to.
+	if (context.method !== 'create' && context.method !== 'patch') return;
 
-		const rules = await rulesService.find({
-			paginate: false, // Fetch all relevant records
-			query: {
-				tenantId: parseInt(context.data.tenantId),
-				type: 'gain'
-			}
-		});
+	// A multi-patch resolves to an array of users, so there is no single subject.
+	if (!context.result || Array.isArray(context.result) || context.result.id == null) return;
 
-		if (rules && rules.length != 0) {
-			rules.forEach(async (rule) => {
-				const parameter = rule.parameter; // user parameter to check for method (like: email)
-				const method = rule.method; // contains, equals, startswith, endswith
-				const negate = rule.negate; // true/false  negates method
-				const value = rule.value; // int / string that parameter is matched with
-				const action = rule.action; // that we want to do user to group,role,...
-				const accessId = rule.accessId; // permission ID/name that user can gain (for action)			
-				const userParameter = context.data?.[parameter];
+	const userId = parseInt(context.result.id);
+	const tenantId = parseInt(context.data.tenantId);
 
-				let condition = false;
+	if (Number.isNaN(userId) || Number.isNaN(tenantId)) return;
 
-				let precheck = false;
+	const rulesService = context.app.service('rules');
 
-				let tmp = [];
+	const rules = await findTenantRules(
+		// Fetch all relevant records
+		(query) => rulesService.find({ paginate: false, query }),
+		'gainRules',
+		tenantId,
+		'gain'
+	) as GainRule[];
 
-				if (userParameter) {
-					switch (method) {
-						case 'contains': {
-							condition = userParameter.includes(value);
-							break;
-						}
-						case 'equals': {
-							condition = (userParameter === value);
-							break;
-						}
-						case 'startswith': {
-							condition = userParameter.startsWith(value);
-							break;
-						}
-						case 'endswith': {
-							condition = userParameter.endsWith(value);
-							break;
-						}
-						default: {
-							// should not be possible; 
-							break;
-						}
-					}
-				}
+	if (rules.length === 0) return;
 
-				if (negate) {
-					condition = !condition;
-				}
-				if (condition) {
-					
-					switch (action) {
-						case 'groupUsers': {
-							// -> action db/service -> currentuser id + accessId assigment
-							if (accessId) {
-								tmp = await context.app.service(action).find({
-									paginate: false, // Fetch all relevant records
-									query: {
-										groupId: parseInt(accessId),
-										userId: parseInt(context.result.id)
-									}
-								});
-								precheck = tmp.length == 0;
+	for (const rule of rules) {
+		const condition = matchRule(rule, context.data);
 
-								if (precheck) {
-									context.app.service(action).create({ groupId: parseInt(accessId), userId: parseInt(context.result.id) });
-								}
-							}
-							break;
-						}
-						case 'tenantOwners': {
-							// Make user tenant Owner (tenant owner table)
-							tmp = await context.app.service(action).find({
-								paginate: false, // Fetch all relevant records
-								query: {
-									tenantId: parseInt(context.data.tenantId),
-									userId: parseInt(context.result.id)
-								}
-							});
-							precheck = tmp.length == 0;
+		if (condition === undefined) {
+			logUnevaluatableRule('gainRules', rule);
+			continue;
+		}
 
-							if (precheck) {
-								context.app.service(action).create({ tenantId: parseInt(context.data.tenantId), userId: parseInt(context.result.id) });
-							}
+		if (!condition) continue;
 
-							break;
-						}
-						case 'tenantAdmins': {
-							// Make user tenant Admin (tenant admin table)
-							tmp = await context.app.service(action).find({
-								paginate: false, // Fetch all relevant records
-								query: {
-									tenantId: parseInt(context.data.tenantId),
-									userId: parseInt(context.result.id)
-								}
-							});
-							precheck = tmp.length == 0;
-
-							if (precheck) {
-								context.app.service(action).create({ tenantId: parseInt(context.data.tenantId), userId: parseInt(context.result.id) });
-							}
-
-							break;
-						}
-						case 'userRole': {
-							// TODO
-							break;
-						}
-						case 'superAdmin': {
-							// Make user super-admin (user table)
-							tmp = context.result.roles;
-							precheck = tmp == null || !tmp.includes('super-admin');
-							if (precheck) {
-								if (context.app.get('postgresql')?.client=='mysql2') {
-									context.app.service('users').patch(parseInt(context.result.id), { roles: [ '["super-admin"]' ] });
-								} else {
-									context.app.service('users').patch(parseInt(context.result.id), { roles: [ 'super-admin' ] });
-								}
-							}
-							break;
-						}
-						default: {
-							// should not be possible; 
-							break;
-						}
-					}
-				}
-			});
+		// A grant that fails must not break the login that triggered it, so each rule
+		// is isolated and its failure is logged rather than propagated.
+		try {
+			await applyGain(context, rule, userId, tenantId);
+		} catch (error) {
+			logger.error(
+				'gainRules: rule (id:%s name:%s tenantId:%s action:%s) failed for user %s [error:%o]',
+				rule.id, rule.name, rule.tenantId, rule.action, userId, error
+			);
 		}
 	}
 };

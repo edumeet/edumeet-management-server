@@ -21,6 +21,7 @@ import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { checkTenantAdminOrGroupMemberOnDelete } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
+import { groupAndUserInSameTenant } from '../../hooks/sameTenantGroupUser';
 
 export * from './groupUsers.class';
 export * from './groupUsers.schema';
@@ -51,8 +52,9 @@ export const groupUser = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				// check group and user have the same tenant
 				schemaHooks.validateData(groupUserDataValidator),
+				// check group and user have the same tenant
+				groupAndUserInSameTenant,
 				schemaHooks.resolveData(groupUserDataResolver)
 			],
 			patch: [
