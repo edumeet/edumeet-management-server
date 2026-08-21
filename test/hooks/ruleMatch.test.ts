@@ -75,9 +75,9 @@ describe('matchRule', () => {
 
 describe('findTenantRules', () => {
 	const rows = [
-		{ id: 1, type: 'assert' },
+		{ id: 1, type: 'block' },
 		{ id: 2, type: 'gain' },
-		{ id: 3, type: 'assert' },
+		{ id: 3, type: 'allow' },
 		{ id: 4, type: 'Gain' },
 		{ id: 5, type: null }
 	];
@@ -101,19 +101,19 @@ describe('findTenantRules', () => {
 	after(() => ((logger as { warn: unknown }).warn = originalWarn));
 	beforeEach(() => (warnings = []));
 
-	it('selects only the rules of the requested type', async () => {
-		assert.deepStrictEqual((await findTenantRules(find, 'test', 1, 'assert')).map((r) => r.id), [ 1, 3 ]);
-		assert.deepStrictEqual((await findTenantRules(find, 'test', 1, 'gain')).map((r) => r.id), [ 2 ]);
+	it('selects only the rules of the requested types', async () => {
+		assert.deepStrictEqual((await findTenantRules(find, 'test', 1, [ 'block', 'allow' ])).map((r) => r.id), [ 1, 3 ]);
+		assert.deepStrictEqual((await findTenantRules(find, 'test', 1, [ 'gain' ])).map((r) => r.id), [ 2 ]);
 	});
 
 	it('queries by tenant without a type filter, so odd types stay visible', async () => {
-		await findTenantRules(find, 'test', 42, 'gain');
+		await findTenantRules(find, 'test', 42, [ 'gain' ]);
 
 		assert.deepStrictEqual(seenQuery, { tenantId: 42 });
 	});
 
-	it('warns about a rule whose type is neither assert nor gain', async () => {
-		await findTenantRules(find, 'test', 1, 'assert');
+	it('warns about a rule whose type is not a recognised one', async () => {
+		await findTenantRules(find, 'test', 1, [ 'block', 'allow' ]);
 
 		// ids 4 ("Gain") and 5 (null) can never run; id 2 is a valid gain rule
 		assert.strictEqual(warnings.length, 2);

@@ -125,7 +125,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 		(query) => rulesService.find({ paginate: false, query }),
 		'gainRules',
 		tenantId,
-		'gain'
+		[ 'gain' ]
 	) as GainRule[];
 
 	if (rules.length === 0) return;

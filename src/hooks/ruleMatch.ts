@@ -19,7 +19,13 @@ export interface MatchableRule {
 }
 
 export const RULE_METHODS = [ 'contains', 'equals', 'startswith', 'endswith' ] as const;
-export const RULE_TYPES = [ 'assert', 'gain' ] as const;
+
+// `block` and `allow` answer "may this person sign in"; `gain` answers "what do
+// they get once they are in". They are two categories, not three alternatives.
+export const RULE_TYPES = [ 'block', 'allow', 'gain' ] as const;
+export const ACCESS_TYPES = [ 'block', 'allow' ] as const;
+
+export type RuleType = typeof RULE_TYPES[number];
 
 /**
  * `find({ paginate: false })` resolves to a plain array, but the service types
@@ -30,27 +36,27 @@ export function asArray<T>(result: T[] | { data: T[] }): T[] {
 }
 
 /**
- * Fetch the rules of one type for a tenant.
+ * Fetch the rules of the requested type(s) for a tenant.
  *
  * It queries the tenant's rules without a `type` filter on purpose: a rule whose
- * type is neither `assert` nor `gain` matches neither hook's query, so filtering
- * in the database would make it invisible - it would simply never run and never
- * say why. Selecting the type here lets us report those rules instead.
+ * type is not one we recognise matches no hook's query, so filtering in the
+ * database would make it invisible - it would simply never run and never say why.
+ * Selecting the type here lets us report those rules instead.
  */
 export const findTenantRules = async (
 	// eslint-disable-next-line no-unused-vars
 	find: (query: Record<string, unknown>) => Promise<unknown>,
 	hookName: string,
 	tenantId: number,
-	type: typeof RULE_TYPES[number]
+	types: readonly RuleType[]
 ): Promise<MatchableRule[]> => {
 	const all = asArray(await find({ tenantId }) as MatchableRule[]);
 	const wanted: MatchableRule[] = [];
 
 	for (const rule of all) {
-		if (rule.type === type) {
+		if (types.includes(rule.type as RuleType)) {
 			wanted.push(rule);
-		} else if (!RULE_TYPES.includes(rule.type as typeof RULE_TYPES[number])) {
+		} else if (!RULE_TYPES.includes(rule.type as RuleType)) {
 			logger.warn(
 				'%s: rule (id:%s name:%s tenantId:%s) has unknown type "%s" and will never run, expected one of %s',
 				hookName, rule.id, rule.name, rule.tenantId, rule.type, RULE_TYPES.join(', ')

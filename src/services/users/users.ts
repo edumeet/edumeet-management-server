@@ -24,7 +24,7 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notTenantManager } from '../../hooks/notTenantManager';
 
 import { checkPermissions } from '../../hooks/checkPermissions';
-import { assertRules } from '../../hooks/assertRules';
+import { accessRules } from '../../hooks/accessRules';
 import { gainRules } from '../../hooks/gainRules';
 
 import { Forbidden } from '@feathersjs/errors';
@@ -176,7 +176,7 @@ export const user = (app: Application) => {
 			get: [],
 			create: [
 				checkPermissions({ roles: [ 'super-admin', 'edumeet-server' ] }),
-				assertRules,
+				accessRules,
 				schemaHooks.validateData(userDataAdminValidator),
 				schemaHooks.resolveData(userDataResolver)
 			],

@@ -36,6 +36,20 @@ const logOne = (data: Record<string, unknown>): void => {
 		);
 	}
 
+	// On an ACCESS rule a negated condition is a mistake: the direction is carried by
+	// block/allow, and negated allows compose wrongly (two of them exclude nobody).
+	// The migration clears it, so seeing one means the row was written directly.
+	//
+	// On a GRANT rule it is legitimate and permanent - "grant to everyone except X"
+	// has no other spelling - so it is not warned about, merely no longer offered in
+	// the dialog.
+	if (data.negate && (data.type === 'block' || data.type === 'allow')) {
+		logger.warn(
+			'rules: %s is an access rule with a negated condition, which no longer has a meaning - use a block rule or an allow rule instead',
+			label
+		);
+	}
+
 	if (data.method !== undefined && !isOneOf(data.method, RULE_METHODS)) {
 		logger.warn(
 			'rules: %s has method "%s", so it will never match - expected one of %s',

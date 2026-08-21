@@ -224,7 +224,7 @@ describe('gainRules hook', () => {
 	});
 
 	it('ignores rules of another type', async () => {
-		const { context, collections } = makeContext({ rules: [ rule({ type: 'assert' }), rule({ type: 'Gain' }) ] });
+		const { context, collections } = makeContext({ rules: [ rule({ type: 'block' }), rule({ type: 'allow' }), rule({ type: 'Gain' }) ] });
 
 		await gainRules(context);
 
