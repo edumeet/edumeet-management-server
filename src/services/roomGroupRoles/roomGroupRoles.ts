@@ -20,6 +20,7 @@ import { roomGroupRolePath, roomGroupRoleMethods } from './roomGroupRoles.shared
 import { isRoomOwnerOrAdmin, isRoomOwnerOrAdminRoomIdOfGroupRole } from '../../hooks/isRoomOwnerOrAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
 
 export * from './roomGroupRoles.class';
 export * from './roomGroupRoles.schema';
@@ -47,8 +48,8 @@ export const roomGroupRole = (app: Application) => {
 				schemaHooks.validateQuery(roomGroupRoleQueryValidator),
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(roomGroupRoleQueryResolver))
 			],
-			find: [],
-			get: [],
+			find: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'groupId', parentService: 'groups' })) ],
+			get: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'groupId', parentService: 'groups' })) ],
 			create: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomGroupRoleDataValidator),

@@ -22,6 +22,7 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { checkTenantAdminOrGroupMemberOnDelete } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
 import { groupAndUserInSameTenant } from '../../hooks/sameTenantGroupUser';
+import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
 
 export * from './groupUsers.class';
 export * from './groupUsers.schema';
@@ -49,8 +50,8 @@ export const groupUser = (app: Application) => {
 				schemaHooks.validateQuery(groupUserQueryValidator),
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(groupUserQueryResolver))
 			],
-			find: [],
-			get: [],
+			find: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'groupId', parentService: 'groups' })) ],
+			get: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'groupId', parentService: 'groups' })) ],
 			create: [
 				schemaHooks.validateData(groupUserDataValidator),
 				// check group and user have the same tenant

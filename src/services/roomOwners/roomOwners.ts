@@ -20,6 +20,7 @@ import { roomOwnerPath, roomOwnerMethods } from './roomOwners.shared';
 import { isRoomOwnerOrAdmin } from '../../hooks/isRoomOwnerOrAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
 
 export * from './roomOwners.class';
 export * from './roomOwners.schema';
@@ -47,8 +48,8 @@ export const roomOwner = (app: Application) => {
 				schemaHooks.validateQuery(roomOwnerQueryValidator),
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(roomOwnerQueryResolver))
 			],
-			find: [],
-			get: [],
+			find: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'roomId', parentService: 'rooms' })) ],
+			get: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'roomId', parentService: 'rooms' })) ],
 			create: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomOwnerDataValidator),

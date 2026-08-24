@@ -20,6 +20,7 @@ import { rolePermissionPath, rolePermissionMethods } from './rolePermissions.sha
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { roleIdTenantCheck, roleIdTenantCheckOnDelete } from '../../hooks/roleIdTenantCheck';
+import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
 
 export * from './rolePermissions.class';
 export * from './rolePermissions.schema';
@@ -47,8 +48,8 @@ export const rolePermission = (app: Application) => {
 				schemaHooks.validateQuery(rolePermissionQueryValidator),
 				iff(notSuperAdmin(), schemaHooks.resolveQuery(rolePermissionQueryResolver))
 			],
-			find: [],
-			get: [],
+			find: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'roleId', parentService: 'roles' })) ],
+			get: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'roleId', parentService: 'roles' })) ],
 			create: [
 				// TODO: Add a hook to check if the role belongs to the same tenant as the user
 				iff(notSuperAdmin(), roleIdTenantCheck),
