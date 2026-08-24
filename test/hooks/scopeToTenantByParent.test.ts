@@ -89,7 +89,7 @@ describe('scopeToTenantByParent hook', () => {
 
 		await scopeGroups(context);
 
-		assert.deepStrictEqual(context.result, { total: 0, data: [], limit: 0, skip: 0 });
+		assert.deepStrictEqual(context.params.query, { groupId: { $in: [] } });
 	});
 
 	it('intersects a caller supplied $in instead of trusting it', async () => {
@@ -115,7 +115,7 @@ describe('scopeToTenantByParent hook', () => {
 
 		await scopeGroups(context);
 
-		assert.deepStrictEqual(context.result, { total: 0, data: [], limit: 0, skip: 0 });
+		assert.deepStrictEqual(context.params.query, { groupId: { $in: [] } });
 	});
 
 	it('returns nothing when the tenant has no parent rows at all', async () => {
@@ -123,9 +123,21 @@ describe('scopeToTenantByParent hook', () => {
 
 		await scopeGroups(context);
 
-		assert.deepStrictEqual(context.result, { total: 0, data: [], limit: 0, skip: 0 });
-		// The unfiltered query must never reach the adapter.
-		assert.strictEqual(context.params.query, undefined);
+		assert.deepStrictEqual(context.params.query, { groupId: { $in: [] } });
+	});
+
+	// Regression: the hook used to short-circuit with a hand-built
+	// `{ total: 0, data: [], limit: 0, skip: 0 }`. That is the WRONG shape for
+	// `roomGroupRoles`, which is registered `paginate: false` and returns a bare
+	// array, so the Group Roles table crashed on `[ ...(data ?? []) ]`.
+	it('never sets a result itself, so each service keeps its own result shape', async () => {
+		for (const query of [ undefined, { groupId: 77 }, { groupId: { $in: [ 77 ] } } ]) {
+			const context = makeContext({ query, parentIds: [] });
+
+			await scopeGroups(context);
+
+			assert.strictEqual(context.result, undefined, `result was set for query ${JSON.stringify(query)}`);
+		}
 	});
 
 	it('matches ids across the bigint string/number split', async () => {
@@ -148,16 +160,15 @@ describe('scopeToTenantByParent hook', () => {
 		assert.strictEqual(context.parentFinds[0].provider, undefined);
 	});
 
-	it('throws NotFound on a get of another tenant\'s row', async () => {
+	// `get` needs no special case: the knex adapter merges `params.query` into its
+	// lookup and raises NotFound itself when nothing matches.
+	it('constrains a get the same way, leaving NotFound to the adapter', async () => {
 		const context = makeContext({ method: 'get', id: 5, query: { groupId: 77 } });
 
-		await assert.rejects(scopeGroups(context), /No record found/);
-	});
+		await scopeGroups(context);
 
-	it('throws NotFound on a get when the tenant has no parent rows', async () => {
-		const context = makeContext({ method: 'get', id: 5, parentIds: [] });
-
-		await assert.rejects(scopeGroups(context), /No record found/);
+		assert.deepStrictEqual(context.params.query, { groupId: { $in: [] } });
+		assert.strictEqual(context.result, undefined);
 	});
 
 	it('refuses a caller with no tenant rather than falling open', async () => {
