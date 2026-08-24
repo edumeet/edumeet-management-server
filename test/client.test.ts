@@ -40,7 +40,11 @@ describe('application client tests', () => {
 			tenantId: 1
 		};
 
-		await client.service('users').create(userData);
+		// Same reason as the tenant above: `users` requires a JWT on every method and
+		// `create` is further restricted to super-admin, so an anonymous client cannot
+		// sign itself up. Create the user internally, then authenticate over REST, which
+		// is the part this test is actually about.
+		await app.service('users').create(userData);
 
 		const { user, accessToken } = await client.authenticate({
 			strategy: 'local',
