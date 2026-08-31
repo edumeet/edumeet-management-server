@@ -22,6 +22,8 @@ export const defaultSchema = Type.Object(
 		
 		disableUnmanaged: Type.Optional(Type.Boolean()),
 		disableUnmanagedLock: Type.Optional(Type.Boolean()),
+		endToEndEncryption: Type.Optional(Type.Boolean()),
+		endToEndEncryptionLock: Type.Optional(Type.Boolean()),
 		lockedUnmanaged: Type.Optional(Type.Boolean()),
 		raiseHandEnabledUnmanaged: Type.Optional(Type.Boolean()),
 		localRecordingEnabledUnmanaged: Type.Optional(Type.Boolean()),

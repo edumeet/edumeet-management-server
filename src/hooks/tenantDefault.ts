@@ -32,6 +32,9 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 		if (item['disableUnmanagedLock']) {
 			context.data['disableUnmanaged'] = Boolean(item['disableUnmanaged']);
 		}
+		if (item['endToEndEncryptionLock']) {
+			context.data['endToEndEncryption'] = Boolean(item['endToEndEncryption']);
+		}
 		if (item['lockedLock']) {
 			context.data['lockedUnmanaged'] = Boolean(item['lockedUnmanaged']);
 		}
