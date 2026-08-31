@@ -44,6 +44,7 @@ export const roomSchema = Type.Object(
 		raiseHandEnabled: Type.Boolean(),
 		filesharingEnabled: Type.Boolean(),
 		localRecordingEnabled: Type.Boolean(),
+		endToEndEncryption: Type.Optional(Type.Boolean()), // nullable: unset -> tenant default / server config
 
 		// Video settings
 		videoCodec: Type.Optional(Type.String()), // vp8, vp9, h264, h265, av1
