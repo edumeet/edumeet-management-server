@@ -3,19 +3,18 @@ import assert from 'assert';
 import { meetingDataResolver } from '../../src/services/meetings/meetings.schema';
 import type { HookContext } from '../../src/declarations';
 
-const context = (tenantId: number | undefined, fqdns: unknown): HookContext => ({
+// The UID doubles as a filename: CalDAV clients name the resource after it, and any character
+// outside this set gets rewritten or encoded on the way, so the name no longer equals the UID
+// inside the file. That mismatch is what Google CalDAV refused with HTTP 400 for every UID we
+// ever sent with an "@", while UIDs made only of these characters were accepted. The rule is
+// therefore general, not one client's: a UID must survive resource naming unchanged.
+const RESOURCE_NAME_SAFE = /^[a-zA-Z0-9_\-.]+$/;
+
+const context = (tenantId: number | undefined, fqdnService?: { find: () => Promise<unknown> }): HookContext => ({
 	params: { user: tenantId == null ? undefined : { id: 7, tenantId } },
 	app: {
 		service: (name: string) => {
-			if (name === 'tenantFQDNs') {
-				return {
-					find: async () => {
-						if (fqdns instanceof Error) throw fqdns;
-
-						return fqdns;
-					}
-				};
-			}
+			if (name === 'tenantFQDNs' && fqdnService) return fqdnService;
 			throw new Error(`unexpected service ${name}`);
 		}
 	}
@@ -29,73 +28,44 @@ const uidFor = async (ctx: HookContext): Promise<string> => {
 };
 
 describe('meeting UID', () => {
-	it('uses the tenant FQDN as the domain part', async () => {
-		const uid = await uidFor(context(1, [ { id: 3, fqdn: 'meet.example.edu' } ]));
+	it('is a bare UUID', async () => {
+		assert.match(await uidFor(context(1)), /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+	});
 
-		assert.ok(uid.endsWith('@meet.example.edu'), `unexpected uid ${uid}`);
+	it('uses only characters that survive being made into a resource name', async () => {
+		const uid = await uidFor(context(1));
+
+		assert.match(uid, RESOURCE_NAME_SAFE, 'a resource named after this UID must still equal it');
+		assert.ok(!uid.includes('@'), uid);
 	});
 
 	it('never uses the mDNS-reserved .local pseudo-TLD', async () => {
-		const uid = await uidFor(context(1, [ { id: 3, fqdn: 'meet.example.edu' } ]));
-
-		assert.ok(!uid.includes('.local'), `uid must not sit under .local: ${uid}`);
+		assert.ok(!(await uidFor(context(1))).includes('.local'));
 	});
 
-	it('takes the lowest-id FQDN when a tenant has several', async () => {
-		// the service is asked for $sort id asc with $limit 1, so the first row is the pick
-		const uid = await uidFor(context(1, [
-			{ id: 2, fqdn: 'first.example.edu' },
-			{ id: 9, fqdn: 'second.example.edu' }
-		]));
+	it('does not consult the tenant FQDN list at all', async () => {
+		let calls = 0;
+		const spying = {
+			find: async () => {
+				calls++;
 
-		assert.ok(uid.endsWith('@first.example.edu'), `unexpected uid ${uid}`);
+				return [ { id: 1, fqdn: 'meet.example.edu' } ];
+			}
+		};
+
+		const uid = await uidFor(context(1, spying));
+
+		assert.strictEqual(calls, 0, 'a domain suffix must not be reintroduced from tenant data');
+		assert.ok(!uid.includes('meet.example.edu'));
 	});
 
-	it('falls back to a bare UUID when the tenant has no FQDN', async () => {
-		const uid = await uidFor(context(1, []));
-
-		assert.ok(!uid.includes('@'), `expected no domain part, got ${uid}`);
-		assert.match(uid, /^[0-9a-f-]{36}$/);
-	});
-
-	it('falls back to a bare UUID when the FQDN lookup fails', async () => {
-		const uid = await uidFor(context(1, new Error('service down')));
-
-		assert.match(uid, /^[0-9a-f-]{36}$/);
-	});
-
-	it('falls back to a bare UUID with no tenant on the request', async () => {
-		const uid = await uidFor(context(undefined, []));
-
-		assert.match(uid, /^[0-9a-f-]{36}$/);
+	it('works with no tenant on the request', async () => {
+		assert.match(await uidFor(context(undefined)), /^[0-9a-f-]{36}$/);
 	});
 
 	it('is unique per meeting', async () => {
-		const ctx = context(1, [ { id: 1, fqdn: 'meet.example.edu' } ]);
+		const ctx = context(1);
 
 		assert.notStrictEqual(await uidFor(ctx), await uidFor(ctx));
-	});
-
-	it('asks for a deterministic single row', async () => {
-		let seen: Record<string, unknown> = {};
-		const ctx = {
-			params: { user: { id: 7, tenantId: 4 } },
-			app: {
-				service: () => ({
-					find: async (params: { query: Record<string, unknown> }) => {
-						seen = params.query;
-
-						return [ { id: 1, fqdn: 'meet.example.edu' } ];
-					}
-				})
-			}
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		} as any as HookContext;
-
-		await uidFor(ctx);
-
-		assert.strictEqual(seen.tenantId, 4);
-		assert.strictEqual(seen.$limit, 1);
-		assert.deepStrictEqual(seen.$sort, { id: 1 });
 	});
 });
