@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const ukTemplate: InviteTemplate = {
+export const ukStrings: InviteStrings = {
 	subjectRequest: (title) => `Запрошення: ${title}`,
 	subjectCancel: (title) => `Скасовано: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Вас запрошено на зустріч${organizerName ? ` від ${organizerName}` : ''}.`,
-		'',
-		`Назва: ${title}`,
-		description ? `Опис: ${description}` : null,
-		`Початок: ${startsAt}`,
-		`Завершення: ${endsAt}`,
-		`Приєднатися: ${roomUrl}`,
-		'',
-		'Це запрошення керується edumeet. Прийміть або відхиліть у своєму календарі, щоб повідомити організатора.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`Зустріч "${title}" скасовано${organizerName ? ` від ${organizerName}` : ''}.`,
-		'',
-		'Ваш календар буде оновлено автоматично.'
-	].join('\n')
+	invited: (organizerName) => `Вас запрошено на зустріч${organizerName ? ` від ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `Зустріч "${title}" скасовано${organizerName ? ` від ${organizerName}` : ''}.`,
+	title: 'Назва: ',
+	description: 'Опис: ',
+	starts: 'Початок: ',
+	ends: 'Завершення: ',
+	join: 'Приєднатися: ',
+	joinButton: 'Приєднатися до зустрічі',
+	managedBy: 'Це запрошення керується edumeet. Прийміть або відхиліть у своєму календарі, щоб повідомити організатора.',
+	calendarUpdates: 'Ваш календар буде оновлено автоматично.'
 };

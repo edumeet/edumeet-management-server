@@ -23,8 +23,12 @@ interface Sent {
 	to: string;
 	subject: string;
 	text: string;
+	html?: string;
 	icalEvent?: { method?: string, content?: string };
 }
+
+// RFC 5545 folds long lines with CRLF plus one leading space
+const unfold = (ics: string): string => ics.replace(/\r\n[ \t]/g, '');
 
 const realCreateTransport = nodemailer.createTransport;
 let sent: Sent[] = [];
@@ -132,6 +136,8 @@ describe('invite rendering across locales', () => {
 			assert.ok(sent[0].subject.trim().length > 0, `empty subject for ${locale}`);
 			assert.ok(sent[0].text.trim().length > 0, `empty body for ${locale}`);
 			assert.ok(sent[0].text.includes('https://meet.example.edu/board'), `missing join url for ${locale}`);
+			assert.ok(sent[0].html?.includes('href="https://meet.example.edu/board"'), `missing HTML body for ${locale}`);
+			assert.match(unfold(String(sent[0].icalEvent?.content)), /^DESCRIPTION:.*https:\/\/meet\.example\.edu\/board/m, `join url missing from DESCRIPTION for ${locale}`);
 		});
 	}
 
@@ -211,6 +217,52 @@ describe('invite rendering across locales', () => {
 
 		assert.strictEqual(sent[0].icalEvent?.method, 'REQUEST');
 		assert.match(String(sent[0].icalEvent?.content), /^METHOD:REQUEST$/m);
+	});
+
+	// A client that does not render text/calendar shows the richest body it has, so the
+	// message must carry plain text AND html alongside the calendar part, on both methods.
+	it('sends plain text, HTML and the calendar part together', async () => {
+		await send({ locale: 'pl' });
+
+		const t = getTemplate('pl');
+
+		assert.ok(sent[0].text.includes('Tytuł: Board review'));
+		assert.ok(sent[0].html?.includes('<h2') && sent[0].html.includes('Board review'));
+		assert.ok(sent[0].html?.includes('Dołącz do spotkania'));
+		assert.strictEqual(sent[0].text, t.bodyRequest({
+			title: 'Board review',
+			description: 'Quarterly numbers',
+			roomUrl: 'https://meet.example.edu/board',
+			organizerName: 'Alice Organizer',
+			startsAt: sent[0].text.match(/^Rozpoczęcie: (.*)$/m)?.[1] ?? '',
+			endsAt: sent[0].text.match(/^Zakończenie: (.*)$/m)?.[1] ?? ''
+		}));
+	});
+
+	it('sends an HTML cancellation too', async () => {
+		await send({ locale: 'de' }, 'CANCEL');
+
+		assert.ok(sent[0].text.includes('Board review'));
+		assert.ok(sent[0].html?.includes('Board review'));
+		assert.ok(sent[0].html?.includes('Ihr Kalender wird automatisch aktualisiert.'));
+		assert.ok(!sent[0].html?.includes('href='), 'nothing to join on a cancellation');
+	});
+
+	it('puts the meeting description, the join link and an HTML variant into the event', async () => {
+		await send({ locale: 'en' });
+
+		const ics = unfold(String(sent[0].icalEvent?.content));
+
+		assert.match(ics, /^DESCRIPTION:Quarterly numbers\\n\\nJoin: https:\/\/meet\.example\.edu\/board\\n\\nThis invitation is managed by edumeet\./m);
+		assert.match(ics, /^X-ALT-DESC;FMTTYPE=text\/html:.*href="https:\/\/meet\.example\.edu\/board"/m);
+	});
+
+	it('escapes a hostile title in the HTML body but not in the text', async () => {
+		await send({ locale: 'en', title: '<img src=x onerror=alert(1)> & co' });
+
+		assert.ok(sent[0].text.includes('Title: <img src=x onerror=alert(1)> & co'));
+		assert.ok(!sent[0].html?.includes('<img'));
+		assert.ok(sent[0].html?.includes('&lt;img src=x onerror=alert(1)&gt; &amp; co'));
 	});
 
 	describe('getTemplate', () => {

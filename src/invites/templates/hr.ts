@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const hrTemplate: InviteTemplate = {
+export const hrStrings: InviteStrings = {
 	subjectRequest: (title) => `Poziv: ${title}`,
 	subjectCancel: (title) => `Otkazano: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Pozvani ste na sastanak${organizerName ? ` od ${organizerName}` : ''}.`,
-		'',
-		`Naslov: ${title}`,
-		description ? `Opis: ${description}` : null,
-		`Početak: ${startsAt}`,
-		`Kraj: ${endsAt}`,
-		`Pridruži se: ${roomUrl}`,
-		'',
-		'Ovim pozivom upravlja edumeet. Prihvatite ili odbijte iz svog kalendara kako biste obavijestili organizatora.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`Sastanak "${title}" je otkazan${organizerName ? ` od ${organizerName}` : ''}.`,
-		'',
-		'Vaš kalendar će se automatski ažurirati.'
-	].join('\n')
+	invited: (organizerName) => `Pozvani ste na sastanak${organizerName ? ` od ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `Sastanak "${title}" je otkazan${organizerName ? ` od ${organizerName}` : ''}.`,
+	title: 'Naslov: ',
+	description: 'Opis: ',
+	starts: 'Početak: ',
+	ends: 'Kraj: ',
+	join: 'Pridruži se: ',
+	joinButton: 'Pridruži se sastanku',
+	managedBy: 'Ovim pozivom upravlja edumeet. Prihvatite ili odbijte iz svog kalendara kako biste obavijestili organizatora.',
+	calendarUpdates: 'Vaš kalendar će se automatski ažurirati.'
 };

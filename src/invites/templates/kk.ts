@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const kkTemplate: InviteTemplate = {
+export const kkStrings: InviteStrings = {
 	subjectRequest: (title) => `Шақыру: ${title}`,
 	subjectCancel: (title) => `Болдырылмады: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Сіз кездесуге шақырылдыңыз${organizerName ? `, ${organizerName} тарапынан` : ''}.`,
-		'',
-		`Атауы: ${title}`,
-		description ? `Сипаттамасы: ${description}` : null,
-		`Басталуы: ${startsAt}`,
-		`Аяқталуы: ${endsAt}`,
-		`Қосылу: ${roomUrl}`,
-		'',
-		'Бұл шақыруды edumeet басқарады. Ұйымдастырушыны хабардар ету үшін күнтізбеңізден қабылдаңыз немесе қабылдамаңыз.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`"${title}" кездесуі болдырылмады${organizerName ? `, ${organizerName} тарапынан` : ''}.`,
-		'',
-		'Күнтізбеңіз автоматты түрде жаңартылады.'
-	].join('\n')
+	invited: (organizerName) => `Сіз кездесуге шақырылдыңыз${organizerName ? `, ${organizerName} тарапынан` : ''}.`,
+	cancelled: (title, organizerName) => `"${title}" кездесуі болдырылмады${organizerName ? `, ${organizerName} тарапынан` : ''}.`,
+	title: 'Атауы: ',
+	description: 'Сипаттамасы: ',
+	starts: 'Басталуы: ',
+	ends: 'Аяқталуы: ',
+	join: 'Қосылу: ',
+	joinButton: 'Кездесуге қосылу',
+	managedBy: 'Бұл шақыруды edumeet басқарады. Ұйымдастырушыны хабардар ету үшін күнтізбеңізден қабылдаңыз немесе қабылдамаңыз.',
+	calendarUpdates: 'Күнтізбеңіз автоматты түрде жаңартылады.'
 };

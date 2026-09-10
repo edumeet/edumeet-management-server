@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const deTemplate: InviteTemplate = {
+export const deStrings: InviteStrings = {
 	subjectRequest: (title) => `Einladung: ${title}`,
 	subjectCancel: (title) => `Abgesagt: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Sie wurden zu einer Besprechung eingeladen${organizerName ? ` von ${organizerName}` : ''}.`,
-		'',
-		`Titel: ${title}`,
-		description ? `Beschreibung: ${description}` : null,
-		`Beginn: ${startsAt}`,
-		`Ende: ${endsAt}`,
-		`Teilnehmen: ${roomUrl}`,
-		'',
-		'Diese Einladung wird von edumeet verwaltet. Nehmen Sie über Ihren Kalender an oder lehnen Sie ab, um den Organisator zu informieren.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`Die Besprechung "${title}" wurde abgesagt${organizerName ? ` von ${organizerName}` : ''}.`,
-		'',
-		'Ihr Kalender wird automatisch aktualisiert.'
-	].join('\n')
+	invited: (organizerName) => `Sie wurden zu einer Besprechung eingeladen${organizerName ? ` von ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `Die Besprechung "${title}" wurde abgesagt${organizerName ? ` von ${organizerName}` : ''}.`,
+	title: 'Titel: ',
+	description: 'Beschreibung: ',
+	starts: 'Beginn: ',
+	ends: 'Ende: ',
+	join: 'Teilnehmen: ',
+	joinButton: 'An der Besprechung teilnehmen',
+	managedBy: 'Diese Einladung wird von edumeet verwaltet. Nehmen Sie über Ihren Kalender an oder lehnen Sie ab, um den Organisator zu informieren.',
+	calendarUpdates: 'Ihr Kalender wird automatisch aktualisiert.'
 };

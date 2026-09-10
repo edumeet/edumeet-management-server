@@ -196,41 +196,38 @@ export const sendInviteEmail = async (app: Application, opts: SendOptions): Prom
 		const tenantLabel = tenantName || tenantConfig.organizerName || 'edumeet';
 		const fromDisplay = `${userLabel} via ${tenantLabel}`;
 
+		const ctx = {
+			title: meeting.title,
+			description: meeting.description,
+			roomUrl,
+			organizerName: userLabel,
+			startsAt: startsStr,
+			endsAt: endsStr
+		};
 		const icsInput = {
 			meeting,
 			// Industry-standard iTIP: every recipient sees the full guest list in their ICS
 			attendees: allAttendees,
 			tenantConfig,
 			roomUrl,
-			organizerUserName: userLabel
+			organizerUserName: userLabel,
+			description: template.eventDescription(ctx)
 		};
 		const ics = method === 'REQUEST' ? buildRequestIcs(icsInput) : buildCancelIcs(icsInput);
 		const subject = method === 'REQUEST'
 			? template.subjectRequest(meeting.title)
 			: template.subjectCancel(meeting.title);
-		const text = method === 'REQUEST'
-			? template.bodyRequest({
-				title: meeting.title,
-				description: meeting.description,
-				roomUrl,
-				organizerName: userLabel,
-				startsAt: startsStr,
-				endsAt: endsStr
-			})
-			: template.bodyCancel({
-				title: meeting.title,
-				description: meeting.description,
-				roomUrl,
-				organizerName: userLabel,
-				startsAt: startsStr,
-				endsAt: endsStr
-			});
+		const text = method === 'REQUEST' ? template.bodyRequest(ctx) : template.bodyCancel(ctx);
+		// Mail clients that do not render text/calendar fall back to the richest body they
+		// understand, so the HTML alternative is what most webmail and phone users see.
+		const html = method === 'REQUEST' ? template.htmlRequest(ctx) : template.htmlCancel(ctx);
 
 		await transporter.sendMail({
 			from: `"${fromDisplay}" <${tenantConfig.organizerAddress}>`,
 			to: attendee.name ? `"${attendee.name}" <${attendee.email}>` : attendee.email,
 			subject,
 			text,
+			html,
 			icalEvent: {
 				method,
 				content: ics

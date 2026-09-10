@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const frTemplate: InviteTemplate = {
+export const frStrings: InviteStrings = {
 	subjectRequest: (title) => `Invitation : ${title}`,
 	subjectCancel: (title) => `Annulé : ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Vous avez été invité(e) à une réunion${organizerName ? ` par ${organizerName}` : ''}.`,
-		'',
-		`Titre : ${title}`,
-		description ? `Description : ${description}` : null,
-		`Début : ${startsAt}`,
-		`Fin : ${endsAt}`,
-		`Rejoindre : ${roomUrl}`,
-		'',
-		"Cette invitation est gérée par edumeet. Acceptez ou refusez depuis votre calendrier pour informer l'organisateur."
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`La réunion « ${title} » a été annulée${organizerName ? ` par ${organizerName}` : ''}.`,
-		'',
-		'Votre calendrier sera mis à jour automatiquement.'
-	].join('\n')
+	invited: (organizerName) => `Vous avez été invité(e) à une réunion${organizerName ? ` par ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `La réunion « ${title} » a été annulée${organizerName ? ` par ${organizerName}` : ''}.`,
+	title: 'Titre : ',
+	description: 'Description : ',
+	starts: 'Début : ',
+	ends: 'Fin : ',
+	join: 'Rejoindre : ',
+	joinButton: 'Rejoindre la réunion',
+	managedBy: "Cette invitation est gérée par edumeet. Acceptez ou refusez depuis votre calendrier pour informer l'organisateur.",
+	calendarUpdates: 'Votre calendrier sera mis à jour automatiquement.'
 };

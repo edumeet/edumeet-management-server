@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const dkTemplate: InviteTemplate = {
+export const dkStrings: InviteStrings = {
 	subjectRequest: (title) => `Invitation: ${title}`,
 	subjectCancel: (title) => `Aflyst: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Du er blevet inviteret til et møde${organizerName ? ` af ${organizerName}` : ''}.`,
-		'',
-		`Titel: ${title}`,
-		description ? `Beskrivelse: ${description}` : null,
-		`Start: ${startsAt}`,
-		`Slut: ${endsAt}`,
-		`Deltag: ${roomUrl}`,
-		'',
-		'Denne invitation styres af edumeet. Accepter eller afvis i din kalender for at informere arrangøren.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`Mødet "${title}" er blevet aflyst${organizerName ? ` af ${organizerName}` : ''}.`,
-		'',
-		'Din kalender opdateres automatisk.'
-	].join('\n')
+	invited: (organizerName) => `Du er blevet inviteret til et møde${organizerName ? ` af ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `Mødet "${title}" er blevet aflyst${organizerName ? ` af ${organizerName}` : ''}.`,
+	title: 'Titel: ',
+	description: 'Beskrivelse: ',
+	starts: 'Start: ',
+	ends: 'Slut: ',
+	join: 'Deltag: ',
+	joinButton: 'Deltag i mødet',
+	managedBy: 'Denne invitation styres af edumeet. Accepter eller afvis i din kalender for at informere arrangøren.',
+	calendarUpdates: 'Din kalender opdateres automatisk.'
 };

@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const enTemplate: InviteTemplate = {
+export const enStrings: InviteStrings = {
 	subjectRequest: (title) => `Invitation: ${title}`,
 	subjectCancel: (title) => `Cancelled: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`You've been invited to a meeting${organizerName ? ` by ${organizerName}` : ''}.`,
-		'',
-		`Title: ${title}`,
-		description ? `Description: ${description}` : null,
-		`Starts: ${startsAt}`,
-		`Ends: ${endsAt}`,
-		`Join: ${roomUrl}`,
-		'',
-		'This invitation is managed by edumeet. Accept or decline from your calendar to update the organizer.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`The meeting "${title}" has been cancelled${organizerName ? ` by ${organizerName}` : ''}.`,
-		'',
-		'Your calendar will be updated automatically.'
-	].join('\n')
+	invited: (organizerName) => `You've been invited to a meeting${organizerName ? ` by ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `The meeting "${title}" has been cancelled${organizerName ? ` by ${organizerName}` : ''}.`,
+	title: 'Title: ',
+	description: 'Description: ',
+	starts: 'Starts: ',
+	ends: 'Ends: ',
+	join: 'Join: ',
+	joinButton: 'Join meeting',
+	managedBy: 'This invitation is managed by edumeet. Accept or decline from your calendar to update the organizer.',
+	calendarUpdates: 'Your calendar will be updated automatically.'
 };

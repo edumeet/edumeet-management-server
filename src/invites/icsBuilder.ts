@@ -11,6 +11,10 @@ export interface IcsBuildInput {
 	tenantConfig: TenantInviteConfig;
 	roomUrl: string;
 	organizerUserName?: string;
+	// Localized event body (join link, meeting description, footer); the html variant goes
+	// out as X-ALT-DESC, which Outlook renders. Without it only a non-empty meeting
+	// description is emitted.
+	description?: { plain: string; html?: string };
 }
 
 const PROD_ID = '//edumeet//calendar-invites//EN';
@@ -25,7 +29,7 @@ const partstatToIcs = (p?: string): ICalAttendeeStatus => {
 };
 
 const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
-	const { meeting, attendees, tenantConfig, roomUrl, organizerUserName } = input;
+	const { meeting, attendees, tenantConfig, roomUrl, organizerUserName, description } = input;
 
 	// DTSTART/DTEND carry the meeting's TZID with an embedded VTIMEZONE, which is what an
 	// RRULE needs to keep every occurrence at the same local time across a DST change: a
@@ -60,7 +64,7 @@ const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 		end: at(meeting.endsAt),
 		summary: meeting.title,
 		// Omit empty DESCRIPTION line — some calendar parsers complain about `DESCRIPTION:\r\n` with no value.
-		description: (meeting.description && meeting.description.trim()) ? meeting.description : null,
+		description: description ?? ((meeting.description && meeting.description.trim()) ? meeting.description : null),
 		location: roomUrl,
 		organizer: {
 			// CN = the organizing user (for attribution); mailto = the mailbox where replies land.

@@ -229,6 +229,37 @@ describe('ics builder', () => {
 		it('includes it when there is text', () => {
 			assert.match(build({ description: 'Quarterly numbers' }), /^DESCRIPTION:Quarterly numbers$/m);
 		});
+
+		// The sender passes the localized event body: the join link in the calendar entry
+		// itself, plus the HTML variant Outlook renders. It wins over the bare meeting text.
+		it('takes the supplied event body over the meeting text, with an HTML alternative', () => {
+			const ics = unfold(buildRequestIcs({
+				meeting: meeting({ description: 'Quarterly numbers' }),
+				attendees: [ attendee() ],
+				tenantConfig: tenantConfig(),
+				roomUrl: 'https://meet.example.edu/board',
+				description: {
+					plain: 'Quarterly numbers\n\nJoin: https://meet.example.edu/board',
+					html: '<p>Quarterly numbers</p><p><a href="https://meet.example.edu/board">Join meeting</a></p>'
+				}
+			}));
+
+			assert.match(ics, /^DESCRIPTION:Quarterly numbers\\n\\nJoin: https:\/\/meet\.example\.edu\/board$/m);
+			assert.match(ics, /^X-ALT-DESC;FMTTYPE=text\/html:<p>Quarterly numbers<\/p><p><a href="https:\/\/meet\.example\.edu\/board">Join meeting<\/a><\/p>$/m);
+		});
+
+		it('emits no X-ALT-DESC when only plain text is supplied', () => {
+			const ics = buildRequestIcs({
+				meeting: meeting(),
+				attendees: [ attendee() ],
+				tenantConfig: tenantConfig(),
+				roomUrl: 'https://meet.example.edu/board',
+				description: { plain: 'Join: https://meet.example.edu/board' }
+			});
+
+			assert.match(ics, /^DESCRIPTION:Join: /m);
+			assert.ok(!ics.includes('X-ALT-DESC'));
+		});
 	});
 
 	it('produces CRLF line endings throughout', () => {

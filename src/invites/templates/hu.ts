@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const huTemplate: InviteTemplate = {
+export const huStrings: InviteStrings = {
 	subjectRequest: (title) => `Meghívó: ${title}`,
 	subjectCancel: (title) => `Lemondva: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Meghívást kapott egy megbeszélésre${organizerName ? ` ${organizerName} részéről` : ''}.`,
-		'',
-		`Cím: ${title}`,
-		description ? `Leírás: ${description}` : null,
-		`Kezdés: ${startsAt}`,
-		`Befejezés: ${endsAt}`,
-		`Csatlakozás: ${roomUrl}`,
-		'',
-		'Ezt a meghívót az edumeet kezeli. Fogadja el vagy utasítsa el a naptárában, hogy értesítse a szervezőt.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`A "${title}" megbeszélést lemondták${organizerName ? ` ${organizerName} által` : ''}.`,
-		'',
-		'A naptára automatikusan frissülni fog.'
-	].join('\n')
+	invited: (organizerName) => `Meghívást kapott egy megbeszélésre${organizerName ? ` ${organizerName} részéről` : ''}.`,
+	cancelled: (title, organizerName) => `A "${title}" megbeszélést lemondták${organizerName ? ` ${organizerName} által` : ''}.`,
+	title: 'Cím: ',
+	description: 'Leírás: ',
+	starts: 'Kezdés: ',
+	ends: 'Befejezés: ',
+	join: 'Csatlakozás: ',
+	joinButton: 'Csatlakozás a megbeszéléshez',
+	managedBy: 'Ezt a meghívót az edumeet kezeli. Fogadja el vagy utasítsa el a naptárában, hogy értesítse a szervezőt.',
+	calendarUpdates: 'A naptára automatikusan frissülni fog.'
 };

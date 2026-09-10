@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const esTemplate: InviteTemplate = {
+export const esStrings: InviteStrings = {
 	subjectRequest: (title) => `Invitación: ${title}`,
 	subjectCancel: (title) => `Cancelado: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Has sido invitado a una reunión${organizerName ? ` por ${organizerName}` : ''}.`,
-		'',
-		`Título: ${title}`,
-		description ? `Descripción: ${description}` : null,
-		`Inicio: ${startsAt}`,
-		`Fin: ${endsAt}`,
-		`Unirse: ${roomUrl}`,
-		'',
-		'Esta invitación se gestiona mediante edumeet. Acepta o rechaza desde tu calendario para informar al organizador.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`La reunión "${title}" ha sido cancelada${organizerName ? ` por ${organizerName}` : ''}.`,
-		'',
-		'Tu calendario se actualizará automáticamente.'
-	].join('\n')
+	invited: (organizerName) => `Has sido invitado a una reunión${organizerName ? ` por ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `La reunión "${title}" ha sido cancelada${organizerName ? ` por ${organizerName}` : ''}.`,
+	title: 'Título: ',
+	description: 'Descripción: ',
+	starts: 'Inicio: ',
+	ends: 'Fin: ',
+	join: 'Unirse: ',
+	joinButton: 'Unirse a la reunión',
+	managedBy: 'Esta invitación se gestiona mediante edumeet. Acepta o rechaza desde tu calendario para informar al organizador.',
+	calendarUpdates: 'Tu calendario se actualizará automáticamente.'
 };

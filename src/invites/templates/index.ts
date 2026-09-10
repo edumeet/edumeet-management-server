@@ -1,56 +1,67 @@
-import { InviteTemplate } from './types';
-import { enTemplate } from './en';
-import { deTemplate } from './de';
-import { plTemplate } from './pl';
-import { csTemplate } from './cs';
-import { dkTemplate } from './dk';
-import { elTemplate } from './el';
-import { esTemplate } from './es';
-import { frTemplate } from './fr';
-import { hiTemplate } from './hi';
-import { hrTemplate } from './hr';
-import { huTemplate } from './hu';
-import { itTemplate } from './it';
-import { kkTemplate } from './kk';
-import { lvTemplate } from './lv';
-import { nbTemplate } from './nb';
-import { ptTemplate } from './pt';
-import { roTemplate } from './ro';
-import { ruTemplate } from './ru';
-import { trTemplate } from './tr';
-import { ukTemplate } from './uk';
-import { cnTemplate } from './cn';
-import { twTemplate } from './tw';
+import { InviteStrings, InviteTemplate } from './types';
+import { fromStrings } from './render';
+import { enStrings } from './en';
+import { deStrings } from './de';
+import { plStrings } from './pl';
+import { csStrings } from './cs';
+import { dkStrings } from './dk';
+import { elStrings } from './el';
+import { esStrings } from './es';
+import { frStrings } from './fr';
+import { hiStrings } from './hi';
+import { hrStrings } from './hr';
+import { huStrings } from './hu';
+import { itStrings } from './it';
+import { kkStrings } from './kk';
+import { lvStrings } from './lv';
+import { nbStrings } from './nb';
+import { ptStrings } from './pt';
+import { roStrings } from './ro';
+import { ruStrings } from './ru';
+import { trStrings } from './tr';
+import { ukStrings } from './uk';
+import { cnStrings } from './cn';
+import { twStrings } from './tw';
 
 // Locale keys match the file codes used by edumeet-client (src/utils/intlManager.tsx).
 // Anything not in this map falls through to English — getTemplate is tolerant by design.
-const templates: Record<string, InviteTemplate> = {
-	en: enTemplate,
-	de: deTemplate,
-	pl: plTemplate,
-	cs: csTemplate,
-	dk: dkTemplate,
-	el: elTemplate,
-	es: esTemplate,
-	fr: frTemplate,
-	hi: hiTemplate,
-	hr: hrTemplate,
-	hu: huTemplate,
-	it: itTemplate,
-	kk: kkTemplate,
-	lv: lvTemplate,
-	nb: nbTemplate,
-	pt: ptTemplate,
-	ro: roTemplate,
-	ru: ruTemplate,
-	tr: trTemplate,
-	uk: ukTemplate,
-	cn: cnTemplate,
-	tw: twTemplate
+const strings: Record<string, InviteStrings> = {
+	en: enStrings,
+	de: deStrings,
+	pl: plStrings,
+	cs: csStrings,
+	dk: dkStrings,
+	el: elStrings,
+	es: esStrings,
+	fr: frStrings,
+	hi: hiStrings,
+	hr: hrStrings,
+	hu: huStrings,
+	it: itStrings,
+	kk: kkStrings,
+	lv: lvStrings,
+	nb: nbStrings,
+	pt: ptStrings,
+	ro: roStrings,
+	ru: ruStrings,
+	tr: trStrings,
+	uk: ukStrings,
+	cn: cnStrings,
+	tw: twStrings
 };
+
+const templates: Record<string, InviteTemplate> = Object.fromEntries(
+	Object.entries(strings).map(([ locale, s ]) => [ locale, fromStrings(s) ])
+);
 
 export const getTemplate = (locale: string): InviteTemplate => {
 	return templates[locale] ?? templates.en;
 };
 
-export type { InviteTemplate, InviteContext } from './types';
+export const getStrings = (locale: string): InviteStrings => {
+	return strings[locale] ?? strings.en;
+};
+
+export const templateLocales = (): string[] => Object.keys(strings);
+
+export type { InviteTemplate, InviteContext, InviteStrings, EventDescription } from './types';

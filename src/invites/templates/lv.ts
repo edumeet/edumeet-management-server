@@ -1,22 +1,16 @@
-import { InviteTemplate } from './types';
+import { InviteStrings } from './types';
 
-export const lvTemplate: InviteTemplate = {
+export const lvStrings: InviteStrings = {
 	subjectRequest: (title) => `Uzaicinājums: ${title}`,
 	subjectCancel: (title) => `Atcelts: ${title}`,
-	bodyRequest: ({ title, description, roomUrl, organizerName, startsAt, endsAt }) => [
-		`Jūs esat uzaicināts uz sanāksmi${organizerName ? `, ko organizē ${organizerName}` : ''}.`,
-		'',
-		`Nosaukums: ${title}`,
-		description ? `Apraksts: ${description}` : null,
-		`Sākums: ${startsAt}`,
-		`Beigas: ${endsAt}`,
-		`Pievienoties: ${roomUrl}`,
-		'',
-		'Šo uzaicinājumu pārvalda edumeet. Apstipriniet vai atsakiet kalendārā, lai informētu organizatoru.'
-	].filter(Boolean).join('\n'),
-	bodyCancel: ({ title, organizerName }) => [
-		`Sanāksme "${title}" ir atcelta${organizerName ? `, ko atcēla ${organizerName}` : ''}.`,
-		'',
-		'Jūsu kalendārs tiks atjaunināts automātiski.'
-	].join('\n')
+	invited: (organizerName) => `Jūs esat uzaicināts uz sanāksmi${organizerName ? `, ko organizē ${organizerName}` : ''}.`,
+	cancelled: (title, organizerName) => `Sanāksme "${title}" ir atcelta${organizerName ? `, ko atcēla ${organizerName}` : ''}.`,
+	title: 'Nosaukums: ',
+	description: 'Apraksts: ',
+	starts: 'Sākums: ',
+	ends: 'Beigas: ',
+	join: 'Pievienoties: ',
+	joinButton: 'Pievienoties sanāksmei',
+	managedBy: 'Šo uzaicinājumu pārvalda edumeet. Apstipriniet vai atsakiet kalendārā, lai informētu organizatoru.',
+	calendarUpdates: 'Jūsu kalendārs tiks atjaunināts automātiski.'
 };
