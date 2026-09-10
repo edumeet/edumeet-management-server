@@ -12,6 +12,23 @@ const KEY = 'a1'.repeat(32);
 const imapModule = require('imapflow');
 const realImapFlow = imapModule.ImapFlow;
 
+// Silencing the transports (done in before()) still lets logger.warn be called, so the
+// level a message is emitted at can be pinned by replacing the method for one test.
+const captureWarnings = (): { calls: string[], restore: () => void } => {
+	const calls: string[] = [];
+	const original = logger.warn;
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(logger as any).warn = (...args: unknown[]) => {
+		calls.push(String(args[0]));
+
+		return logger;
+	};
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return { calls, restore: () => { (logger as any).warn = original; } };
+};
+
 interface Message { uid: number; source: string | null; envelope?: { date?: Date } }
 
 // records the order of IMAP operations so the test can prove STORE runs after the FETCH
@@ -281,6 +298,36 @@ describe('poll cycle', () => {
 			await pollOnce(app(), cfg());
 
 			assert.deepStrictEqual(trace.flagged, [], 'consuming it would lose the sibling deployment its RSVP');
+		});
+
+		it('does not warn about a reply that simply belongs to the other deployment', async () => {
+			// on the non-owner this happens for every reply, so a warn would page for normal traffic
+			installImap([ replyMessage(1, 'not-ours') ]);
+			const warnings = captureWarnings();
+
+			try {
+				await pollOnce(app(), cfg());
+			} finally {
+				warnings.restore();
+			}
+
+			assert.deepStrictEqual(warnings.calls, []);
+		});
+
+		it('does warn when it finally gives up on an unclaimed reply', async () => {
+			const old = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000));
+
+			installImap([ replyMessage(1, 'not-ours', old) ]);
+			const warnings = captureWarnings();
+
+			try {
+				await pollOnce(app(), cfg());
+			} finally {
+				warnings.restore();
+			}
+
+			assert.strictEqual(warnings.calls.length, 1);
+			assert.match(warnings.calls[0], /older than the unclaimed window/);
 		});
 
 		it('consumes only the replies it recognises out of a mixed batch', async () => {

@@ -87,6 +87,21 @@ describe('ics builder', () => {
 			assert.match(ics, /^DTEND;TZID=Europe\/Warsaw:20260910T130000$/m);
 		});
 
+		// The suite runs with TZ=UTC (package.json), the same zone as the container. A builder
+		// that renders a plain Date's local getters passes on a developer machine sitting in
+		// the meeting's own zone and ships two hours early from production; this pins the
+		// meeting zone's wall clock against a process zone that differs from it.
+		it('renders the meeting zone, not the process zone', () => {
+			assert.notStrictEqual(process.env.TZ, 'Europe/Warsaw', 'test must run in a zone other than the meeting');
+
+			const warsaw = build();
+			const newYork = build({ timezone: 'America/New_York' });
+
+			// 10:00Z is 12:00 in Warsaw and 06:00 in New York, whatever the process zone
+			assert.match(warsaw, /^DTSTART;TZID=Europe\/Warsaw:20260910T120000$/m);
+			assert.match(newYork, /^DTSTART;TZID=America\/New_York:20260910T060000$/m);
+		});
+
 		it('embeds the VTIMEZONE the TZID refers to', () => {
 			const ics = build();
 

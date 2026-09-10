@@ -1,5 +1,6 @@
 import ical, { ICalCalendarMethod, ICalEventStatus, ICalAttendeeStatus, ICalAttendeeRole } from 'ical-generator';
 import { getVtimezoneComponent } from '@touch4it/ical-timezones';
+import { TZDate } from '@date-fns/tz';
 import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
@@ -42,13 +43,21 @@ const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 		...(vtimezone ? { timezone: { name: null, generator: getVtimezoneComponent } } : {})
 	});
 
+	// A plain Date is rendered with its LOCAL getters once a TZID is in play, i.e. in the
+	// process zone, which is UTC in the container: a 16:00Z start went out labelled
+	// "16:00 Europe/Berlin", two hours early. TZDate carries the meeting zone with the
+	// instant, and ical-generator detects and converts it regardless of process zone.
+	// Coerce first — Postgres bigint serializes as string; new Date(string) misparses.
+	const at = (ms: unknown): Date => (vtimezone
+		? new TZDate(Number(ms), meeting.timezone as string)
+		: new Date(Number(ms)));
+
 	const event = cal.createEvent({
 		id: meeting.uid,
 		sequence: meeting.sequence,
 		...(vtimezone ? { timezone: meeting.timezone } : {}),
-		// Coerce — Postgres bigint serializes as string; new Date(string) misparses.
-		start: new Date(Number(meeting.startsAt)),
-		end: new Date(Number(meeting.endsAt)),
+		start: at(meeting.startsAt),
+		end: at(meeting.endsAt),
 		summary: meeting.title,
 		// Omit empty DESCRIPTION line — some calendar parsers complain about `DESCRIPTION:\r\n` with no value.
 		description: (meeting.description && meeting.description.trim()) ? meeting.description : null,

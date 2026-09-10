@@ -197,7 +197,10 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 			const meeting = (list as Array<{ id: number }>)[0];
 
 			if (!meeting) {
-				logger.warn(`[invites/replyPoller] no meeting found for uid=${uid}`);
+				// Debug, not warn: with deployments sharing a mailbox this is the normal outcome on
+				// the non-owner for every single reply. pollOnce reports it at info, and warns
+				// only when an unclaimed reply is finally given up on.
+				logger.debug(`[invites/replyPoller] no meeting found for uid=${uid}`);
 				continue;
 			}
 
