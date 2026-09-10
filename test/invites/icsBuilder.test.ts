@@ -79,23 +79,64 @@ describe('ics builder', () => {
 	});
 
 	describe('timestamps', () => {
-		// A TZID with no accompanying VTIMEZONE block is what produced Thunderbird's
-		// 80004005 previously, so the output must stay in plain UTC.
-		it('writes UTC instants with no TZID', () => {
+		it('writes local wall-clock time under the meeting timezone', () => {
 			const ics = build();
+
+			// 10:00Z on 10 September is 12:00 in Warsaw (CEST)
+			assert.match(ics, /^DTSTART;TZID=Europe\/Warsaw:20260910T120000$/m);
+			assert.match(ics, /^DTEND;TZID=Europe\/Warsaw:20260910T130000$/m);
+		});
+
+		it('embeds the VTIMEZONE the TZID refers to', () => {
+			const ics = build();
+
+			assert.ok(ics.includes('BEGIN:VTIMEZONE'));
+			assert.match(ics, /^TZID:Europe\/Warsaw$/m);
+			assert.ok(ics.indexOf('BEGIN:VTIMEZONE') < ics.indexOf('BEGIN:VEVENT'), 'VTIMEZONE precedes the event that uses it');
+		});
+
+		// A weekly rule on a UTC instant lands an hour early after the October change. Only a
+		// TZID-based DTSTART keeps every occurrence at the same local time, so a recurring
+		// meeting must never go out as a bare Z instant.
+		it('keeps a recurring meeting on local time so occurrences do not drift across DST', () => {
+			const ics = build({ rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=10' });
+
+			assert.match(ics, /^RRULE:FREQ=WEEKLY;INTERVAL=1;COUNT=10$/m);
+			assert.match(ics, /^DTSTART;TZID=Europe\/Warsaw:/m);
+			assert.ok(!/^DTSTART:\d{8}T\d{6}Z$/m.test(ics), 'a UTC DTSTART under an RRULE drifts across DST');
+		});
+
+		// A TZID with no accompanying VTIMEZONE block is what produced Thunderbird's
+		// 80004005 previously, so an unknown zone must fall back to plain UTC rather than
+		// emit a dangling reference.
+		it('falls back to UTC with no TZID when the zone is unknown', () => {
+			const ics = build({ timezone: 'Not/AZone' });
 
 			assert.match(ics, /^DTSTART:20260910T100000Z$/m);
 			assert.match(ics, /^DTEND:20260910T110000Z$/m);
-			assert.ok(!ics.includes('TZID'), 'a TZID without VTIMEZONE breaks some clients');
+			assert.ok(!ics.includes('TZID'));
 			assert.ok(!ics.includes('BEGIN:VTIMEZONE'));
+		});
+
+		it('falls back to UTC when no timezone is stored', () => {
+			const ics = build({ timezone: undefined });
+
+			assert.match(ics, /^DTSTART:20260910T100000Z$/m);
+			assert.ok(!ics.includes('TZID'));
+		});
+
+		it('never emits a TZID without its VTIMEZONE, in either mode', () => {
+			for (const ics of [ build(), build({ timezone: 'Not/AZone' }), build({ timezone: undefined }) ]) {
+				assert.strictEqual(ics.includes('TZID='), ics.includes('BEGIN:VTIMEZONE'));
+			}
 		});
 
 		it('coerces bigint columns that arrive as strings', () => {
 			// node-postgres hands back bigint as a string, and new Date(string) misreads it
 			const ics = build({ startsAt: String(START), endsAt: String(END) });
 
-			assert.match(ics, /^DTSTART:20260910T100000Z$/m);
-			assert.match(ics, /^DTEND:20260910T110000Z$/m);
+			assert.match(ics, /^DTSTART;TZID=Europe\/Warsaw:20260910T120000$/m);
+			assert.match(ics, /^DTEND;TZID=Europe\/Warsaw:20260910T130000$/m);
 		});
 
 		it('carries a DTSTAMP', () => {

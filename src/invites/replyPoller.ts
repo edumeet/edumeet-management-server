@@ -8,6 +8,11 @@ import { decrypt } from './crypto';
 import { logger } from '../logger';
 
 const DEFAULT_POLL_MS = 60000;
+// How long a REPLY that no meeting here owns is left unread before we consume it anyway.
+// Independent deployments can share one invite mailbox, so an unrecognised reply usually
+// belongs to a sibling that has not polled yet; a week is long enough to cover one being
+// down, after which nobody is coming for it and retention should be allowed to purge it.
+const UNCLAIMED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // Small settle before the first cycle so boot is not competing with migrations.
 
 export const POLLER_BOOT_DELAY_MS = 5000;
@@ -18,6 +23,10 @@ export const POLLER_BOOT_DELAY_MS = 5000;
 // \Seen, so the others never see it and replies for some tenants get silently consumed.
 // One poller per unique mailbox fixes that; reply→meeting resolution is global-by-uid, so a
 // single poller correctly updates partstat for every tenant sharing the mailbox.
+//
+// Separate DEPLOYMENTS (e.g. prod and dev) may also share one mailbox. They have separate
+// databases, so a reply belongs to whichever one holds that meeting uid. See the mark-seen
+// decision in pollOnce: a deployment consumes only the replies it recognises.
 const pollers = new Map<string, { timer: NodeJS.Timeout, stopped: boolean }>();
 
 const mailboxKey = (cfg: TenantInviteConfig): string =>
@@ -82,16 +91,29 @@ export const extractIcs = (source: string): string | null => {
 
 	candidates.push(source);
 
-	for (const candidate of candidates) {
-		const match = candidate.match(VCALENDAR);
+	// A reply can carry more than one calendar: its REPLY part plus, in some clients, the
+	// original REQUEST attached as invite.ics. Decoded attachments are tried first, so the
+	// first hit is not necessarily the REPLY. Prefer a block that is one; otherwise fall back
+	// to the first, which processReplyIcs will then correctly refuse as not a reply.
+	const blocks: string[] = [];
 
-		if (match) return match[0];
+	for (const candidate of candidates) {
+		for (const match of candidate.matchAll(new RegExp(VCALENDAR.source, 'g'))) blocks.push(match[0]);
 	}
 
-	return null;
+	return blocks.find((b) => /^METHOD:REPLY\s*$/mi.test(b)) ?? blocks[0] ?? null;
 };
 
-export const processReplyIcs = async (app: Application, icsSource: string): Promise<boolean> => {
+export interface ReplyOutcome {
+	isReply: boolean;
+	// attendee rows this deployment recognised, whether or not anything was written. A
+	// duplicate reply updates nothing but is still ours, and must be consumed or it is
+	// reprocessed every cycle forever.
+	claimed: number;
+	updated: number;
+}
+
+export const processReplyIcs = async (app: Application, icsSource: string): Promise<ReplyOutcome> => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let parsed: any;
 
@@ -100,7 +122,7 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 	} catch (err) {
 		logger.warn('[invites/replyPoller] failed to parse ICS body:', err);
 
-		return false;
+		return { isReply: false, claimed: 0, updated: 0 };
 	}
 
 	// node-ical stores calendar-level properties (PRODID, VERSION, METHOD) under
@@ -116,10 +138,11 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 		logger.debug(`[invites/replyPoller] ICS preview: ${icsSource.substring(0, 400).replace(/\r?\n/g, ' | ')}`);
 		logger.debug(`[invites/replyPoller] parsed top-level keys: ${Object.keys(parsed).join(', ')}`);
 
-		return false;
+		return { isReply: false, claimed: 0, updated: 0 };
 	}
 
-	let matched = 0;
+	let claimed = 0;
+	let updated = 0;
 
 	for (const key of Object.keys(parsed)) {
 		const ev = parsed[key];
@@ -190,6 +213,8 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 				continue;
 			}
 
+			claimed++;
+
 			// Per-occurrence exception: write to meetingOccurrenceRsvps; leave series partstat alone.
 			if (recurrenceId != null) {
 				// Coerce — Postgres bigint columns deserialize as strings and the schema validator rejects non-numbers.
@@ -228,7 +253,7 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 						{ provider: undefined }
 					);
 				}
-				matched++;
+				updated++;
 				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
 				continue;
 			}
@@ -251,14 +276,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 				{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
 				{ provider: undefined }
 			);
-			matched++;
+			updated++;
 			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${evSequence})`);
 		}
 	}
 
-	logger.info(`[invites/replyPoller] processed REPLY, ${matched} attendee(s) updated`);
+	logger.info(`[invites/replyPoller] processed REPLY, ${claimed} attendee(s) recognised, ${updated} updated`);
 
-	return true;
+	return { isReply: true, claimed, updated };
 };
 
 export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Promise<void> => {
@@ -310,6 +335,7 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 		try {
 			let unseenCount = 0;
 			let icsFoundCount = 0;
+			let unclaimedCount = 0;
 			const uidsToMarkSeen: number[] = [];
 
 			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
@@ -330,7 +356,27 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 				// batch was re-fetched next cycle and a permanently unprocessable one stalled the
 				// mailbox for good. Unmarked on failure, so a transient error still retries.
 				try {
-					if (await processReplyIcs(app, ics)) uidsToMarkSeen.push(msg.uid);
+					const outcome = await processReplyIcs(app, ics);
+
+					if (!outcome.isReply) continue;
+
+					// Marking a message \Seen hides it from every other client of this mailbox, so
+					// only consume replies this deployment actually recognised. An unrecognised one
+					// most likely belongs to a sibling deployment sharing the mailbox that has not
+					// polled yet; consuming it would silently lose that RSVP for good.
+					if (outcome.claimed > 0) {
+						uidsToMarkSeen.push(msg.uid);
+						continue;
+					}
+
+					const sentMs = msg.envelope?.date ? new Date(msg.envelope.date).getTime() : NaN;
+
+					if (Number.isFinite(sentMs) && Date.now() - sentMs > UNCLAIMED_TTL_MS) {
+						logger.warn(`[invites/replyPoller] msg uid=${msg.uid} is a REPLY no meeting here owns and is older than the unclaimed window; marking seen`);
+						uidsToMarkSeen.push(msg.uid);
+					} else {
+						unclaimedCount++;
+					}
 				} catch (err) {
 					logger.error(`[invites/replyPoller] msg uid=${msg.uid} failed to process, left unread:`, err);
 				}
@@ -349,6 +395,10 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 
 			if (unseenCount > 0) {
 				logger.info(`[invites/replyPoller] mailbox ${mb} polled ${unseenCount} unseen message(s), ${icsFoundCount} had ICS`);
+			}
+
+			if (unclaimedCount > 0) {
+				logger.info(`[invites/replyPoller] mailbox ${mb} left ${unclaimedCount} reply(ies) unread for another deployment sharing this mailbox`);
 			}
 
 			// Retention cleanup: purge SEEN messages older than the retention window so the

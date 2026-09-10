@@ -107,6 +107,39 @@ describe('reply ICS extraction', () => {
 		assert.ok(!(found as string).includes('=\r\n'), 'soft breaks must be gone');
 	});
 
+	it('prefers the REPLY when the original REQUEST rides along as an attachment', () => {
+		// decoded attachments are searched before the raw source, so without an explicit
+		// preference the attached REQUEST would win and the reply would be refused forever
+		const request = ICS.replace('METHOD:REPLY', 'METHOD:REQUEST');
+		const source = [
+			'Content-Type: multipart/mixed; boundary="b1"',
+			'',
+			'--b1',
+			'Content-Type: text/calendar; charset=utf-8; method=REPLY',
+			'Content-Transfer-Encoding: 7bit',
+			'',
+			ICS,
+			'--b1',
+			'Content-Type: application/ics; name="invite.ics"',
+			'Content-Transfer-Encoding: base64',
+			'',
+			toBase64(request),
+			'--b1--',
+			''
+		].join('\r\n');
+
+		const found = extractIcs(source) as string;
+
+		assert.match(found, /^METHOD:REPLY$/m, 'the REPLY must win over an attached REQUEST');
+	});
+
+	it('still returns a lone REQUEST so the caller can refuse it explicitly', () => {
+		const request = ICS.replace('METHOD:REPLY', 'METHOD:REQUEST');
+		const found = extractIcs(wrap('7bit', request)) as string;
+
+		assert.match(found, /^METHOD:REQUEST$/m);
+	});
+
 	it('returns null when there is no calendar part at all', () => {
 		assert.strictEqual(extractIcs(wrap('7bit', 'just a note')), null);
 	});

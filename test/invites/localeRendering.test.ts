@@ -171,6 +171,41 @@ describe('invite rendering across locales', () => {
 		assert.ok(sent[0].to.includes('guest@example.org'), sent[0].to);
 	});
 
+	it('builds the join url from the lowest-id FQDN, deterministically', async () => {
+		let query: Record<string, unknown> = {};
+		const multi = {
+			get: (k: string) => (k === 'invites' ? { encryptionKey: KEY } : undefined),
+			service: (name: string) => {
+				if (name === 'tenantFQDNs') {
+					return {
+						find: async (params: { query: Record<string, unknown> }) => {
+							query = params.query;
+
+							return [ { id: 2, fqdn: 'first.example.edu' }, { id: 9, fqdn: 'second.example.edu' } ];
+						}
+					};
+				}
+				if (name === 'meetingAttendees') return { patch: async () => ({}) };
+				throw new Error(`unexpected service ${name}`);
+			}
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} as any as Application;
+
+		await sendInviteEmail(multi, {
+			method: 'REQUEST',
+			meeting: meeting({ locale: 'en' }),
+			attendee: attendee(),
+			allAttendees: [ attendee() ],
+			tenantConfig: cfg(),
+			roomName: 'board'
+		});
+
+		assert.deepStrictEqual(query.$sort, { id: 1 }, 'an unordered pick could change LOCATION between revisions');
+		assert.strictEqual(query.$limit, 1);
+		assert.ok(sent[0].text.includes('https://first.example.edu/board'), sent[0].text);
+		assert.match(String(sent[0].icalEvent?.content), /^LOCATION:https:\/\/first\.example\.edu\/board$/m);
+	});
+
 	it('attaches the calendar part with the matching method', async () => {
 		await send({ locale: 'en' });
 

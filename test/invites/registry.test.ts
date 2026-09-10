@@ -141,14 +141,15 @@ describe('invite worker registry', () => {
 			assert.strictEqual(h.configEvents.listenerCount('patched'), 0);
 		});
 
-		it('does nothing at all without an rsvp token secret', async () => {
-			const h = harness({ invites: { encryptionKey: KEY } });
+		it('starts without an rsvp token secret, which nothing verifies yet', async () => {
+			const h = harness({ invites: { encryptionKey: KEY, imapPollBootDelayMs: BOOT_MS, imapPollIntervalMs: 60000 } });
 
 			await startInviteWorkers(h.app);
 			await afterBoot();
 
-			assert.strictEqual(h.loads(), 0);
-			assert.strictEqual(connects, 0);
+			assert.strictEqual(h.loads(), 1, 'the token secret must not gate the whole feature');
+			assert.strictEqual(connects, 1);
+			assert.strictEqual(h.configEvents.listenerCount('patched'), 1);
 		});
 
 		it('does nothing at all with no invites config block', async () => {

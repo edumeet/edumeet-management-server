@@ -43,11 +43,13 @@ export const meetingAttendeeDataValidator = getValidator(meetingAttendeeDataSche
 export const meetingAttendeeDataResolver = resolve<MeetingAttendee, HookContext>({
 	email: async (value) => value?.toLowerCase(),
 	partstat: async () => 'NEEDS-ACTION' as const,
+	// The token is reserved for an RSVP-by-link flow that does not exist yet. Nothing verifies
+	// it, so a missing secret must not block attendee creation; the column is nullable and
+	// its unique constraint tolerates NULLs on both Postgres and MySQL.
 	rsvpToken: async (_value, data, context) => {
 		const invites = context.app.get('invites');
 
-		if (!invites?.rsvpTokenSecret)
-			throw new Error('invites.rsvpTokenSecret not configured');
+		if (!invites?.rsvpTokenSecret) return undefined;
 
 		const meetingId = (data as { meetingId?: number }).meetingId;
 		const email = (data as { email?: string }).email;

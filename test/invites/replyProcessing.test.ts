@@ -98,7 +98,9 @@ describe('reply processing', () => {
 	it('records an accepted reply with its sequence and dtstamp', async () => {
 		const f = fixture();
 
-		assert.strictEqual(await processReplyIcs(f.app, reply()), true);
+		const outcome = await processReplyIcs(f.app, reply());
+
+		assert.deepStrictEqual(outcome, { isReply: true, claimed: 1, updated: 1 });
 		assert.strictEqual(f.rec.attendeePatches.length, 1);
 		assert.strictEqual(f.rec.attendeePatches[0].id, 22);
 		assert.strictEqual(f.rec.attendeePatches[0].data.partstat, 'ACCEPTED');
@@ -109,7 +111,10 @@ describe('reply processing', () => {
 	it('ignores anything that is not a REPLY', async () => {
 		const f = fixture();
 
-		assert.strictEqual(await processReplyIcs(f.app, reply({ METHOD: 'REQUEST' })), false);
+		const outcome = await processReplyIcs(f.app, reply({ METHOD: 'REQUEST' }));
+
+		assert.strictEqual(outcome.isReply, false, 'a REQUEST must not be treated as a reply');
+		assert.strictEqual(outcome.claimed, 0);
 		assert.strictEqual(f.rec.attendeePatches.length, 0);
 	});
 
@@ -173,6 +178,51 @@ describe('reply processing', () => {
 		});
 	});
 
+	describe('ownership, which decides whether the message may be consumed', () => {
+		it('claims a reply it applied', async () => {
+			const f = fixture();
+			const outcome = await processReplyIcs(f.app, reply());
+
+			assert.strictEqual(outcome.claimed, 1);
+			assert.strictEqual(outcome.updated, 1);
+		});
+
+		it('still claims a duplicate it deliberately skipped as stale', async () => {
+			// nothing is written, but the reply is ours: leaving it unclaimed would make the
+			// poller reprocess it every cycle forever
+			const f = fixture({
+				attendee: { id: 22, meetingId: 11, email: 'guest@example.org', replySequence: 9, replyDtstamp: 5000 }
+			});
+			const outcome = await processReplyIcs(f.app, reply({ SEQUENCE: '3' }));
+
+			assert.strictEqual(outcome.claimed, 1, 'a stale duplicate still belongs to this deployment');
+			assert.strictEqual(outcome.updated, 0);
+			assert.strictEqual(f.rec.attendeePatches.length, 0);
+		});
+
+		it('claims an occurrence reply it applied', async () => {
+			const f = fixture();
+			const outcome = await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }));
+
+			assert.strictEqual(outcome.claimed, 1);
+			assert.strictEqual(outcome.updated, 1);
+		});
+
+		it('claims nothing when the meeting belongs to another deployment', async () => {
+			const f = fixture({ meeting: undefined });
+			const outcome = await processReplyIcs(f.app, reply());
+
+			assert.deepStrictEqual(outcome, { isReply: true, claimed: 0, updated: 0 });
+		});
+
+		it('claims nothing when the replier is on no guest list here', async () => {
+			const f = fixture({ attendee: undefined });
+			const outcome = await processReplyIcs(f.app, reply());
+
+			assert.strictEqual(outcome.claimed, 0);
+		});
+	});
+
 	describe('unmatched replies', () => {
 		it('writes nothing when no meeting has that uid', async () => {
 			const f = fixture({ meeting: undefined });
@@ -215,6 +265,21 @@ describe('reply processing', () => {
 	});
 
 	describe('per-occurrence replies', () => {
+		it('resolves a TZID-qualified RECURRENCE-ID to the right instant', async () => {
+			// invites now go out with TZID plus VTIMEZONE, so clients reply in the same form;
+			// 12:00 Warsaw on 17 September is 10:00Z
+			const f = fixture();
+			const ics = reply().replace(
+				'DTSTART:20260910T100000Z',
+				'DTSTART;TZID=Europe/Warsaw:20260910T120000\r\nRECURRENCE-ID;TZID=Europe/Warsaw:20260917T120000'
+			);
+
+			await processReplyIcs(f.app, ics);
+
+			assert.strictEqual(f.rec.rsvpCreates.length, 1);
+			assert.strictEqual(f.rec.rsvpCreates[0].recurrenceId, Date.UTC(2026, 8, 17, 10, 0, 0));
+		});
+
 		it('creates an occurrence rsvp and leaves the series partstat alone', async () => {
 			const f = fixture();
 

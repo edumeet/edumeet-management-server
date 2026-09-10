@@ -29,8 +29,10 @@ const refreshWorkers = async (app: Application): Promise<void> => {
 export const startInviteWorkers = async (app: Application): Promise<void> => {
 	const invites = app.get('invites');
 
-	if (!invites?.encryptionKey || !invites?.rsvpTokenSecret) {
-		logger.warn('[invites/registry] invites config missing; workers disabled');
+	// Only the encryption key is a real requirement: without it no stored SMTP or IMAP
+	// password can be read. rsvpTokenSecret feeds a token nothing verifies yet.
+	if (!invites?.encryptionKey) {
+		logger.warn('[invites/registry] invites.encryptionKey missing; workers disabled');
 
 		return;
 	}

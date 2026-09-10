@@ -12,7 +12,7 @@ const KEY = 'a1'.repeat(32);
 const imapModule = require('imapflow');
 const realImapFlow = imapModule.ImapFlow;
 
-interface Message { uid: number; source: string | null }
+interface Message { uid: number; source: string | null; envelope?: { date?: Date } }
 
 // records the order of IMAP operations so the test can prove STORE runs after the FETCH
 // iterator drains, which is the ordering some servers hang on if violated
@@ -109,8 +109,9 @@ const cfg = (over: Partial<TenantInviteConfig> = {}): TenantInviteConfig => ({
 	...over
 } as unknown as TenantInviteConfig);
 
-const replyMessage = (uid: number, meetingUid: string): Message => ({
+const replyMessage = (uid: number, meetingUid: string, sentAt = new Date()): Message => ({
 	uid,
+	envelope: { date: sentAt },
 	source: [
 		'From: guest@example.org',
 		'Content-Type: text/calendar; method=REPLY',
@@ -151,6 +152,7 @@ const app = (retentionDays?: number): Application => ({
 			return {
 				find: async (params: { query: { uid: string } }) => {
 					if (params.query.uid === 'boom') throw new Error('database is down');
+					if (params.query.uid === 'not-ours') return [];
 
 					return [ { id: 11 } ];
 				}
@@ -266,6 +268,60 @@ describe('poll cycle', () => {
 			await pollOnce(app(), cfg());
 
 			assert.strictEqual(trace.loggedOut, 1);
+		});
+	});
+
+	// Independent deployments can share one invite mailbox. Each holds only its own meetings,
+	// so consuming a reply it does not recognise would silently lose that RSVP for the sibling
+	// that does. \Seen is mailbox-wide state, which is why this matters.
+	describe('a mailbox shared with another deployment', () => {
+		it('leaves a reply for a meeting it does not have unread', async () => {
+			const trace = installImap([ replyMessage(1, 'not-ours') ]);
+
+			await pollOnce(app(), cfg());
+
+			assert.deepStrictEqual(trace.flagged, [], 'consuming it would lose the sibling deployment its RSVP');
+		});
+
+		it('consumes only the replies it recognises out of a mixed batch', async () => {
+			const trace = installImap([
+				replyMessage(1, 'uid-1@meet.example.edu'),
+				replyMessage(2, 'not-ours'),
+				replyMessage(3, 'uid-1@meet.example.edu')
+			]);
+
+			await pollOnce(app(), cfg());
+
+			assert.deepStrictEqual(trace.flagged, [ [ 1, 3 ] ]);
+		});
+
+		it('gives up on an unclaimed reply once it is older than the window', async () => {
+			const old = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000));
+			const trace = installImap([ replyMessage(1, 'not-ours', old) ]);
+
+			await pollOnce(app(), cfg());
+
+			assert.deepStrictEqual(trace.flagged, [ [ 1 ] ], 'nobody is coming for it, so let retention purge it');
+		});
+
+		it('keeps waiting while an unclaimed reply is still recent', async () => {
+			const recent = new Date(Date.now() - (60 * 60 * 1000));
+			const trace = installImap([ replyMessage(1, 'not-ours', recent) ]);
+
+			await pollOnce(app(), cfg());
+
+			assert.deepStrictEqual(trace.flagged, []);
+		});
+
+		it('waits rather than guessing when the message has no usable date', async () => {
+			const msg = replyMessage(1, 'not-ours');
+
+			msg.envelope = {};
+			const trace = installImap([ msg ]);
+
+			await pollOnce(app(), cfg());
+
+			assert.deepStrictEqual(trace.flagged, [], 'never consume what cannot be shown to be abandoned');
 		});
 	});
 

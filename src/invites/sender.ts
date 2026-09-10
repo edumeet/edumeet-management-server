@@ -112,9 +112,11 @@ export const closeAllSenders = (): void => {
 };
 
 const lookupRoomUrl = async (app: Application, tenantId: number, roomName: string): Promise<string> => {
+	// Ordered, so a tenant with several FQDNs gets the same join URL on every revision of a
+	// meeting; an unordered pick could make LOCATION change between the REQUEST and an update.
 	const fqdns = await app.service('tenantFQDNs').find({
 		paginate: false,
-		query: { tenantId, $limit: 1 }
+		query: { tenantId, $sort: { id: 1 }, $limit: 1 }
 	});
 	const list = Array.isArray(fqdns) ? fqdns : (fqdns as { data: unknown[] }).data;
 	const primary = (list as Array<{ fqdn: string }>)[0];

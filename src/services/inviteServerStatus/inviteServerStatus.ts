@@ -10,6 +10,8 @@ const inviteServerStatusPath = 'invite-server-status';
 
 // Read-only flag the client uses to warn admins when the deployment is missing the
 // server-side invite secrets. Booleans only — the secrets themselves are never exposed.
+// Only encryptionKey decides `configured`: rsvpTokenSecret feeds a token nothing verifies
+// yet, so its absence must not read as "invites will not work".
 export interface InviteServerStatus {
 	encryptionKey: boolean;
 	rsvpTokenSecret: boolean;
@@ -30,7 +32,7 @@ export const inviteServerStatus = (app: Application) => {
 			const encryptionKey = Boolean(invites?.encryptionKey);
 			const rsvpTokenSecret = Boolean(invites?.rsvpTokenSecret);
 
-			return { encryptionKey, rsvpTokenSecret, configured: encryptionKey && rsvpTokenSecret };
+			return { encryptionKey, rsvpTokenSecret, configured: encryptionKey };
 		}
 	}, { methods: [ 'find' ], events: [] });
 

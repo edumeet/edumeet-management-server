@@ -60,6 +60,7 @@
 		"@feathersjs/transport-commons": "^5.0.46",
 		"@feathersjs/typebox": "^5.0.46",
 		"@koa/router": "^15.3.0",
+		"@touch4it/ical-timezones": "^1.9.0",
 		"bcryptjs": "^3.0.3",
 		"dompurify": "^3.4.11",
 		"feathers-hooks-common": "^8.2.1",

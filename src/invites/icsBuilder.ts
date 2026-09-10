@@ -1,4 +1,5 @@
 import ical, { ICalCalendarMethod, ICalEventStatus, ICalAttendeeStatus, ICalAttendeeRole } from 'ical-generator';
+import { getVtimezoneComponent } from '@touch4it/ical-timezones';
 import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
@@ -25,18 +26,26 @@ const partstatToIcs = (p?: string): ICalAttendeeStatus => {
 const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 	const { meeting, attendees, tenantConfig, roomUrl, organizerUserName } = input;
 
+	// DTSTART/DTEND carry the meeting's TZID with an embedded VTIMEZONE, which is what an
+	// RRULE needs to keep every occurrence at the same local time across a DST change: a
+	// UTC instant plus FREQ=WEEKLY drifts by an hour in October. A TZID WITHOUT its
+	// VTIMEZONE block is what tripped Thunderbird (error 80004005), so when the generator
+	// does not know the zone the calendar falls back to plain UTC rather than emit one.
+	//
+	// The zone goes on the EVENT, not as the calendar default: a calendar-level zone makes
+	// ical-generator render DTSTAMP as floating local time, and RFC 5545 requires DTSTAMP in
+	// UTC. The calendar only carries the generator, so the event's TZID gets its block.
+	const vtimezone = meeting.timezone ? getVtimezoneComponent(meeting.timezone) : null;
 	const cal = ical({
 		prodId: PROD_ID,
-		method
+		method,
+		...(vtimezone ? { timezone: { name: null, generator: getVtimezoneComponent } } : {})
 	});
 
 	const event = cal.createEvent({
 		id: meeting.uid,
 		sequence: meeting.sequence,
-		// Emit DTSTART/DTEND in UTC (no TZID). Maximum compatibility — every calendar
-		// client handles `YYYYMMDDTHHMMSSZ` without needing a VTIMEZONE block. Using
-		// TZID=Europe/Berlin without VTIMEZONE tripped some installations (Thunderbird
-		// error 80004005, etc.). The UTC moment is identical either way.
+		...(vtimezone ? { timezone: meeting.timezone } : {}),
 		// Coerce — Postgres bigint serializes as string; new Date(string) misparses.
 		start: new Date(Number(meeting.startsAt)),
 		end: new Date(Number(meeting.endsAt)),
