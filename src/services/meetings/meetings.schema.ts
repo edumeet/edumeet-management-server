@@ -58,6 +58,31 @@ export const meetingResolver = resolve<Meeting, HookContext>({
 
 export const meetingExternalResolver = resolve<Meeting, HookContext>({});
 
+// The UID's domain part is only a uniqueness convention (RFC 5545 leaves the form open),
+// but `.local` is reserved for mDNS by RFC 6762, so use the tenant's own FQDN. A tenant may
+// have several; the UID is persisted at creation, so whichever is primary then is fixed for
+// the meeting's life and later FQDN changes cannot break existing invites. With no FQDN on
+// record the bare UUID stands alone rather than inventing a domain.
+const buildMeetingUid = async (context: HookContext): Promise<string> => {
+	const id = randomUUID();
+	const tenantId = context.params.user?.tenantId;
+
+	if (tenantId == null) return id;
+
+	try {
+		const res = await context.app.service('tenantFQDNs').find({
+			paginate: false,
+			query: { tenantId: parseInt(String(tenantId)), $sort: { id: 1 }, $limit: 1 }
+		});
+		const list = Array.isArray(res) ? res : (res as { data: unknown[] }).data;
+		const primary = (list as Array<{ fqdn?: string }>)[0]?.fqdn;
+
+		return primary ? `${id}@${primary}` : id;
+	} catch {
+		return id;
+	}
+};
+
 export const meetingDataSchema = Type.Omit(
 	meetingSchema,
 	[ 'id', 'tenantId', 'organizerId', 'uid', 'sequence', 'status', 'createdAt', 'updatedAt', 'room', 'attendees' ],
@@ -73,7 +98,7 @@ export const meetingDataResolver = resolve<Meeting, HookContext>({
 		return undefined;
 	},
 	organizerId: async (_value, _data, context) => context.params.user?.id,
-	uid: async () => `${randomUUID()}@meetings.edumeet.local`,
+	uid: async (_value, _data, context) => buildMeetingUid(context),
 	sequence: async () => 0,
 	status: async () => 'CONFIRMED' as const,
 	locale: async (value) => value ?? 'en',

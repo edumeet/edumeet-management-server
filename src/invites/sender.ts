@@ -1,4 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import { createHash } from 'crypto';
 import type { Application } from '../declarations';
 import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
@@ -9,7 +10,12 @@ import { getTemplate } from './templates';
 
 import { logger } from '../logger';
 
-const senderCache = new Map<number, Transporter>();
+// Keyed per MAILBOX, not per tenant: tenants sharing invitation@example.com must share one
+// pooled connection, or the maxConnections/rateLimit caps below are multiplied by the number
+// of tenants and blow through the provider's cap. Same reasoning as reconcilePollers on the
+// IMAP side. Every connection-shaping field is in the key, credentials included, so configs
+// that only look alike never end up sharing a transporter built for the other one.
+const senderCache = new Map<string, Transporter>();
 
 const decryptedPass = (app: Application, encrypted: string | undefined): string => {
 	if (!encrypted) return '';
@@ -20,8 +26,19 @@ const decryptedPass = (app: Application, encrypted: string | undefined): string 
 	return decrypt(encrypted, invites.encryptionKey);
 };
 
+const senderKey = (cfg: TenantInviteConfig, pass: string): string => [
+	cfg.smtpHost,
+	cfg.smtpPort,
+	cfg.smtpSecure ? 'tls' : 'plain',
+	cfg.smtpUser,
+	createHash('sha256').update(pass)
+		.digest('hex')
+].join(':');
+
 const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Transporter => {
-	const cached = senderCache.get(tenantConfig.tenantId);
+	const pass = decryptedPass(app, tenantConfig.smtpPass);
+	const key = senderKey(tenantConfig, pass);
+	const cached = senderCache.get(key);
 
 	if (cached) return cached;
 
@@ -42,13 +59,13 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 		secure: tenantConfig.smtpSecure,
 		auth: {
 			user: tenantConfig.smtpUser,
-			pass: decryptedPass(app, tenantConfig.smtpPass)
+			pass
 		},
 		connectionTimeout: 30000,
 		greetingTimeout: 30000,
 		socketTimeout: 60000,
 		pool: true,
-		// one connection per tenant mailbox — gentle on connection caps
+		// one connection per mailbox, shared across tenants using it
 		maxConnections: 1,
 		// recycle the connection after 100 messages
 		maxMessages: 100,
@@ -57,18 +74,41 @@ const getTransporter = (app: Application, tenantConfig: TenantInviteConfig): Tra
 		rateDelta: 1000
 	});
 
-	senderCache.set(tenantConfig.tenantId, transporter);
+	senderCache.set(key, transporter);
 
 	return transporter;
 };
 
-export const invalidateSender = (tenantId: number): void => {
-	const existing = senderCache.get(tenantId);
+const closeSender = (key: string): void => {
+	const existing = senderCache.get(key);
 
-	if (existing) {
-		try { existing.close(); } catch { /* noop */ }
-		senderCache.delete(tenantId);
+	if (!existing) return;
+	try { existing.close(); } catch { /* noop */ }
+	senderCache.delete(key);
+};
+
+// Mirrors reconcilePollers: closes only the transporters no live config still wants. Closing
+// on every config write instead would drop mail already queued on a shared transporter for
+// the other tenants using it, including when the edit never touched SMTP at all.
+export const reconcileSenders = (app: Application, configs: TenantInviteConfig[]): void => {
+	const live = new Set<string>();
+
+	for (const cfg of configs) {
+		if (!cfg.enabled) continue;
+		try {
+			live.add(senderKey(cfg, decryptedPass(app, cfg.smtpPass)));
+		} catch (err) {
+			logger.warn(`[invites/sender] cannot key tenant ${cfg.tenantId} config; its cached sender is dropped:`, err);
+		}
 	}
+
+	for (const key of [ ...senderCache.keys() ]) {
+		if (!live.has(key)) closeSender(key);
+	}
+};
+
+export const closeAllSenders = (): void => {
+	for (const key of [ ...senderCache.keys() ]) closeSender(key);
 };
 
 const lookupRoomUrl = async (app: Application, tenantId: number, roomName: string): Promise<string> => {

@@ -7,9 +7,10 @@ import { logger } from '../logger';
 
 // How long to wait for additional events on the same meeting before dispatching.
 // 2s absorbs the client's create-meeting + create-attendees burst into one dispatch.
-const DISPATCH_DEBOUNCE_MS = 2000;
+export const DISPATCH_DEBOUNCE_MS = 2000;
 
 const pendingDispatches = new Map<number, NodeJS.Timeout>();
+const pendingSequenceBumps = new Set<number>();
 
 const loadTenantConfig = async (app: Application, tenantId: number): Promise<TenantInviteConfig | undefined> => {
 	const res = await app.service('tenantInviteConfigs').find({
@@ -65,6 +66,26 @@ const loadTenantName = async (app: Application, tenantId: number): Promise<strin
 	}
 };
 
+// A guest-list change needs ONE sequence bump per logical save, not one per attendee row,
+// or a burst that straddles the debounce window re-notifies earlier attendees twice for the
+// same save. Skipped entirely while nobody has been notified yet (all lastNotifiedSequence
+// still -1), so a freshly created meeting's first REQUEST goes out at SEQUENCE:0.
+const bumpSequenceForGuestListChange = async (app: Application, meetingId: number): Promise<void> => {
+	try {
+		const attendees = await loadAttendees(app, meetingId);
+
+		if (!attendees.some((a) => (a.lastNotifiedSequence ?? -1) >= 0)) return;
+
+		const knex = app.get('postgresqlClient');
+
+		await knex('meetings')
+			.where({ id: meetingId })
+			.increment('sequence', 1);
+	} catch (err) {
+		logger.warn('[invites/dispatcher] sequence bump on guest-list change failed:', err);
+	}
+};
+
 // Runs after the debounce window. Loads current state, filters by lastNotifiedSequence,
 // and sends one REQUEST per attendee whose notified-sequence is behind the meeting's
 // current sequence. Existing attendees skip when they're already up to date.
@@ -107,13 +128,21 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 
 // Schedules a dispatch for a meeting. If one is already scheduled, resets the timer
 // so rapid bursts of events collapse into a single dispatch.
-const scheduleDispatch = (app: Application, meetingId: number): void => {
+const scheduleDispatch = (app: Application, meetingId: number, bumpSequence = false): void => {
+	if (bumpSequence) pendingSequenceBumps.add(meetingId);
+
 	const existing = pendingDispatches.get(meetingId);
 
 	if (existing) clearTimeout(existing);
 	const timer = setTimeout(() => {
 		pendingDispatches.delete(meetingId);
-		runDispatch(app, meetingId).catch((err) => {
+
+		const bump = pendingSequenceBumps.delete(meetingId);
+
+		(async () => {
+			if (bump) await bumpSequenceForGuestListChange(app, meetingId);
+			await runDispatch(app, meetingId);
+		})().catch((err) => {
 			logger.error('[invites/dispatcher] scheduled dispatch failed:', err);
 		});
 	}, DISPATCH_DEBOUNCE_MS);
@@ -171,22 +200,10 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 		scheduleDispatch(app, Number(meeting.id));
 	});
 
-	app.service('meetingAttendees').on('created', async (attendee: MeetingAttendee) => {
-		const meetingId = Number(attendee.meetingId);
-
-		try {
-			// Bump meeting.sequence so existing attendees qualify for re-dispatch with
-			// updated guest list (industry-standard iTIP). Direct knex avoids triggering
-			// the meetings.patched event loop.
-			const knex = app.get('postgresqlClient');
-
-			await knex('meetings')
-				.where({ id: meetingId })
-				.increment('sequence', 1);
-		} catch (err) {
-			logger.warn('[invites/dispatcher] sequence bump on attendee add failed:', err);
-		}
-		scheduleDispatch(app, meetingId);
+	app.service('meetingAttendees').on('created', (attendee: MeetingAttendee) => {
+		// Bumping is deferred to the debounced dispatch so a multi-attendee save advances
+		// the sequence once. Direct knex there avoids the meetings.patched event loop.
+		scheduleDispatch(app, Number(attendee.meetingId), true);
 	});
 
 	app.service('meetingAttendees').on('removed', async (attendee: MeetingAttendee) => {
@@ -219,12 +236,7 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			}
 
 			// Bump sequence + schedule dispatch so remaining attendees see the updated guest list.
-			const knex = app.get('postgresqlClient');
-
-			await knex('meetings')
-				.where({ id: meetingId })
-				.increment('sequence', 1);
-			scheduleDispatch(app, meetingId);
+			scheduleDispatch(app, meetingId, true);
 		} catch (err) {
 			// meeting may already be deleted (cascade) — ignore silently
 			logger.debug('[invites/dispatcher] meetingAttendees.removed handler skipped:', err);

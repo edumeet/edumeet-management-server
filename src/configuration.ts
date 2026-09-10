@@ -10,6 +10,7 @@ export const inviteConfigSchema = Type.Object({
 	encryptionKey: Type.Optional(Type.String()),
 	rsvpTokenSecret: Type.Optional(Type.String()),
 	imapPollIntervalMs: Type.Optional(Type.Number()),
+	imapPollBootDelayMs: Type.Optional(Type.Number()),
 	imapRetentionDays: Type.Optional(Type.Number())
 });
 

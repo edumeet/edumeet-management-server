@@ -1,6 +1,6 @@
 import type { Application } from '../declarations';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
-import { invalidateSender } from './sender';
+import { reconcileSenders, closeAllSenders } from './sender';
 import { reconcilePollers, stopAllPollers } from './replyPoller';
 import { registerMeetingEventHandlers } from './dispatcher';
 
@@ -16,11 +16,14 @@ const loadConfigs = async (app: Application): Promise<TenantInviteConfig[]> => {
 	return list as TenantInviteConfig[];
 };
 
-// Pollers are deduped per mailbox, so any config change requires the full picture to know
-// whether a shared mailbox still has other tenants keeping it alive. Re-fetch all configs
-// and reconcile. (The SMTP sender cache is still invalidated per tenant — independent of IMAP.)
-const refreshPollers = async (app: Application): Promise<void> => {
-	reconcilePollers(app, await loadConfigs(app));
+// Senders and pollers are both deduped per mailbox, so any config change requires the full
+// picture to know whether a shared mailbox still has other tenants keeping it alive.
+// Re-fetch all configs and reconcile both sides from the same snapshot.
+const refreshWorkers = async (app: Application): Promise<void> => {
+	const configs = await loadConfigs(app);
+
+	reconcileSenders(app, configs);
+	reconcilePollers(app, configs);
 };
 
 export const startInviteWorkers = async (app: Application): Promise<void> => {
@@ -35,23 +38,22 @@ export const startInviteWorkers = async (app: Application): Promise<void> => {
 	registerMeetingEventHandlers(app);
 
 	// boot pollers (one per unique mailbox across all tenant configs)
-	await refreshPollers(app);
+	await refreshWorkers(app);
 
-	// react to config changes — invalidate that tenant's sender, then reconcile mailbox pollers
-	app.service('tenantInviteConfigs').on('created', (cfg: TenantInviteConfig) => {
-		invalidateSender(cfg.tenantId);
-		refreshPollers(app);
-	});
-	app.service('tenantInviteConfigs').on('patched', (cfg: TenantInviteConfig) => {
-		invalidateSender(cfg.tenantId);
-		refreshPollers(app);
-	});
-	app.service('tenantInviteConfigs').on('removed', (cfg: TenantInviteConfig) => {
-		invalidateSender(cfg.tenantId);
-		refreshPollers(app);
-	});
+	// react to config changes by reconciling both mailbox caches. These fire outside any
+	// request, so a rejection here would surface as an unhandled rejection.
+	const onConfigChange = (): void => {
+		refreshWorkers(app).catch((err) => {
+			logger.error('[invites/registry] worker reconcile failed:', err);
+		});
+	};
+
+	app.service('tenantInviteConfigs').on('created', onConfigChange);
+	app.service('tenantInviteConfigs').on('patched', onConfigChange);
+	app.service('tenantInviteConfigs').on('removed', onConfigChange);
 };
 
 export const stopInviteWorkers = (): void => {
 	stopAllPollers();
+	closeAllSenders();
 };

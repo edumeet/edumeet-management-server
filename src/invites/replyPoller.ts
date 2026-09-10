@@ -8,6 +8,9 @@ import { decrypt } from './crypto';
 import { logger } from '../logger';
 
 const DEFAULT_POLL_MS = 60000;
+// Small settle before the first cycle so boot is not competing with migrations.
+
+export const POLLER_BOOT_DELAY_MS = 5000;
 
 // Pollers are keyed by MAILBOX identity (host:port:user), NOT by tenant. Multiple tenants
 // commonly share one invite mailbox (e.g. invitation@edumeet.eu); running one poller per
@@ -34,7 +37,61 @@ const normalizePartstat = (raw: string | undefined): IcsPartstat => {
 	return 'NEEDS-ACTION';
 };
 
-const processReplyIcs = async (app: Application, icsSource: string): Promise<boolean> => {
+// Calendar parts arrive encoded. base64 is obvious, but quoted-printable is the trap: the
+// raw source still contains a readable-looking BEGIN:VCALENDAR, so matching it directly
+// yields an ICS where every "=" is "=3D" and long lines carry soft breaks. PARTSTAT=3DACCEPTED
+// then normalizes to NEEDS-ACTION, silently losing the RSVP. Clients reach for
+// quoted-printable whenever the ICS is not 7-bit clean, which a non-ASCII CN is enough to
+// cause, so decoded candidates are tried before the raw source.
+const decodeQuotedPrintable = (input: string): string => {
+	const unfolded = input.replace(/[=]\r?\n/g, '');
+	const bytes: number[] = [];
+
+	for (let i = 0; i < unfolded.length; i++) {
+		const hex = unfolded.substr(i + 1, 2);
+
+		if (unfolded[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+			bytes.push(parseInt(hex, 16));
+			i += 2;
+		} else {
+			for (const b of Buffer.from(unfolded[i], 'utf8')) bytes.push(b);
+		}
+	}
+
+	return Buffer.from(bytes).toString('utf8');
+};
+
+const BASE64_PART = /Content-Transfer-Encoding:\s*base64[\s\S]*?\r?\n\r?\n([A-Za-z0-9+/=\s]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi;
+const QP_PART = /Content-Transfer-Encoding:\s*quoted-printable[\s\S]*?\r?\n\r?\n([\s\S]+?)(?=\r?\n--|$)/gi;
+const VCALENDAR = /BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/;
+
+export const extractIcs = (source: string): string | null => {
+	const candidates: string[] = [];
+
+	for (const part of source.matchAll(BASE64_PART)) {
+		try {
+			candidates.push(Buffer.from(part[1].replace(/\s/g, ''), 'base64').toString('utf8'));
+		} catch { /* noop */ }
+	}
+
+	for (const part of source.matchAll(QP_PART)) {
+		try {
+			candidates.push(decodeQuotedPrintable(part[1]));
+		} catch { /* noop */ }
+	}
+
+	candidates.push(source);
+
+	for (const candidate of candidates) {
+		const match = candidate.match(VCALENDAR);
+
+		if (match) return match[0];
+	}
+
+	return null;
+};
+
+export const processReplyIcs = async (app: Application, icsSource: string): Promise<boolean> => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let parsed: any;
 
@@ -76,11 +133,19 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 		// RFC 5546 §2.1.5: higher SEQUENCE wins; DTSTAMP is the tiebreaker for equal SEQUENCE.
 		// This guards against out-of-order delivery (MTA queuing, retries) where e.g. an
 		// ACCEPT email arrives after the user's corrective DECLINE sent 10s later.
-		const evDtstampMs = ev.dtstamp ? new Date(ev.dtstamp).getTime() : 0;
+		// NaN from an unparseable date would pass the != null checks below and reach the DB,
+		// where the insert throws and, before per-message isolation, stalled the whole mailbox.
+		const asEpoch = (value: unknown): number | null => {
+			if (!value) return null;
+			const ms = new Date(value as string).getTime();
+
+			return Number.isFinite(ms) ? ms : null;
+		};
+		const evDtstampMs = asEpoch(ev.dtstamp) ?? 0;
 		const evSequence = Number(ev.sequence ?? 0) || 0;
 		// RECURRENCE-ID (epoch ms) = per-occurrence exception to a recurring series.
-		// Absent = series-level response.
-		const recurrenceId = ev.recurrenceid ? new Date(ev.recurrenceid).getTime() : null;
+		// Absent, or unparseable, = series-level response.
+		const recurrenceId = asEpoch(ev.recurrenceid);
 
 		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs} recurrenceId=${recurrenceId ?? 'none'}`);
 
@@ -196,7 +261,7 @@ const processReplyIcs = async (app: Application, icsSource: string): Promise<boo
 	return true;
 };
 
-const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Promise<void> => {
+export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Promise<void> => {
 	if (!tenantConfig.imapHost) return;
 	const invites = app.get('invites');
 
@@ -250,36 +315,24 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
 				unseenCount++;
 				if (!msg.source) continue;
-				const source = msg.source.toString('utf8');
-				// The ICS may be base64-encoded inside an attachment part; decode any base64
-				// chunks in the source before searching, in addition to the inline text.
-				const sources: string[] = [ source ];
 
-				for (const b64Match of source.matchAll(/Content-Transfer-Encoding:\s*base64[\s\S]*?\r?\n\r?\n([A-Za-z0-9+/=\s]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi)) {
-					try {
-						const decoded = Buffer.from(b64Match[1].replace(/\s/g, ''), 'base64').toString('utf8');
+				const ics = extractIcs(msg.source.toString('utf8'));
 
-						if (decoded.includes('BEGIN:VCALENDAR')) sources.push(decoded);
-					} catch { /* noop */ }
-				}
-
-				let icsMatch: RegExpMatchArray | null = null;
-
-				for (const s of sources) {
-					icsMatch = s.match(/BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/);
-					if (icsMatch) break;
-				}
-
-				if (!icsMatch) {
+				if (!ics) {
 					logger.debug(`[invites/replyPoller] msg uid=${msg.uid} has no VCALENDAR block`);
 					continue;
 				}
 
 				icsFoundCount++;
-				const ok = await processReplyIcs(app, icsMatch[0]);
 
-				if (ok) {
-					uidsToMarkSeen.push(msg.uid);
+				// One bad message must not take the batch down with it. Before this, a throw here
+				// escaped the fetch loop and uidsToMarkSeen was discarded, so every message in the
+				// batch was re-fetched next cycle and a permanently unprocessable one stalled the
+				// mailbox for good. Unmarked on failure, so a transient error still retries.
+				try {
+					if (await processReplyIcs(app, ics)) uidsToMarkSeen.push(msg.uid);
+				} catch (err) {
+					logger.error(`[invites/replyPoller] msg uid=${msg.uid} failed to process, left unread:`, err);
 				}
 			}
 
@@ -301,7 +354,8 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 			// Retention cleanup: purge SEEN messages older than the retention window so the
 			// dedicated invite mailbox doesn't grow unbounded. Only touches messages we've
 			// already flagged as processed — unprocessed mail (welcome emails, junk) is left alone.
-			//   retentionDays === 0 → delete immediately after processing (cutoff = now)
+			//   retentionDays === 0 → delete on the next cycle of the following day (IMAP
+			//                            SEARCH BEFORE compares dates, not instants)
 			//   retentionDays > 0   → delete messages older than N days
 			//   retentionDays < 0   → cleanup fully disabled (e.g. -1)
 			//   omitted / non-numeric → default 30
@@ -335,16 +389,26 @@ const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Pro
 };
 
 const startPoller = (app: Application, key: string, cfg: TenantInviteConfig): void => {
-	const intervalMs = app.get('invites')?.imapPollIntervalMs ?? DEFAULT_POLL_MS;
+	const invites = app.get('invites');
+	const intervalMs = invites?.imapPollIntervalMs ?? DEFAULT_POLL_MS;
+	const bootDelayMs = invites?.imapPollBootDelayMs ?? POLLER_BOOT_DELAY_MS;
 	const state = { timer: undefined as unknown as NodeJS.Timeout, stopped: false };
 
+	// Rescheduling lives in the finally: a rejection escaping here would otherwise both
+	// surface as an unhandled rejection and end the poller for good, so RSVP processing would
+	// stop until the next restart with nothing but a missing log line to show for it.
 	const tick = async () => {
 		if (state.stopped) return;
-		await pollOnce(app, cfg);
-		if (!state.stopped) state.timer = setTimeout(tick, intervalMs);
+		try {
+			await pollOnce(app, cfg);
+		} catch (err) {
+			logger.error(`[invites/replyPoller] mailbox ${mailboxLabel(cfg)} poll cycle threw:`, err);
+		} finally {
+			if (!state.stopped) state.timer = setTimeout(tick, intervalMs);
+		}
 	};
 
-	state.timer = setTimeout(tick, 5000); // small delay on boot
+	state.timer = setTimeout(tick, bootDelayMs);
 	pollers.set(key, state);
 };
 
@@ -364,10 +428,10 @@ const stopPoller = (key: string): void => {
 // down and rebuild for the desired mailbox set — config changes are infrequent (admin
 // action), so the brief reconnect is irrelevant, and a full rebuild guarantees current
 // credentials (we can't reliably diff AES-GCM-encrypted passwords, which re-encrypt each save).
-export const reconcilePollers = (app: Application, configs: TenantInviteConfig[]): void => {
-	stopAllPollers();
-
-	// One representative config per unique mailbox (first enabled config with full IMAP creds wins).
+// One representative config per unique mailbox: first enabled config with full IMAP creds
+// wins. Reading one shared mailbox needs one credential, unlike sending, where each tenant
+// must authenticate as itself.
+export const desiredMailboxes = (configs: TenantInviteConfig[]): Map<string, TenantInviteConfig> => {
 	const desired = new Map<string, TenantInviteConfig>();
 
 	for (const cfg of configs) {
@@ -377,7 +441,13 @@ export const reconcilePollers = (app: Application, configs: TenantInviteConfig[]
 		if (!desired.has(key)) desired.set(key, cfg);
 	}
 
-	for (const [ key, cfg ] of desired) {
+	return desired;
+};
+
+export const reconcilePollers = (app: Application, configs: TenantInviteConfig[]): void => {
+	stopAllPollers();
+
+	for (const [ key, cfg ] of desiredMailboxes(configs)) {
 		startPoller(app, key, cfg);
 	}
 };
