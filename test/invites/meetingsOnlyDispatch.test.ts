@@ -51,7 +51,7 @@ const harness = (meetingsOnly: boolean | number, notified: boolean): Harness => 
 	const knex = () => ({
 		where: () => ({
 			increment: async () => { state.sequence++; },
-			select: async () => [ { id: 1 } ],
+			select: async () => [ { id: 1, startsAt: Date.UTC(2099, 8, 10, 10, 0, 0), endsAt: Date.UTC(2099, 8, 10, 11, 0, 0), rrule: null, timezone: 'UTC' } ],
 			first: async () => ({ meetingsOnly: room.meetingsOnly })
 		})
 	});

@@ -11,6 +11,7 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 interface MeetingRow {
 	id: number;
 	notified: boolean;
+	ended?: boolean;
 }
 
 interface Harness {
@@ -42,7 +43,13 @@ const harness = (stored: boolean | number, meetings: MeetingRow[]): Harness => {
 					select: async () => {
 						state.meetingLookups++;
 
-						return meetings.map((m) => ({ id: m.id }));
+						return meetings.map((m) => ({
+							id: m.id,
+							startsAt: m.ended ? Date.now() - 7_200_000 : Date.now() + 3_600_000,
+							endsAt: m.ended ? Date.now() - 3_600_000 : Date.now() + 7_200_000,
+							rrule: null,
+							timezone: 'UTC'
+						}));
 					},
 					increment: async () => {
 						state.increments.push(arg.id as number);
@@ -125,6 +132,17 @@ describe('meetingsOnly change on a room re-sends its invites', () => {
 		await wait(DEBOUNCE_WAIT_MS);
 
 		assert.deepStrictEqual([ ...h.increments ].sort(), [ 1, 2 ], 'a meeting nobody was told about yet goes out at SEQUENCE:0 with the new link');
+	}).timeout(10000);
+
+	it('leaves meetings that are already over alone, so a flip does not mail the whole history', async () => {
+		const h = harness(false, [ { id: 1, notified: true, ended: true }, { id: 2, notified: true } ]);
+		const ctx = h.context({ data: { meetingsOnly: true } });
+
+		await rememberMeetingsOnly(ctx);
+		await resendInvitesOnMeetingsOnlyChange({ ...ctx, result: { meetingsOnly: true } } as HookContext);
+		await wait(DEBOUNCE_WAIT_MS);
+
+		assert.deepStrictEqual(h.increments, [ 2 ]);
 	}).timeout(10000);
 
 	it('re-sends when the flag flips off as well, so attendees get the bare link', async () => {

@@ -3,6 +3,7 @@ import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import { sendInviteEmail } from './sender';
+import { isMeetingOver, MeetingWindow } from './meetingWindow';
 import { logger } from '../logger';
 
 // How long to wait for additional events on the same meeting before dispatching.
@@ -160,10 +161,13 @@ const scheduleDispatch = (app: Application, meetingId: number, bumpSequence = fa
 
 export const rescheduleRoomMeetings = async (app: Application, roomId: number | string): Promise<void> => {
 	const knex = app.get('postgresqlClient');
-	const rows: Array<{ id: number | string }> = await knex('meetings').where({ roomId })
-		.select('id');
+	const rows: Array<MeetingWindow & { id: number | string }> = await knex('meetings').where({ roomId })
+		.select('id', 'startsAt', 'endsAt', 'rrule', 'timezone');
+	const now = Date.now();
 
-	for (const row of rows) scheduleDispatch(app, Number(row.id), true);
+	for (const row of rows) {
+		if (!isMeetingOver(row, now)) scheduleDispatch(app, Number(row.id), true);
+	}
 };
 
 // before-hook on meetings.remove: capture attendees and send CANCEL before the DB row is gone.
