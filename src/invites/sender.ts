@@ -111,7 +111,13 @@ export const closeAllSenders = (): void => {
 	for (const key of [ ...senderCache.keys() ]) closeSender(key);
 };
 
-const lookupRoomUrl = async (app: Application, tenantId: number, roomName: string): Promise<string> => {
+export const buildRoomUrl = (host: string, roomName: string, meetingToken?: string): string => {
+	const base = `https://${host}/${roomName}`;
+
+	return meetingToken ? `${base}?meetingToken=${encodeURIComponent(meetingToken)}` : base;
+};
+
+const lookupRoomUrl = async (app: Application, tenantId: number, roomName: string, meetingToken?: string): Promise<string> => {
 	// Ordered, so a tenant with several FQDNs gets the same join URL on every revision of a
 	// meeting; an unordered pick could make LOCATION change between the REQUEST and an update.
 	const fqdns = await app.service('tenantFQDNs').find({
@@ -123,7 +129,7 @@ const lookupRoomUrl = async (app: Application, tenantId: number, roomName: strin
 
 	const host = primary?.fqdn ?? 'meet.example.com';
 
-	return `https://${host}/${roomName}`;
+	return buildRoomUrl(host, roomName, meetingToken);
 };
 
 export interface SendOptions {
@@ -133,16 +139,17 @@ export interface SendOptions {
 	allAttendees: MeetingAttendee[]; // full guest list included in ICS ATTENDEE lines
 	tenantConfig: TenantInviteConfig;
 	roomName: string;
+	meetingsOnly?: boolean;
 	organizerUserName?: string;
 	tenantName?: string;
 }
 
 export const sendInviteEmail = async (app: Application, opts: SendOptions): Promise<void> => {
-	const { method, meeting, attendee, allAttendees, tenantConfig, roomName, organizerUserName, tenantName } = opts;
+	const { method, meeting, attendee, allAttendees, tenantConfig, roomName, meetingsOnly, organizerUserName, tenantName } = opts;
 
 	try {
 		const transporter = getTransporter(app, tenantConfig);
-		const roomUrl = await lookupRoomUrl(app, tenantConfig.tenantId, roomName);
+		const roomUrl = await lookupRoomUrl(app, tenantConfig.tenantId, roomName, meetingsOnly ? meeting.meetingToken : undefined);
 		const template = getTemplate(meeting.locale || 'en');
 		// Postgres bigint columns come back as strings from knex — coerce before Date()
 		// or `new Date()` misinterprets the numeric string as an ISO date → Invalid Date.
