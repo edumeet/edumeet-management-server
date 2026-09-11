@@ -44,6 +44,7 @@ export const roomSchema = Type.Object(
 		raiseHandEnabled: Type.Boolean(),
 		filesharingEnabled: Type.Boolean(),
 		localRecordingEnabled: Type.Boolean(),
+		meetingsOnly: Type.Boolean(),
 		endToEndEncryption: Type.Optional(Type.Boolean()), // nullable: unset -> tenant default / server config
 
 		// Video settings
@@ -170,6 +171,7 @@ export const roomDataResolver = resolve<Room, HookContext>({
 	reactionsEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
 	localRecordingEnabled: async (value = true) => value,
+	meetingsOnly: async (value = false) => value,
 });
 
 // Schema for creating new entries as SUPERADMIN
@@ -209,7 +211,8 @@ export const roomDataSuperAdminResolver = resolve<Room, HookContext>({
 	raiseHandEnabled: async (value = true) => value,
 	reactionsEnabled: async (value = true) => value,
 	filesharingEnabled: async (value = true) => value,
-	localRecordingEnabled: async (value = true) => value
+	localRecordingEnabled: async (value = true) => value,
+	meetingsOnly: async (value = false) => value
 });
 
 // Schema for updating existing entries

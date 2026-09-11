@@ -5,6 +5,7 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { generateMeetingToken } from './meetingToken';
 
 export const MeetingStatus = StringEnum([ 'CONFIRMED', 'CANCELLED' ]);
 
@@ -21,6 +22,7 @@ export const meetingSchema = Type.Object(
 		timezone: Type.String(),
 		locale: Type.String(),
 		uid: Type.String(),
+		meetingToken: Type.String(),
 		sequence: Type.Number(),
 		status: MeetingStatus,
 		rrule: Type.Optional(Type.String()),
@@ -69,7 +71,7 @@ const buildMeetingUid = (): string => randomUUID();
 
 export const meetingDataSchema = Type.Omit(
 	meetingSchema,
-	[ 'id', 'tenantId', 'organizerId', 'uid', 'sequence', 'status', 'createdAt', 'updatedAt', 'room', 'attendees' ],
+	[ 'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'sequence', 'status', 'createdAt', 'updatedAt', 'room', 'attendees' ],
 	{ $id: 'MeetingData', additionalProperties: false }
 );
 export type MeetingData = Static<typeof meetingDataSchema>
@@ -83,6 +85,7 @@ export const meetingDataResolver = resolve<Meeting, HookContext>({
 	},
 	organizerId: async (_value, _data, context) => context.params.user?.id,
 	uid: async () => buildMeetingUid(),
+	meetingToken: async () => generateMeetingToken(),
 	sequence: async () => 0,
 	status: async () => 'CONFIRMED' as const,
 	locale: async (value) => value ?? 'en',
@@ -92,7 +95,7 @@ export const meetingDataResolver = resolve<Meeting, HookContext>({
 
 export const meetingPatchSchema = Type.Partial(
 	Type.Omit(meetingSchema, [
-		'id', 'tenantId', 'organizerId', 'uid', 'createdAt', 'room', 'attendees'
+		'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'createdAt', 'room', 'attendees'
 	]),
 	{ $id: 'MeetingPatch' }
 );
@@ -102,7 +105,7 @@ export const meetingPatchResolver = resolve<Meeting, HookContext>({
 	updatedAt: async () => Date.now()
 });
 
-export const meetingQueryProperties = Type.Pick(meetingSchema, [ 'id', 'tenantId', 'roomId', 'organizerId', 'status', 'uid' ]);
+export const meetingQueryProperties = Type.Pick(meetingSchema, [ 'id', 'tenantId', 'roomId', 'organizerId', 'status', 'uid', 'meetingToken' ]);
 export const meetingQuerySchema = Type.Intersect(
 	[
 		querySyntax(meetingQueryProperties),

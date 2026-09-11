@@ -18,6 +18,7 @@ import { MeetingService, getOptions } from './meetings.class';
 import { meetingPath, meetingMethods } from './meetings.shared';
 import { isRoomOwnerOrAdminForMeeting } from '../../hooks/isRoomOwnerOrAdminForMeeting';
 import { beforeMeetingRemoveDispatch } from '../../invites/dispatcher';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { logger } from '../../logger';
 
 export * from './meetings.class';
@@ -49,8 +50,8 @@ const computeVisibleMeetingIds = async (context: HookContext, userId: number): P
 };
 
 // restricts find to meetings a non-admin user is involved in: organizer, attendee, or room owner
-const scopeFindVisibility = async (context: HookContext): Promise<void> => {
-	if (!context.params.provider) return;
+export const scopeFindVisibility = async (context: HookContext): Promise<void> => {
+	if (!notSuperAdmin()(context)) return;
 	const user = context.params.user;
 
 	if (!user) return;
@@ -122,8 +123,8 @@ const addOrganizerAsAttendee = async (context: HookContext): Promise<void> => {
 };
 
 // restricts get — validates context.id is in the visible set for non-admins
-const scopeGetVisibility = async (context: HookContext): Promise<void> => {
-	if (!context.params.provider) return;
+export const scopeGetVisibility = async (context: HookContext): Promise<void> => {
+	if (!notSuperAdmin()(context)) return;
 	const user = context.params.user;
 
 	if (!user) return;

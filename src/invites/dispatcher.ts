@@ -35,11 +35,18 @@ const loadAttendees = async (app: Application, meetingId: number): Promise<Meeti
 	return list as MeetingAttendee[];
 };
 
-const loadRoomName = async (app: Application, roomId: number): Promise<string | undefined> => {
-	try {
-		const room = await app.service('rooms').get(roomId);
+interface InviteRoom {
+	name: string;
+	meetingsOnly: boolean;
+}
 
-		return (room as { name?: string }).name;
+const loadRoom = async (app: Application, roomId: number): Promise<InviteRoom | undefined> => {
+	try {
+		const room = await app.service('rooms').get(roomId) as { name?: string, meetingsOnly?: unknown };
+
+		if (!room.name) return undefined;
+
+		return { name: room.name, meetingsOnly: Boolean(room.meetingsOnly) };
 	} catch {
 		return undefined;
 	}
@@ -95,9 +102,9 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 		const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
 
 		if (!tenantConfig) return;
-		const roomName = await loadRoomName(app, meeting.roomId);
+		const room = await loadRoom(app, meeting.roomId);
 
-		if (!roomName) return;
+		if (!room) return;
 		const attendees = await loadAttendees(app, meetingId);
 		const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
 		const tenantName = await loadTenantName(app, meeting.tenantId);
@@ -117,7 +124,8 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 			attendee: a,
 			allAttendees: attendees,
 			tenantConfig,
-			roomName,
+			roomName: room.name,
+			meetingsOnly: room.meetingsOnly,
 			organizerUserName,
 			tenantName
 		})));
@@ -150,6 +158,14 @@ const scheduleDispatch = (app: Application, meetingId: number, bumpSequence = fa
 	pendingDispatches.set(meetingId, timer);
 };
 
+export const rescheduleRoomMeetings = async (app: Application, roomId: number | string): Promise<void> => {
+	const knex = app.get('postgresqlClient');
+	const rows: Array<{ id: number | string }> = await knex('meetings').where({ roomId })
+		.select('id');
+
+	for (const row of rows) scheduleDispatch(app, Number(row.id), true);
+};
+
 // before-hook on meetings.remove: capture attendees and send CANCEL before the DB row is gone.
 // Runs synchronously (not debounced) because the cascade-delete is about to wipe attendees.
 export const beforeMeetingRemoveDispatch = async (context: HookContext): Promise<void> => {
@@ -159,9 +175,9 @@ export const beforeMeetingRemoveDispatch = async (context: HookContext): Promise
 		const tenantConfig = await loadTenantConfig(context.app, meeting.tenantId);
 
 		if (!tenantConfig) return;
-		const roomName = await loadRoomName(context.app, meeting.roomId);
+		const room = await loadRoom(context.app, meeting.roomId);
 
-		if (!roomName) return;
+		if (!room) return;
 		const attendees = await loadAttendees(context.app, meeting.id as number);
 		const organizerUserName = await loadOrganizerUserName(context.app, meeting.organizerId);
 		const tenantName = await loadTenantName(context.app, meeting.tenantId);
@@ -176,7 +192,8 @@ export const beforeMeetingRemoveDispatch = async (context: HookContext): Promise
 				attendee: a,
 				allAttendees: attendees,
 				tenantConfig,
-				roomName,
+				roomName: room.name,
+				meetingsOnly: room.meetingsOnly,
 				organizerUserName,
 				tenantName
 			}))
@@ -216,9 +233,9 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 			const tenantConfig = await loadTenantConfig(app, meeting.tenantId);
 
 			if (tenantConfig) {
-				const roomName = await loadRoomName(app, meeting.roomId);
+				const room = await loadRoom(app, meeting.roomId);
 
-				if (roomName) {
+				if (room) {
 					const organizerUserName = await loadOrganizerUserName(app, meeting.organizerId);
 					const tenantName = await loadTenantName(app, meeting.tenantId);
 
@@ -228,7 +245,8 @@ export const registerMeetingEventHandlers = (app: Application): void => {
 						attendee,
 						allAttendees: [ attendee ],
 						tenantConfig,
-						roomName,
+						roomName: room.name,
+						meetingsOnly: room.meetingsOnly,
 						organizerUserName,
 						tenantName
 					});

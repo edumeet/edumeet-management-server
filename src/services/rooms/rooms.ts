@@ -29,6 +29,7 @@ import { tenantRoomLimit } from '../../hooks/tenantUserRoomLimit';
 import { notTenantManager } from '../../hooks/notTenantManager';
 import { tenantManagerManagedRoomNumberLimit } from '../../hooks/managerManagedRoomNumberLimit';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { rememberMeetingsOnly, resendInvitesOnMeetingsOnlyChange } from '../../hooks/meetingsOnlyChange';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -79,7 +80,8 @@ export const room = (app: Application) => {
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomPatchValidator),
-				schemaHooks.resolveData(roomPatchResolver)
+				schemaHooks.resolveData(roomPatchResolver),
+				rememberMeetingsOnly
 			],
 			remove: [ 
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
@@ -90,6 +92,7 @@ export const room = (app: Application) => {
 			all: [],
 			get: [],
 			create: [ addRoomOwner ],
+			patch: [ resendInvitesOnMeetingsOnlyChange ]
 		},
 		error: {
 			all: []
