@@ -9,6 +9,8 @@ import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
 import { OAuthService } from '@feathersjs/authentication-oauth/lib/service';
 import { dynamicOAuth } from './hooks/dynamicOAuth';
 import { loginThrottleBefore, loginThrottleError } from './hooks/loginThrottle';
+import { refreshAccessCheck } from './hooks/refreshAccessCheck';
+import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -20,7 +22,7 @@ declare module './declarations' {
 }
 
 export const authentication = (app: Application) => {
-	const authenticationService = new AuthenticationService(app, 'authentication');
+	const authenticationService = new EdumeetAuthenticationService(app, 'authentication');
 
 	authenticationService.register('jwt', new JWTStrategy());
 	authenticationService.register('local', new LocalStrategy());
@@ -42,14 +44,14 @@ export const authentication = (app: Application) => {
 			before: { find: [ dynamicOAuth ] },
 		});
 
-	// Issues a fresh JWT for an already-authenticated user.
-	// The caller must present a valid (non-expired) JWT; the response contains a new token
-	// with a reset expiry window, keeping active users logged in indefinitely.
+	// Issues a fresh JWT for an already-authenticated user. refreshAccessCheck runs first,
+	// so the new token keeps the original auth_time and the session ends at its maximum age.
 	app.use('token-refresh', {
 		async create(_data: unknown, _params?: Params): Promise<{ accessToken: string }> {
 			const jwtOptions = app.get('authentication')?.jwtOptions ?? {};
 			const accessToken = await authenticationService.createAccessToken(
-				{ sub: String(_params?.user?.id) },
+				// eslint-disable-next-line camelcase
+				{ sub: String(_params?.user?.id), auth_time: _params?.authentication?.payload?.auth_time },
 				jwtOptions
 			);
 
@@ -60,6 +62,9 @@ export const authentication = (app: Application) => {
 	app.service('token-refresh').hooks({
 		around: {
 			create: [ authenticate('jwt') ]
+		},
+		before: {
+			create: [ refreshAccessCheck ]
 		}
 	});
 };

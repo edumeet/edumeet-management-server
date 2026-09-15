@@ -5,6 +5,8 @@ import { Forbidden } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
 import { isAccessPermitted } from '../../hooks/accessDecision';
+import { resolveAllowedOrigin } from '../allowedOrigin';
+import { issueCallbackCode } from '../callbackCodes';
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// Capture the OIDC id_token from the raw grant response so it can be
@@ -101,15 +103,27 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 	}
 
 	async getRedirect(
-		data: AuthenticationResult | Error
+		data: AuthenticationResult | Error,
+		params?: Params
 	): Promise<string | null> {
 		const redirectUrl = '/auth/callback?';
 		const authResult: AuthenticationResult = data;
-		const query = authResult.accessToken
-			// eslint-disable-next-line camelcase
-			? { access_token: authResult.accessToken, ...(authResult.idToken && { id_token: authResult.idToken }) }
-			: { error: data.message || 'OAuth Authentication not successful' };
 
-		return `${redirectUrl}${qs.stringify(query)}`;
+		if (!authResult.accessToken) {
+			return `${redirectUrl}${qs.stringify({ error: data.message || 'OAuth Authentication not successful' })}`;
+		}
+
+		try {
+			const origin = await resolveAllowedOrigin(
+				this.app as Application,
+				parseInt(params?.query?.tenantId),
+				params?.query?.origin
+			);
+			const code = issueCallbackCode({ accessToken: authResult.accessToken, idToken: authResult.idToken, origin });
+
+			return `${redirectUrl}${qs.stringify({ code })}`;
+		} catch (error) {
+			return `${redirectUrl}${qs.stringify({ error: (error as Error).message })}`;
+		}
 	}
 }

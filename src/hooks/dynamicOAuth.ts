@@ -1,6 +1,9 @@
 /* eslint-disable camelcase */
 import { oauth } from '@feathersjs/authentication-oauth';
+import { OAuthError } from '@feathersjs/authentication-oauth/lib/service';
+import qs from 'qs';
 import { HookContext, NextFunction } from '../declarations';
+import { resolveAllowedOrigin } from '../auth/allowedOrigin';
 
 export const dynamicOAuth = async (context: HookContext) => {
 	if (context.params.headers['user-agent']) {
@@ -79,7 +82,20 @@ export const dynamicOAuth = async (context: HookContext) => {
 		}
 
 	} else {
-		// tenant found no problem
+		try {
+			context.params.query.origin = await resolveAllowedOrigin(
+				context.app,
+				parseInt(tenantId),
+				context.params.query.origin
+			);
+		} catch (error) {
+			throw new OAuthError(
+				(error as Error).message,
+				undefined,
+				`/auth/callback?${qs.stringify({ error: (error as Error).message })}`
+			);
+		}
+
 		context.params.route.provider = tenantId;
 	}
 

@@ -20,6 +20,7 @@ export const configurationSchema = Type.Intersect([
 		host: Type.String(),
 		port: Type.Number(),
 		public: Type.String(),
+		authSessionMaxDays: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
 		invites: Type.Optional(inviteConfigSchema)
 	})
 ]);
