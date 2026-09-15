@@ -319,6 +319,7 @@ Everyone whose address starts with `staff-` becomes a tenant admin, re-checked a
 | --- | --- | --- |
 | access | `OAuthTenantStrategy.getEntityData()` | **every SSO login**, both the first (which creates the account) and every one after it. It runs before any database write, so a refused user is never created and picks up no grants |
 | access | `before.create` on `users` | accounts an admin creates directly rather than via SSO |
+| access | `before.create` on `token-refresh` | **every token refresh** of an SSO user who belongs to a tenant, so a block reaches people who stay signed in. Checked against the user as stored, so a Block refuses the refresh and the client signs the user out of management |
 | `gainRules` | `after.all` on `users`, guarded to create and patch | **every SSO login**, which is what keeps group membership in sync |
 
 Grants are **additive only**. Nothing in the rules engine ever revokes: if a user stops matching a
@@ -398,13 +399,18 @@ naming no group.
 
 ### Known limitations
 
-- **A live session is not re-checked.** `token-refresh` reissues a token to anyone holding a valid
-  one, so a user who is blocked while signed in keeps working until they next sign in from scratch.
-- **Room access lags a block by up to the token lifetime (1 day by default).** The room server
-  verifies peer tokens offline against public keys and has no channel to learn that a user was
-  blocked, so an unexpired token still joins rooms.
+- **A block reaches a signed in user at their next token refresh, up to the token lifetime (1 day
+  by default).** Until then their current token keeps working, including for joining rooms: the room
+  server verifies peer tokens offline against public keys and has no channel to learn that a user
+  was blocked.
+- **A refresh only sees the user as stored.** Users can change their own `name`, so a rule on `name`
+  is only reliable at sign in, where the name comes from the identity provider again. Changes made at
+  the identity provider, such as a disabled account, are seen at the next real sign in.
+- **A session lasts at most `authSessionMaxDays` (30 by default) from the real sign in.** Refreshes
+  keep the original sign in time, and a refresh past the limit is refused so the user signs in again.
 - **Local password sign in is not re-checked.** Access rules only apply where a `tenantId` is
-  present, and the super admin has none, so this affects only local accounts inside a tenant.
+  present, and the super admin has none, so this affects only local accounts inside a tenant. Their
+  token refreshes skip the rules too, so a local account behaves the same at sign in and at refresh.
 - **A group grant is not validated against the rule's tenant.** The tenant boundary is enforced where
   the grant lands instead: `groupAndUserInSameTenant` refuses any `groupUsers` create whose group and
   user belong to different tenants. An external super admin is exempt; internal calls are not,

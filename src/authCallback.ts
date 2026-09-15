@@ -1,58 +1,65 @@
 import Router from '@koa/router';
 import DOMPurify from 'isomorphic-dompurify';
+import { consumeCallbackCode } from './auth/callbackCodes';
 
-export const authCallback = () => new Router().get('/auth/callback', (ctx) => {
-	// eslint-disable-next-line camelcase
-	const { access_token, id_token, error } = ctx.request.query;
+export interface AuthCallbackContext {
+	request: { query: Record<string, unknown> };
+	status: number;
+	body: unknown;
+	// eslint-disable-next-line no-unused-vars
+	set(field: string, value: string): void;
+}
 
-	// eslint-disable-next-line camelcase
-	const clean = DOMPurify.sanitize(access_token as string);
-	// eslint-disable-next-line camelcase
-	const cleanIdToken = id_token ? DOMPurify.sanitize(id_token as string) : '';
+const page = (content: string) =>
+	`<!DOCTYPE html>
+	<html>
+		<head>
+			<meta charset='utf-8'>
+			<title>edumeet</title>
+		</head>
+		<body>
+			${content}
+		</body>
+	</html>`;
+
+const scriptString = (value: string) => JSON.stringify(value).replace(/</g, '\\u003c');
+
+export const handleAuthCallback = (ctx: AuthCallbackContext): void => {
+	const { code, error } = ctx.request.query;
+
+	ctx.set('Cache-Control', 'no-store');
 
 	if (error) {
-		const message = DOMPurify.sanitize(error as string);
-
-		ctx.body =
-		`<!DOCTYPE html>
-		<html>
-			<head>
-				<meta charset='utf-8'>
-				<title>edumeet</title>
-			</head>
-			<body>
-				 ${message}!
-			</body>
-		</html>`;
-	// eslint-disable-next-line camelcase
-	} else if (!access_token) {
-		ctx.status = 400;
+		ctx.status = 200;
+		ctx.body = page(`${DOMPurify.sanitize(String(error))}!`);
 
 		return;
-	} else {
-		ctx.body =
-		`<!DOCTYPE html>
-		<html>
-			<head>
-				<meta charset='utf-8'>
-				<title>edumeet</title>
-			</head>
-			<body>
-				<script type='text/javascript'>
-					let data = ${JSON.stringify(clean)};
-					let idToken = ${JSON.stringify(cleanIdToken)};
-
-					window.opener.postMessage({
-						type: 'edumeet-login',
-						data,
-						idToken
-					}, '*');
-
-					window.close();
-				</script>
-			</body>
-		</html>`;
 	}
+
+	const entry = consumeCallbackCode(code);
+
+	if (!entry) {
+		ctx.status = 400;
+		ctx.body = page('This sign in link has expired. Close this tab and sign in again.');
+
+		return;
+	}
+
 	ctx.status = 200;
-})
+	ctx.body = page(
+		`<script type='text/javascript'>
+			if (window.opener) {
+				window.opener.postMessage({
+					type: 'edumeet-login',
+					data: ${scriptString(entry.accessToken)},
+					idToken: ${scriptString(entry.idToken ?? '')}
+				}, ${scriptString(entry.origin)});
+			}
+
+			window.close();
+		</script>`
+	);
+};
+
+export const authCallback = () => new Router().get('/auth/callback', (ctx) => handleAuthCallback(ctx))
 	.routes();
