@@ -3,6 +3,8 @@ import { tenantOwner } from './tenantOwners/tenantOwners';
 import { tenantOAuth } from './tenantOAuths/tenantOAuths';
 import { tenantInviteConfig } from './tenantInviteConfigs/tenantInviteConfigs';
 import { tenantFqdn } from './tenantFQDNs/tenantFQDNs';
+import { tenantBotCredential } from './tenantBotCredentials/tenantBotCredentials';
+import { botVerify } from './botVerify/botVerify';
 import { tenantAdmin } from './tenantAdmins/tenantAdmins';
 import { meeting } from './meetings/meetings';
 import { meetingAttendee } from './meetingAttendees/meetingAttendees';
@@ -31,6 +33,8 @@ export const services = (app: Application) => {
 	app.configure(tenantOAuth);
 	app.configure(tenantInviteConfig);
 	app.configure(tenantFqdn);
+	app.configure(tenantBotCredential);
+	app.configure(botVerify);
 	app.configure(tenantAdmin);
 	app.configure(meeting);
 	app.configure(meetingAttendee);

@@ -20,7 +20,6 @@ import { TenantFqdnService, getOptions } from './tenantFQDNs.class';
 import { tenantFqdnPath, tenantFqdnMethods } from './tenantFQDNs.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { isInSameTenantAndTenantOwnerOrAdmin } from '../../hooks/isInSameTenantAndTenantOwnerOrAdmin';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 
@@ -57,12 +56,18 @@ export const tenantFqdn = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				iff(notSuperAdmin(), isInSameTenantAndTenantOwnerOrAdmin),
+				// A create has no context.id for the owner/admin lookup to work from; the
+				// data resolver pins tenantId to the caller's tenant, so being a tenant
+				// admin is the whole check.
+				iff(notSuperAdmin(), isTenantAdmin),
 				schemaHooks.validateData(tenantFqdnDataValidator),
 				schemaHooks.resolveData(tenantFqdnDataResolver)
 			],
 			patch: [
-				iff(notSuperAdmin(), isInSameTenantAndTenantOwnerOrAdmin),
+				// context.id is the FQDN row here, not a tenant, so the row's own tenant
+				// is what the caller has to belong to.
+				iff(notSuperAdmin(), isTenantAdmin),
+				iff(notSuperAdmin(), notInSameTenantByContextId),
 				schemaHooks.validateData(tenantFqdnPatchValidator),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],

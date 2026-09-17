@@ -14,6 +14,8 @@ export const tenantSchema = Type.Object(
 		description: Type.Optional(Type.String()),
 		hideUserDetails: Type.Optional(Type.Boolean()),
 		allowedMediaNodeRegions: Type.Optional(Type.Array(Type.String())),
+		// disabled | tokenOnly | all: who may join this tenant's rooms as a headless bot
+		botPolicy: Type.Optional(Type.Union([ Type.Literal('disabled'), Type.Literal('tokenOnly'), Type.Literal('all') ])),
 	},
 	{ $id: 'Tenant', additionalProperties: false }
 );
@@ -23,7 +25,7 @@ export const tenantResolver = resolve<Tenant, HookContext>({});
 export const tenantExternalResolver = resolve<Tenant, HookContext>({});
 
 // Schema for creating new entries
-export const tenantDataSchema = Type.Pick(tenantSchema, [ 'name', 'description', 'hideUserDetails', 'allowedMediaNodeRegions' ], {
+export const tenantDataSchema = Type.Pick(tenantSchema, [ 'name', 'description', 'hideUserDetails', 'allowedMediaNodeRegions', 'botPolicy' ], {
 	$id: 'TenantData'
 });
 export type TenantData = Static<typeof tenantDataSchema>

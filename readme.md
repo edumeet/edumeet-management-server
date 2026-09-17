@@ -415,3 +415,11 @@ naming no group.
   the grant lands instead: `groupAndUserInSameTenant` refuses any `groupUsers` create whose group and
   user belong to different tenants. An external super admin is exempt; internal calls are not,
   because `gainRules` is itself the internal caller.
+
+## Bots (recorders, streamers, transcribers)
+
+A bot is a headless browser page (`?headless=1`) that records, streams or transcribes a room; the room-server keeps it out of the participant list and lets it neither send nor take part in decisions. Whether bots may join a tenant's rooms is the tenant's `botPolicy`: `disabled` (the default), `tokenOnly` or `all`.
+
+Access tokens live in `tenantBotCredentials`, one row per token: a `label`, the SHA-256 `tokenHash` (the admin's browser hashes the token, the server never sees it and the hash is never returned), the `allowedIps` the bot may connect from (single IPv4/IPv6 addresses or CIDR ranges, at least one), `enabled`, `createdAt` and `lastUsedAt`. Tenant owners and admins manage them in the tenant editor; the hash cannot be changed, rotation is revoke and create.
+
+The room-server asks `bot-verify` (`create`, roles `super-admin` or `edumeet-server`) with `{ tenantId, botToken?, address }` on every headless connection into a tenant and gets `{ allowed, verified }` or `{ allowed: false, reason }` back, with `reason` one of `botsNotAllowed` (policy) or `botTokenRejected` (unknown, disabled or wrong-address token; one answer for all three on purpose, the detail is logged). A verified bot skips locks and meeting tokens on the room-server side.
