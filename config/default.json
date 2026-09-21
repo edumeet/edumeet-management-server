@@ -51,5 +51,8 @@
 		"imapPollIntervalMs": 60000,
 		"imapPollBootDelayMs": 5000,
 		"imapRetentionDays": 30
+	},
+	"bots": {
+		"encryptionKey": ""
 	}
 }

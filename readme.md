@@ -423,3 +423,30 @@ A bot is a headless browser page (`?headless=1`) that records, streams or transc
 Access tokens live in `tenantBotCredentials`, one row per token: a `label`, the SHA-256 `tokenHash` (the admin's browser hashes the token, the server never sees it and the hash is never returned), the `allowedIps` the bot may connect from (single IPv4/IPv6 addresses or CIDR ranges, at least one), `enabled`, `createdAt` and `lastUsedAt`. Tenant owners and admins manage them in the tenant editor; the hash cannot be changed, rotation is revoke and create.
 
 The room-server asks `bot-verify` (`create`, roles `super-admin` or `edumeet-server`) with `{ tenantId, botToken?, address }` on every headless connection into a tenant and gets `{ allowed, verified }` or `{ allowed: false, reason }` back, with `reason` one of `botsNotAllowed` (policy) or `botTokenRejected` (unknown, disabled or wrong-address token; one answer for all three on purpose, the detail is logged). A verified bot skips locks and meeting tokens on the room-server side.
+
+### Bot providers
+
+A credential row becomes a **provider** when it also has a `jobType` (`recorder`, `transcriber` or
+`streamer`), an `apiUrl` and an `apiSecret`. Moderators can then start and stop that kind of job
+from the room, and the room-server calls the provider's API to do it; the contract is
+[BOT-PROVIDER-API.md](https://github.com/edumeet/edumeet/blob/main/BOT-PROVIDER-API.md). A row
+without those three stays what it was, an access token for a bot somebody starts by hand.
+
+All three or none: a half-configured provider is refused. The `apiUrl` must be https and carry no
+query, fragment or credentials, because the room-server appends its own paths to it; a trailing
+slash is trimmed. The `apiSecret` is the key the provider issued, must be printable characters
+without spaces, and is write-only: it is stored encrypted, never returned to any client, and the row
+reports only `hasApiSecret`. Leaving it empty in a patch keeps the stored key, and clearing `apiUrl`
+clears the job type and the key with it. `bot-verify` additionally returns the `credentialId` and
+the row's `jobType`, which the room-server uses to tie a bot to the job it was started for and to
+refuse a bot that claims another kind than its key is for.
+
+The key is encrypted with `bots.encryptionKey`, a 32-byte value in hex, deliberately separate from
+`invites.encryptionKey` so that either can be rotated on its own. Without it, saving a key is
+refused and `bot-providers` hands out nothing; rooms then simply have no providers.
+
+`bot-providers` (`find`, roles `super-admin` or `edumeet-server`) answers `?tenantId=` with that
+tenant's enabled provider rows and their keys **decrypted**. It is the only way a key leaves the
+server, which is why it is limited to the room-server's own role; it returns nothing while the
+tenant's bot policy is `disabled`, and skips a row whose key cannot be decrypted, for instance after
+the encryption key was replaced.

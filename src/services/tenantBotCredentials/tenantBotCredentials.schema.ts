@@ -17,6 +17,13 @@ export const tenantBotCredentialSchema = Type.Object(
 		enabled: Type.Optional(Type.Boolean()),
 		createdAt: Type.Optional(Type.Number()),
 		lastUsedAt: Type.Optional(Type.Union([ Type.Number(), Type.Null() ])),
+		// A row with all three is a provider the room server can start jobs on;
+		// a row with none of them is only a bot key, as before.
+		jobType: Type.Optional(Type.Union([ Type.Literal('recorder'), Type.Literal('transcriber'), Type.Literal('streamer'), Type.Null() ])),
+		apiUrl: Type.Optional(Type.Union([ Type.String({ maxLength: 512 }), Type.Null() ])),
+		// Write only: stored encrypted, never returned to a client.
+		apiSecret: Type.Optional(Type.Union([ Type.String({ maxLength: 512 }), Type.Null() ])),
+		hasApiSecret: Type.Optional(Type.Boolean()),
 	},
 	{ $id: 'TenantBotCredential', additionalProperties: false }
 );
@@ -31,15 +38,18 @@ export const tenantBotCredentialResolver = resolve<TenantBotCredential, HookCont
 		return typeof raw === 'string' ? JSON.parse(raw) as string[] : (raw as string[] | null) ?? [];
 	}),
 	enabled: virtual(async (row) => (row.enabled == null ? undefined : Boolean(row.enabled))),
+	hasApiSecret: virtual(async (row) => Boolean(row.apiSecret)),
 });
 
 // The hash is written once and never needed back; verification runs server side.
 export const tenantBotCredentialExternalResolver = resolve<TenantBotCredential, HookContext>({
 	tokenHash: async () => undefined,
+	// The provider's api key leaves the server only through the bot-providers service.
+	apiSecret: async () => undefined,
 });
 
 // Schema for creating new entries
-export const tenantBotCredentialDataSchema = Type.Pick(tenantBotCredentialSchema, [ 'tenantId', 'label', 'tokenHash', 'allowedIps', 'enabled' ], {
+export const tenantBotCredentialDataSchema = Type.Pick(tenantBotCredentialSchema, [ 'tenantId', 'label', 'tokenHash', 'allowedIps', 'enabled', 'jobType', 'apiUrl', 'apiSecret' ], {
 	$id: 'TenantBotCredentialData'
 });
 export type TenantBotCredentialData = Static<typeof tenantBotCredentialDataSchema>
@@ -57,7 +67,7 @@ export const tenantBotCredentialDataResolver = resolve<TenantBotCredential, Hook
 
 // Schema for updating existing entries: the hash is immutable, rotation is revoke and create.
 export const tenantBotCredentialPatchSchema = Type.Partial(
-	Type.Pick(tenantBotCredentialSchema, [ 'label', 'allowedIps', 'enabled' ]),
+	Type.Pick(tenantBotCredentialSchema, [ 'label', 'allowedIps', 'enabled', 'jobType', 'apiUrl', 'apiSecret' ]),
 	{ $id: 'TenantBotCredentialPatch' }
 );
 export type TenantBotCredentialPatch = Static<typeof tenantBotCredentialPatchSchema>

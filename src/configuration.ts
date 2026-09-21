@@ -14,6 +14,11 @@ export const inviteConfigSchema = Type.Object({
 	imapRetentionDays: Type.Optional(Type.Number())
 });
 
+// Kept apart from the invites key so either can be rotated on its own.
+export const botConfigSchema = Type.Object({
+	encryptionKey: Type.Optional(Type.String())
+});
+
 export const configurationSchema = Type.Intersect([
 	defaultAppConfiguration,
 	Type.Object({
@@ -21,7 +26,8 @@ export const configurationSchema = Type.Intersect([
 		port: Type.Number(),
 		public: Type.String(),
 		authSessionMaxDays: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
-		invites: Type.Optional(inviteConfigSchema)
+		invites: Type.Optional(inviteConfigSchema),
+		bots: Type.Optional(botConfigSchema)
 	})
 ]);
 

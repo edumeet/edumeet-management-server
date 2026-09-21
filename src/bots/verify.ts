@@ -6,9 +6,15 @@ export const botPolicies: BotPolicy[] = [ 'disabled', 'tokenOnly', 'all' ];
 
 export type BotRejection = 'botsNotAllowed' | 'botTokenRejected';
 
+export type BotJobType = 'recorder' | 'transcriber' | 'streamer';
+export const botJobTypes: BotJobType[] = [ 'recorder', 'transcriber', 'streamer' ];
+
+export const isBotJobType = (value: unknown): value is BotJobType =>
+	typeof value === 'string' && (botJobTypes as string[]).includes(value);
+
 export type BotVerdict =
 	| { allowed: true; verified: false }
-	| { allowed: true; verified: true; label: string; credentialId: number }
+	| { allowed: true; verified: true; label: string; credentialId: number; jobType?: BotJobType }
 	| { allowed: false; reason: BotRejection };
 
 export interface BotCredentialLike {
@@ -17,6 +23,7 @@ export interface BotCredentialLike {
 	tokenHash: string;
 	allowedIps: string[];
 	enabled?: boolean | number | null;
+	jobType?: string | null;
 }
 
 export const hashBotToken = (token: string): string =>
@@ -103,5 +110,11 @@ export const decideBot = ({ policy, botToken, address, credentials }: {
 	if (!credential || !credential.enabled || !addressAllowed(credential.allowedIps, address))
 		return { allowed: false, reason: 'botTokenRejected' };
 
-	return { allowed: true, verified: true, label: credential.label, credentialId: Number(credential.id) };
+	return {
+		allowed: true,
+		verified: true,
+		label: credential.label,
+		credentialId: Number(credential.id),
+		...(isBotJobType(credential.jobType) ? { jobType: credential.jobType } : {})
+	};
 };

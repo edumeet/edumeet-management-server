@@ -5,6 +5,7 @@ import { tenantInviteConfig } from './tenantInviteConfigs/tenantInviteConfigs';
 import { tenantFqdn } from './tenantFQDNs/tenantFQDNs';
 import { tenantBotCredential } from './tenantBotCredentials/tenantBotCredentials';
 import { botVerify } from './botVerify/botVerify';
+import { botProviders } from './botProviders/botProviders';
 import { tenantAdmin } from './tenantAdmins/tenantAdmins';
 import { meeting } from './meetings/meetings';
 import { meetingAttendee } from './meetingAttendees/meetingAttendees';
@@ -35,6 +36,7 @@ export const services = (app: Application) => {
 	app.configure(tenantFqdn);
 	app.configure(tenantBotCredential);
 	app.configure(botVerify);
+	app.configure(botProviders);
 	app.configure(tenantAdmin);
 	app.configure(meeting);
 	app.configure(meetingAttendee);
