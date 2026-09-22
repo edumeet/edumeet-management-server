@@ -424,6 +424,15 @@ Access tokens live in `tenantBotCredentials`, one row per token: a `label`, the 
 
 The room-server asks `bot-verify` (`create`, roles `super-admin` or `edumeet-server`) with `{ tenantId, botToken?, address }` on every headless connection into a tenant and gets `{ allowed, verified }` or `{ allowed: false, reason }` back, with `reason` one of `botsNotAllowed` (policy) or `botTokenRejected` (unknown, disabled or wrong-address token; one answer for all three on purpose, the detail is logged). A verified bot skips locks and meeting tokens on the room-server side.
 
+### Tenant language
+
+`tenants.locale` (optional, a translation file code such as `pl`) is the language a tenant writes to
+its people in. The room-server passes it to a bot provider with every job, for the notice that a
+recording is ready, and the client offers it as the starting language of a new meeting invitation.
+Empty means English. The room-server also resolves the recipients of such a notice, the room owners
+and the starting moderator, with `users.find` by id, which the `edumeet-server` role may do; only
+the address is used.
+
 ### Bot providers
 
 A credential row becomes a **provider** when it also has a `jobType` (`recorder`, `transcriber` or
