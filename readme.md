@@ -435,9 +435,11 @@ the address is used.
 
 ### Bot providers
 
-A credential row becomes a **provider** when it also has a `jobType` (`recorder`, `transcriber` or
-`streamer`), an `apiUrl` and an `apiSecret`. Moderators can then start and stop that kind of job
-from the room, and the room-server calls the provider's API to do it; the contract is
+A credential row becomes a **provider** when it also has `jobTypes` (a list of `recorder`,
+`transcriber` and `streamer`, stored as JSON text like `allowedIps`), an `apiUrl` and an
+`apiSecret`. Moderators can then start and stop those kinds of job from the room, and the
+room-server calls the provider's API to do it; one bot of the provider serves every job of a
+session at once. The contract is
 [BOT-PROVIDER-API.md](https://github.com/edumeet/edumeet/blob/main/BOT-PROVIDER-API.md). A row
 without those three stays what it was, an access token for a bot somebody starts by hand.
 
@@ -446,9 +448,9 @@ query, fragment or credentials, because the room-server appends its own paths to
 slash is trimmed. The `apiSecret` is the key the provider issued, must be printable characters
 without spaces, and is write-only: it is stored encrypted, never returned to any client, and the row
 reports only `hasApiSecret`. Leaving it empty in a patch keeps the stored key, and clearing `apiUrl`
-clears the job type and the key with it. `bot-verify` additionally returns the `credentialId` and
-the row's `jobType`, which the room-server uses to tie a bot to the job it was started for and to
-refuse a bot that claims another kind than its key is for.
+clears the job types and the key with it. `bot-verify` additionally returns the `credentialId` and
+the row's `jobTypes`, which the room-server uses to tie a bot to the jobs it was started for and to
+refuse a bot that claims a kind its key is not for.
 
 The key is encrypted with `bots.encryptionKey`, a 32-byte value in hex, deliberately separate from
 `invites.encryptionKey` so that either can be rotated on its own. Without it, saving a key is

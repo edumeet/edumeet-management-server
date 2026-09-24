@@ -12,9 +12,27 @@ export const botJobTypes: BotJobType[] = [ 'recorder', 'transcriber', 'streamer'
 export const isBotJobType = (value: unknown): value is BotJobType =>
 	typeof value === 'string' && (botJobTypes as string[]).includes(value);
 
+// The set of job types a row offers, from the column's JSON or from a request: the
+// known ones, each once, in a fixed order. Anything else reads as none.
+export const asBotJobTypes = (value: unknown): BotJobType[] => {
+	let list: unknown = value;
+
+	if (typeof list === 'string') {
+		try {
+			list = JSON.parse(list);
+		} catch {
+			return [];
+		}
+	}
+
+	if (!Array.isArray(list)) return [];
+
+	return botJobTypes.filter((type) => (list as unknown[]).includes(type));
+};
+
 export type BotVerdict =
 	| { allowed: true; verified: false }
-	| { allowed: true; verified: true; label: string; credentialId: number; jobType?: BotJobType }
+	| { allowed: true; verified: true; label: string; credentialId: number; jobTypes?: BotJobType[] }
 	| { allowed: false; reason: BotRejection };
 
 export interface BotCredentialLike {
@@ -23,7 +41,7 @@ export interface BotCredentialLike {
 	tokenHash: string;
 	allowedIps: string[];
 	enabled?: boolean | number | null;
-	jobType?: string | null;
+	jobTypes?: string | string[] | null;
 }
 
 export const hashBotToken = (token: string): string =>
@@ -115,6 +133,6 @@ export const decideBot = ({ policy, botToken, address, credentials }: {
 		verified: true,
 		label: credential.label,
 		credentialId: Number(credential.id),
-		...(isBotJobType(credential.jobType) ? { jobType: credential.jobType } : {})
+		...(asBotJobTypes(credential.jobTypes).length > 0 ? { jobTypes: asBotJobTypes(credential.jobTypes) } : {})
 	};
 };

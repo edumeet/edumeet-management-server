@@ -1,6 +1,6 @@
 import assert from 'assert';
 
-import { addressAllowed, decideBot, hashBotToken, invalidRanges, isTokenHash, parseRange } from '../../src/bots/verify';
+import { addressAllowed, asBotJobTypes, decideBot, hashBotToken, invalidRanges, isTokenHash, parseRange } from '../../src/bots/verify';
 
 const token = 'not-so-secret-test-token';
 const credential = (over: Record<string, unknown> = {}) => ({
@@ -96,5 +96,31 @@ describe('decideBot', () => {
 
 	it('reads a MySQL tinyint enabled flag', () => {
 		assert.strictEqual(decideBot({ policy: 'all', botToken: token, address, credentials: [ credential({ enabled: 1 }) ] }).allowed, true);
+	});
+
+	it('names the kinds of job a provider token is for, read from the stored column or a list', () => {
+		for (const jobTypes of [ '["streamer","recorder"]', [ 'streamer', 'recorder' ] ]) {
+			assert.deepStrictEqual(
+				decideBot({ policy: 'tokenOnly', botToken: token, address, credentials: [ credential({ jobTypes }) ] }),
+				{ allowed: true, verified: true, label: 'Recorder A', credentialId: 5, jobTypes: [ 'recorder', 'streamer' ] }
+			);
+		}
+	});
+
+	it('names no kinds for a plain key, or for a stored list it cannot read', () => {
+		for (const jobTypes of [ null, undefined, '[]', 'not json', '["dancer"]' ])
+			assert.strictEqual('jobTypes' in decideBot({ policy: 'tokenOnly', botToken: token, address, credentials: [ credential({ jobTypes }) ] }), false);
+	});
+});
+
+describe('the kinds of job a provider offers', () => {
+	it('are the known ones, each once, in a fixed order, from a list or its JSON', () => {
+		assert.deepStrictEqual(asBotJobTypes([ 'transcriber', 'recorder', 'transcriber', 'dancer' ]), [ 'recorder', 'transcriber' ]);
+		assert.deepStrictEqual(asBotJobTypes('["streamer","recorder"]'), [ 'recorder', 'streamer' ]);
+	});
+
+	it('are none for anything else', () => {
+		for (const nothing of [ undefined, null, '', 'recorder', 'not json', '{"a":1}', 42, {} ])
+			assert.deepStrictEqual(asBotJobTypes(nothing), []);
 	});
 });

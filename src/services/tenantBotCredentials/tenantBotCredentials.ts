@@ -7,7 +7,7 @@ import type { Application, HookContext } from '../../declarations';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
-import { invalidRanges, isBotJobType } from '../../bots/verify';
+import { asBotJobTypes, invalidRanges } from '../../bots/verify';
 import { encrypt } from '../../invites/crypto';
 import {
 	tenantBotCredentialDataValidator,
@@ -46,9 +46,16 @@ export const serializeRanges = async (context: HookContext): Promise<HookContext
 	return context;
 };
 
-const blank = (value: unknown): boolean => value == null || value === '';
+const blank = (value: unknown): boolean => value == null || value === '' || (Array.isArray(value) && value.length === 0);
 
-// A job type, an api url and an api key make a row a provider; a row with none of
+// Runs after validation, like serializeRanges.
+export const serializeJobTypes = async (context: HookContext): Promise<HookContext> => {
+	if (Array.isArray(context.data?.jobTypes)) context.data.jobTypes = JSON.stringify(context.data.jobTypes);
+
+	return context;
+};
+
+// A set of job types, an api url and an api key make a row a provider; a row with none of
 // them stays a plain bot key. Anything in between would be a provider that cannot
 // be called, so it is refused. The key is write only: an empty one on a patch keeps
 // what is stored, and clearing the url clears the whole provider part of the row.
@@ -65,20 +72,22 @@ export const validProvider = async (context: HookContext): Promise<HookContext> 
 
 	if ('apiUrl' in data && blank(data.apiUrl)) {
 		data.apiUrl = null;
-		data.jobType = null;
+		data.jobTypes = null;
 		data.apiSecret = null;
 
 		return context;
 	}
 
-	const jobType = picked('jobType');
+	// The stored value is the column's JSON string, a request's is a list.
+	const jobTypes = asBotJobTypes(picked('jobTypes'));
+	const jobTypesGiven = 'jobTypes' in data ? data.jobTypes : existing.jobTypes;
 	const apiUrl = picked('apiUrl');
 	// A patch without an api key keeps the stored one, so the row stays complete.
 	const apiSecret = blank(data.apiSecret) ? existing.apiSecret : data.apiSecret;
 
-	if (blank(jobType) && blank(apiUrl) && blank(apiSecret)) {
+	if (blank(jobTypesGiven) && blank(apiUrl) && blank(apiSecret)) {
 		if (context.method === 'create') {
-			delete data.jobType;
+			delete data.jobTypes;
 			delete data.apiUrl;
 			delete data.apiSecret;
 		}
@@ -86,10 +95,13 @@ export const validProvider = async (context: HookContext): Promise<HookContext> 
 		return context;
 	}
 
-	if (blank(jobType) || blank(apiUrl) || blank(apiSecret))
+	if (blank(jobTypesGiven) || blank(apiUrl) || blank(apiSecret))
 		throw new BadRequest('A bot provider needs a job type, an API URL and an API key');
 
-	if (!isBotJobType(jobType)) throw new BadRequest('Unknown bot job type');
+	// Given but none of them known: the schema refuses unknown names, so this is
+	// a stored value that no longer parses.
+	if (jobTypes.length === 0) throw new BadRequest('Unknown bot job type');
+	if ('jobTypes' in data) data.jobTypes = jobTypes;
 
 	let parsed: URL;
 
@@ -162,6 +174,7 @@ export const tenantBotCredential = (app: Application) => {
 				validProvider,
 				schemaHooks.resolveData(tenantBotCredentialDataResolver),
 				serializeRanges,
+				serializeJobTypes,
 				encryptApiSecret
 			],
 			patch: [
@@ -172,6 +185,7 @@ export const tenantBotCredential = (app: Application) => {
 				validProvider,
 				schemaHooks.resolveData(tenantBotCredentialPatchResolver),
 				serializeRanges,
+				serializeJobTypes,
 				encryptApiSecret
 			],
 			remove: [

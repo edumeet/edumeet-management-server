@@ -43,7 +43,7 @@ describe('bot providers', () => {
 
 		assert.strictEqual(created.hasApiSecret, false);
 		assert.strictEqual(created.apiUrl ?? null, null);
-		assert.strictEqual(created.jobType ?? null, null);
+		assert.strictEqual(created.jobTypes ?? null, null);
 	});
 
 	it('refuses a provider that is missing one of the three fields', async () => {
@@ -52,7 +52,7 @@ describe('bot providers', () => {
 			label: 'Half',
 			tokenHash: hashBotToken(`half-${Date.now()}`),
 			allowedIps: [ '10.0.0.0/8' ],
-			jobType: 'recorder',
+			jobTypes: [ 'recorder' ],
 			apiUrl: 'https://rec.example.com'
 		}, internal), /job type, an API URL and an API key/);
 	});
@@ -63,14 +63,14 @@ describe('bot providers', () => {
 			label: 'Plain http',
 			tokenHash: hashBotToken(`http-${Date.now()}`),
 			allowedIps: [ '10.0.0.0/8' ],
-			jobType: 'recorder',
+			jobTypes: [ 'recorder' ],
 			apiUrl: 'http://rec.example.com',
 			apiSecret: 'acme-key'
 		}, internal), /must use https/);
 	});
 
 	it('refuses an api url the room server could not append a path to, and a key that is not header text', async () => {
-		const base = { tenantId, label: 'Odd', allowedIps: [ '10.0.0.0/8' ], jobType: 'recorder' as const, apiSecret: 'acme-key' };
+		const base = { tenantId, label: 'Odd', allowedIps: [ '10.0.0.0/8' ], jobTypes: [ 'recorder' as const ], apiSecret: 'acme-key' };
 
 		for (const apiUrl of [ 'https://rec.example.com/?tenant=1', 'https://rec.example.com/#jobs', 'https://user:pass@rec.example.com' ]) {
 			await assert.rejects(() => app.service('tenantBotCredentials').create({
@@ -94,12 +94,12 @@ describe('bot providers', () => {
 			label: 'Acme Recorder',
 			tokenHash: hashBotToken(`acme-${Date.now()}`),
 			allowedIps: [ '127.0.0.1' ],
-			jobType: 'recorder',
+			jobTypes: [ 'recorder' ],
 			apiUrl: 'https://rec.example.com/',
 			apiSecret: 'acme-live-key'
 		}, internal);
 
-		assert.strictEqual(created.jobType, 'recorder');
+		assert.deepStrictEqual(created.jobTypes, [ 'recorder' ]);
 		assert.strictEqual(created.apiUrl, 'https://rec.example.com');
 		assert.strictEqual(created.hasApiSecret, true);
 
@@ -126,7 +126,7 @@ describe('bot providers', () => {
 			label: 'Acme Live',
 			tokenHash: hashBotToken(`live-${Date.now()}`),
 			allowedIps: [ '127.0.0.1' ],
-			jobType: 'streamer',
+			jobTypes: [ 'streamer' ],
 			apiUrl: 'https://live.example.com',
 			apiSecret: 'first-key'
 		}, internal);
@@ -146,7 +146,7 @@ describe('bot providers', () => {
 
 		assert.strictEqual(cleared.hasApiSecret, false);
 		assert.strictEqual(cleared.apiUrl, null);
-		assert.strictEqual(cleared.jobType, null);
+		assert.strictEqual(cleared.jobTypes, null);
 
 		await app.service('tenantBotCredentials').remove(created.id, internal);
 	});
@@ -159,7 +159,7 @@ describe('bot providers', () => {
 			label: 'No key',
 			tokenHash: hashBotToken(`nokey-${Date.now()}`),
 			allowedIps: [ '127.0.0.1' ],
-			jobType: 'recorder',
+			jobTypes: [ 'recorder' ],
 			apiUrl: 'https://rec.example.com',
 			apiSecret: 'acme-live-key'
 		}, internal), /bots.encryptionKey is not configured/);
@@ -173,7 +173,7 @@ describe('bot providers', () => {
 			label: 'Acme Recorder',
 			tokenHash: hashBotToken(`find-${Date.now()}`),
 			allowedIps: [ '127.0.0.1' ],
-			jobType: 'recorder',
+			jobTypes: [ 'recorder' ],
 			apiUrl: 'https://rec.example.com',
 			apiSecret: 'acme-live-key'
 		}, internal);
@@ -182,7 +182,7 @@ describe('bot providers', () => {
 		const row = found.find((p) => Number(p.credentialId) === Number(provider.id));
 
 		assert.ok(row, 'the provider is in the list');
-		assert.strictEqual(row?.jobType, 'recorder');
+		assert.deepStrictEqual(row?.jobTypes, [ 'recorder' ]);
 		assert.strictEqual(row?.apiUrl, 'https://rec.example.com');
 		assert.strictEqual(row?.apiSecret, 'acme-live-key');
 		assert.strictEqual(row?.label, 'Acme Recorder');
@@ -212,14 +212,14 @@ describe('bot providers', () => {
 		} as any));
 	});
 
-	it('tells the room server which credential and job type a token belongs to', async () => {
+	it('tells the room server which credential and job types a token belongs to', async () => {
 		const token = `verify-${Date.now()}`;
 		const credential = await app.service('tenantBotCredentials').create({
 			tenantId,
 			label: 'Acme Transcriber',
 			tokenHash: hashBotToken(token),
 			allowedIps: [ '127.0.0.1' ],
-			jobType: 'transcriber',
+			jobTypes: [ 'transcriber' ],
 			apiUrl: 'https://tr.example.com',
 			apiSecret: 'tr-key'
 		}, internal);
@@ -229,7 +229,7 @@ describe('bot providers', () => {
 		assert.strictEqual(verdict.allowed, true);
 		assert.ok(verdict.allowed && verdict.verified);
 		assert.strictEqual(verdict.allowed && verdict.verified && verdict.credentialId, Number(credential.id));
-		assert.strictEqual(verdict.allowed && verdict.verified && verdict.jobType, 'transcriber');
+		assert.deepStrictEqual(verdict.allowed && verdict.verified && verdict.jobTypes, [ 'transcriber' ]);
 
 		await app.service('tenantBotCredentials').remove(credential.id, internal);
 	});

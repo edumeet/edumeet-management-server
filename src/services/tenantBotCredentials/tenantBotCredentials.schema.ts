@@ -3,6 +3,7 @@ import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
+import { asBotJobTypes } from '../../bots/verify';
 import { dataValidator, queryValidator } from '../../validators';
 
 // Main data model schema
@@ -18,8 +19,12 @@ export const tenantBotCredentialSchema = Type.Object(
 		createdAt: Type.Optional(Type.Number()),
 		lastUsedAt: Type.Optional(Type.Union([ Type.Number(), Type.Null() ])),
 		// A row with all three is a provider the room server can start jobs on;
-		// a row with none of them is only a bot key, as before.
-		jobType: Type.Optional(Type.Union([ Type.Literal('recorder'), Type.Literal('transcriber'), Type.Literal('streamer'), Type.Null() ])),
+		// a row with none of them is only a bot key, as before. The job types are the
+		// kinds of work one bot of the provider does at once for a session.
+		jobTypes: Type.Optional(Type.Union([
+			Type.Array(Type.Union([ Type.Literal('recorder'), Type.Literal('transcriber'), Type.Literal('streamer') ]), { maxItems: 3 }),
+			Type.Null()
+		])),
 		apiUrl: Type.Optional(Type.Union([ Type.String({ maxLength: 512 }), Type.Null() ])),
 		// Write only: stored encrypted, never returned to a client.
 		apiSecret: Type.Optional(Type.Union([ Type.String({ maxLength: 512 }), Type.Null() ])),
@@ -29,14 +34,15 @@ export const tenantBotCredentialSchema = Type.Object(
 );
 export type TenantBotCredential = Static<typeof tenantBotCredentialSchema>
 
-// allowedIps sits in a text column as a JSON string on both dialects (see the
-// serializeRanges hook), and enabled is a tinyint on MySQL.
+// allowedIps and jobTypes sit in text columns as JSON strings on both dialects (see
+// the serializeRanges and serializeJobTypes hooks), and enabled is a tinyint on MySQL.
 export const tenantBotCredentialResolver = resolve<TenantBotCredential, HookContext>({
 	allowedIps: virtual(async (row) => {
 		const raw = row.allowedIps as unknown;
 
 		return typeof raw === 'string' ? JSON.parse(raw) as string[] : (raw as string[] | null) ?? [];
 	}),
+	jobTypes: virtual(async (row) => (row.jobTypes == null ? null : asBotJobTypes(row.jobTypes))),
 	enabled: virtual(async (row) => (row.enabled == null ? undefined : Boolean(row.enabled))),
 	hasApiSecret: virtual(async (row) => Boolean(row.apiSecret)),
 });
@@ -49,7 +55,7 @@ export const tenantBotCredentialExternalResolver = resolve<TenantBotCredential, 
 });
 
 // Schema for creating new entries
-export const tenantBotCredentialDataSchema = Type.Pick(tenantBotCredentialSchema, [ 'tenantId', 'label', 'tokenHash', 'allowedIps', 'enabled', 'jobType', 'apiUrl', 'apiSecret' ], {
+export const tenantBotCredentialDataSchema = Type.Pick(tenantBotCredentialSchema, [ 'tenantId', 'label', 'tokenHash', 'allowedIps', 'enabled', 'jobTypes', 'apiUrl', 'apiSecret' ], {
 	$id: 'TenantBotCredentialData'
 });
 export type TenantBotCredentialData = Static<typeof tenantBotCredentialDataSchema>
@@ -67,7 +73,7 @@ export const tenantBotCredentialDataResolver = resolve<TenantBotCredential, Hook
 
 // Schema for updating existing entries: the hash is immutable, rotation is revoke and create.
 export const tenantBotCredentialPatchSchema = Type.Partial(
-	Type.Pick(tenantBotCredentialSchema, [ 'label', 'allowedIps', 'enabled', 'jobType', 'apiUrl', 'apiSecret' ]),
+	Type.Pick(tenantBotCredentialSchema, [ 'label', 'allowedIps', 'enabled', 'jobTypes', 'apiUrl', 'apiSecret' ]),
 	{ $id: 'TenantBotCredentialPatch' }
 );
 export type TenantBotCredentialPatch = Static<typeof tenantBotCredentialPatchSchema>

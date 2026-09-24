@@ -6,7 +6,7 @@ import type { Application } from '../../declarations';
 import { checkPermissions } from '../../hooks/checkPermissions';
 import { logger } from '../../logger';
 import { decrypt } from '../../invites/crypto';
-import { isBotJobType, BotJobType } from '../../bots/verify';
+import { asBotJobTypes, BotJobType } from '../../bots/verify';
 import type { TenantBotCredential } from '../tenantBotCredentials/tenantBotCredentials.schema';
 
 const botProviderPath = 'bot-providers';
@@ -14,7 +14,7 @@ const botProviderPath = 'bot-providers';
 export interface BotProvider {
 	credentialId: number;
 	label: string;
-	jobType: BotJobType;
+	jobTypes: BotJobType[];
 	apiUrl: string;
 	apiSecret: string;
 }
@@ -56,13 +56,15 @@ export const botProviders = (app: Application) => {
 			const providers: BotProvider[] = [];
 
 			for (const row of rows) {
-				if (!row.apiUrl || !row.apiSecret || !isBotJobType(row.jobType)) continue;
+				const jobTypes = asBotJobTypes(row.jobTypes);
+
+				if (!row.apiUrl || !row.apiSecret || jobTypes.length === 0) continue;
 
 				try {
 					providers.push({
 						credentialId: Number(row.id),
 						label: row.label,
-						jobType: row.jobType,
+						jobTypes,
 						apiUrl: row.apiUrl,
 						apiSecret: decrypt(row.apiSecret, key, 'bots.encryptionKey')
 					});

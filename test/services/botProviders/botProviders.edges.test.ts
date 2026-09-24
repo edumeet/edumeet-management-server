@@ -18,7 +18,7 @@ describe('bot providers, the less travelled paths', () => {
 	let counter = 0;
 
 	const base = (label: string) => ({ tenantId, label, tokenHash: hashBotToken(`edge-${Date.now()}-${counter++}`), allowedIps: [ '127.0.0.1' ] });
-	const provider = { jobType: 'recorder' as const, apiUrl: 'https://rec.example.com', apiSecret: 'acme-key' };
+	const provider = { jobTypes: [ 'recorder' as const ], apiUrl: 'https://rec.example.com', apiSecret: 'acme-key' };
 	const find = (id: number, params: Params = internal) => app.service('bot-providers').find({ ...params, query: { tenantId: id } });
 
 	before(async () => {
@@ -40,12 +40,12 @@ describe('bot providers, the less travelled paths', () => {
 
 	describe('what a provider row may hold', () => {
 		it('refuses each way of leaving a part out', async () => {
-			for (const parts of [ { jobType: provider.jobType }, { apiUrl: provider.apiUrl }, { apiSecret: provider.apiSecret }, { apiUrl: provider.apiUrl, apiSecret: provider.apiSecret }, { jobType: provider.jobType, apiSecret: provider.apiSecret } ])
+			for (const parts of [ { jobTypes: provider.jobTypes }, { apiUrl: provider.apiUrl }, { apiSecret: provider.apiSecret }, { apiUrl: provider.apiUrl, apiSecret: provider.apiSecret }, { jobTypes: provider.jobTypes, apiSecret: provider.apiSecret } ])
 				await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('Part'), ...parts }, internal), /job type, an API URL and an API key/);
 		});
 
 		it('refuses a job type it does not know and an address that is no address', async () => {
-			await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('Dancer'), ...provider, jobType: 'dancer' as never }, internal));
+			await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('Dancer'), ...provider, jobTypes: [ 'dancer' ] as never }, internal));
 			await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('No url'), ...provider, apiUrl: 'rec example com' }, internal), /not a valid URL/);
 		});
 
@@ -53,6 +53,27 @@ describe('bot providers, the less travelled paths', () => {
 			const created = await app.service('tenantBotCredentials').create({ ...base('Path'), ...provider, apiUrl: 'https://rec.example.com/edumeet/' }, internal);
 
 			assert.strictEqual(created.apiUrl, 'https://rec.example.com/edumeet');
+		});
+
+		it('offers several kinds of job in one row, each once and in a fixed order', async () => {
+			const all = await app.service('tenantBotCredentials').create({ ...base('All kinds'), ...provider, jobTypes: [ 'streamer', 'transcriber', 'recorder' ] }, internal);
+			const twice = await app.service('tenantBotCredentials').create({ ...base('Twice'), ...provider, jobTypes: [ 'transcriber', 'recorder', 'transcriber' ] }, internal);
+
+			assert.deepStrictEqual(all.jobTypes, [ 'recorder', 'transcriber', 'streamer' ]);
+			assert.deepStrictEqual(twice.jobTypes, [ 'recorder', 'transcriber' ]);
+
+			const handed = (await find(tenantId)).find((p) => Number(p.credentialId) === Number(all.id));
+
+			assert.deepStrictEqual(handed?.jobTypes, [ 'recorder', 'transcriber', 'streamer' ]);
+			// more entries than there are kinds is not a list anyone meant
+			await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('Four'), ...provider, jobTypes: [ 'recorder', 'recorder', 'streamer', 'transcriber' ] }, internal));
+		});
+
+		it('takes an empty list of kinds as no provider at all, and refuses an unknown kind among known ones', async () => {
+			const plain = await app.service('tenantBotCredentials').create({ ...base('Empty list'), jobTypes: [] }, internal);
+
+			assert.strictEqual(plain.jobTypes ?? null, null);
+			await assert.rejects(() => app.service('tenantBotCredentials').create({ ...base('Half known'), ...provider, jobTypes: [ 'recorder', 'dancer' ] as never }, internal));
 		});
 
 		it('treats empty strings from a form like nothing at all', async () => {
@@ -67,24 +88,38 @@ describe('bot providers, the less travelled paths', () => {
 		it('turns a plain key into a provider, and only with all three parts', async () => {
 			const plain = await app.service('tenantBotCredentials').create(base('Becomes a provider'), internal);
 
-			await assert.rejects(() => app.service('tenantBotCredentials').patch(plain.id, { jobType: 'recorder', apiUrl: provider.apiUrl }, internal), /job type, an API URL and an API key/);
+			await assert.rejects(() => app.service('tenantBotCredentials').patch(plain.id, { jobTypes: [ 'recorder' ], apiUrl: provider.apiUrl }, internal), /job type, an API URL and an API key/);
 
 			// a copy: the hooks encrypt the key in the object they are given
 			const patched = await app.service('tenantBotCredentials').patch(plain.id, { ...provider }, internal);
 
-			assert.deepStrictEqual([ patched.jobType, patched.apiUrl, patched.hasApiSecret ], [ 'recorder', 'https://rec.example.com', true ]);
+			assert.deepStrictEqual([ patched.jobTypes, patched.apiUrl, patched.hasApiSecret ], [ [ 'recorder' ], 'https://rec.example.com', true ]);
 		});
 
 		it('changes the job type or the address alone and leaves the key as it is', async () => {
 			const row = await app.service('tenantBotCredentials').create({ ...base('One field'), ...provider }, internal);
 			const before = (await rawRow(row.id)).apiSecret;
 
-			const retyped = await app.service('tenantBotCredentials').patch(row.id, { jobType: 'streamer' }, internal);
+			const retyped = await app.service('tenantBotCredentials').patch(row.id, { jobTypes: [ 'streamer' ] }, internal);
 			const moved = await app.service('tenantBotCredentials').patch(row.id, { apiUrl: 'https://live.example.com/' }, internal);
 
-			assert.strictEqual(retyped.jobType, 'streamer');
+			assert.deepStrictEqual(retyped.jobTypes, [ 'streamer' ]);
 			assert.strictEqual(moved.apiUrl, 'https://live.example.com');
 			assert.strictEqual((await rawRow(row.id)).apiSecret, before);
+		});
+
+		it('refuses to take every kind away from a provider while its address and key stay', async () => {
+			const row = await app.service('tenantBotCredentials').create({ ...base('No kinds left'), ...provider }, internal);
+
+			await assert.rejects(() => app.service('tenantBotCredentials').patch(row.id, { jobTypes: [] }, internal), /job type, an API URL and an API key/);
+			assert.deepStrictEqual((await app.service('tenantBotCredentials').get(row.id, internal)).jobTypes, [ 'recorder' ]);
+		});
+
+		it('adds a kind to a provider and keeps the rest of it', async () => {
+			const row = await app.service('tenantBotCredentials').create({ ...base('More kinds'), ...provider }, internal);
+			const patched = await app.service('tenantBotCredentials').patch(row.id, { jobTypes: [ 'recorder', 'transcriber' ] }, internal);
+
+			assert.deepStrictEqual([ patched.jobTypes, patched.apiUrl, patched.hasApiSecret ], [ [ 'recorder', 'transcriber' ], 'https://rec.example.com', true ]);
 		});
 
 		it('validates the address again when only the address changes', async () => {
@@ -97,7 +132,7 @@ describe('bot providers, the less travelled paths', () => {
 			const row = await app.service('tenantBotCredentials').create({ ...base('Untouched'), ...provider }, internal);
 			const patched = await app.service('tenantBotCredentials').patch(row.id, { enabled: false, allowedIps: [ '10.0.0.0/8' ] }, internal);
 
-			assert.deepStrictEqual([ patched.jobType, patched.apiUrl, patched.hasApiSecret, patched.enabled ], [ 'recorder', 'https://rec.example.com', true, false ]);
+			assert.deepStrictEqual([ patched.jobTypes, patched.apiUrl, patched.hasApiSecret, patched.enabled ], [ [ 'recorder' ], 'https://rec.example.com', true, false ]);
 			assert.strictEqual(decrypt(String((await rawRow(row.id)).apiSecret), key), 'acme-key');
 		});
 
@@ -163,6 +198,15 @@ describe('bot providers, the less travelled paths', () => {
 			app.set('bots', { encryptionKey: key });
 		});
 
+		it('no row whose stored kinds cannot be read any more', async () => {
+			const row = await app.service('tenantBotCredentials').create({ ...base('Old kinds'), ...provider }, internal);
+
+			await app.get('postgresqlClient')('tenantBotCredentials').where({ id: row.id })
+				.update({ jobTypes: '["dancer"]' });
+
+			assert.strictEqual((await find(tenantId)).some((p) => Number(p.credentialId) === Number(row.id)), false);
+		});
+
 		it('every row but one whose key cannot be read any more', async () => {
 			const row = await app.service('tenantBotCredentials').create({ ...base('Old key'), ...provider }, internal);
 
@@ -185,7 +229,7 @@ describe('bot providers, the less travelled paths', () => {
 			const verdict = await app.service('bot-verify').create({ tenantId, botToken: token, address: '127.0.0.1' }, internal);
 
 			assert.ok(verdict.allowed && verdict.verified);
-			assert.strictEqual('jobType' in verdict, false);
+			assert.strictEqual('jobTypes' in verdict, false);
 		});
 	});
 
