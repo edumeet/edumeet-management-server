@@ -4,6 +4,7 @@
 		"files": true
 	},
 	"compilerOptions": {
+		"types": ["mocha"], // or "mocha" or "vitest/globals"
 		"experimentalDecorators": true,
 		"resolveJsonModule": true,
 		"outDir": "dist",
