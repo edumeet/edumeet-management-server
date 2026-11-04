@@ -433,6 +433,15 @@ Empty means English. The room-server also resolves the recipients of such a noti
 and the starting moderator, with `users.find` by id, which the `edumeet-server` role may do; only
 the address is used.
 
+### Bot jobs per room
+
+`tenants.maxBotJobsPerRoom` (optional, a whole number from 1 to 100) is how many recordings, live
+streams and transcriptions one room of the tenant, its breakout rooms included, may run at the same
+time. The room-server's own `maxBotJobsPerRoom` (10 unless its config says otherwise) is both the
+value for an empty field and the most a tenant gets: a tenant can lower the limit, and a higher
+value counts as the room-server's. The room-server reads it with the tenant when a room opens.
+Tenant admins set it in the tenant editor, like the bot policy.
+
 ### Bot providers
 
 A credential row becomes a **provider** when it also has `jobTypes` (a list of `recorder`,
