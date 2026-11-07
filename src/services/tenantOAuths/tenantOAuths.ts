@@ -21,7 +21,7 @@ import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
-import { reloadTenantOAuth } from '../../hooks/dynamicOAuth';
+import { rememberOAuthTenants, reloadTenantOAuth } from '../../hooks/dynamicOAuth';
 
 export * from './tenantOAuths.class';
 export * from './tenantOAuths.schema';
@@ -57,13 +57,15 @@ export const tenantOAuth = (app: Application) => {
 			],
 			patch: [
 				schemaHooks.validateData(tenantOAuthPatchValidator),
-				schemaHooks.resolveData(tenantOAuthPatchResolver)
-
+				schemaHooks.resolveData(tenantOAuthPatchResolver),
+				rememberOAuthTenants
 			],
 			remove: [
 				// protect this as well
 				// iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenantByContextId)
+				iff(notSuperAdmin(), notInSameTenantByContextId),
+				// after the permission checks
+				rememberOAuthTenants
 			]
 		},
 		after: {

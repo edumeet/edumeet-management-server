@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import assert from 'assert';
 import qs from 'qs';
-import { dynamicOAuth, loadTenantOAuth, reloadTenantOAuth, tenantCallbackUrl } from '../../src/hooks/dynamicOAuth';
+import { dynamicOAuth, loadTenantOAuth, rememberOAuthTenants, reloadTenantOAuth, tenantCallbackUrl } from '../../src/hooks/dynamicOAuth';
 
 type Row = Record<string, unknown>;
 
@@ -18,10 +18,13 @@ const completeRow = (over: Row = {}): Row => ({
 
 // Minimal stand-in for the Feathers app: the OAuth config, the tenantOAuths rows,
 // and a counter for how often the oauth service was registered again.
+// find() takes a snapshot of the rows when called and then waits findDelays.shift() ms,
+// like a database read that is slow to come back.
 const fakeApp = (rows: Row[], oauth: Record<string, unknown> = {}, settings: Record<string, unknown> = {}) => {
 	const config: Record<string, unknown> = { oauth: { defaults: {}, ...oauth } };
 	const app = {
 		reconfigured: 0,
+		findDelays: [] as number[],
 		get: (name: string) => (name === 'authentication' ? config : settings[name]),
 		set: () => app,
 		unuse: () => undefined,
@@ -30,7 +33,9 @@ const fakeApp = (rows: Row[], oauth: Record<string, unknown> = {}, settings: Rec
 			if (name === 'tenantOAuths') {
 				return {
 					find: async ({ query }: { query: { tenantId: number } }) => {
-						const data = rows.filter((r) => Number(r.tenantId) === Number(query.tenantId));
+						const data = rows.filter((r) => Number(r.tenantId) === Number(query.tenantId)).map((r) => ({ ...r }));
+
+						await new Promise((resolve) => setTimeout(resolve, app.findDelays.shift() ?? 0));
 
 						return { total: data.length, data };
 					}
@@ -118,6 +123,84 @@ describe('dynamicOAuth', () => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			assert.strictEqual(await loadTenantOAuth(app as any, 1), false);
 			assert.strictEqual(app.reconfigured, 0);
+		});
+	});
+
+	describe('concurrent refreshes', () => {
+		it('a slow earlier read does not overwrite a newer configuration', async () => {
+			const rows = [ completeRow({ secret: 'old' }) ];
+			const app = fakeApp(rows);
+
+			app.findDelays = [ 50, 0 ]; // the first read comes back last
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const first = loadTenantOAuth(app as any, 1);
+
+			rows[0].secret = 'new';
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const second = loadTenantOAuth(app as any, 1);
+
+			await Promise.all([ first, second ]);
+			assert.strictEqual(providers(app)[1].secret, 'new');
+		});
+	});
+
+	describe('rememberOAuthTenants + reloadTenantOAuth (tenantOAuths hooks)', () => {
+		// a tenantOAuths service with the adapter methods the before hook uses
+		const tenantOAuthsService = (rows: Row[]) => ({
+			_get: async (id: number) => {
+				const row = rows.find((r) => r.id === id);
+
+				if (!row) throw new Error('NotFound');
+
+				return { ...row };
+			},
+			_find: async () => rows.map((r) => ({ ...r }))
+		});
+
+		it('reloads the tenant even when $select leaves tenantId out of the result', async () => {
+			const rows = [ completeRow({ id: 7, secret: 'old' }) ];
+			const app = fakeApp(rows);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const context: any = { app, service: tenantOAuthsService(rows), id: 7, params: { query: { $select: [ 'id' ] } }, data: { secret: 'new' } };
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await loadTenantOAuth(app as any, 1);
+			await rememberOAuthTenants(context);
+			rows[0].secret = 'new'; // the patch itself
+			context.result = { id: 7 };
+			await reloadTenantOAuth(context);
+			assert.strictEqual(providers(app)[1].secret, 'new');
+		});
+
+		it('reloads both tenants when a patch moves the entry to another tenant', async () => {
+			const rows = [ completeRow({ id: 7, tenantId: 1 }) ];
+			const app = fakeApp(rows);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const context: any = { app, service: tenantOAuthsService(rows), id: 7, params: { query: {} }, data: { tenantId: 2 } };
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await loadTenantOAuth(app as any, 1);
+			await rememberOAuthTenants(context);
+			rows[0].tenantId = 2;
+			context.result = { id: 7, tenantId: 2 };
+			await reloadTenantOAuth(context);
+			assert.ok(!(1 in providers(app)), 'old tenant no longer has the provider');
+			assert.ok(providers(app)[2], 'new tenant has it');
+		});
+
+		it('removes the provider after a remove with $select', async () => {
+			const rows = [ completeRow({ id: 7 }) ];
+			const app = fakeApp(rows);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const context: any = { app, service: tenantOAuthsService(rows), id: 7, params: { query: { $select: [ 'id' ] } } };
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await loadTenantOAuth(app as any, 1);
+			await rememberOAuthTenants(context);
+			rows.length = 0;
+			context.result = { id: 7 };
+			await reloadTenantOAuth(context);
+			assert.ok(!(1 in providers(app)));
 		});
 	});
 

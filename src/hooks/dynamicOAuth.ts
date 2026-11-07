@@ -49,6 +49,10 @@ const reconfigureOAuth = (app: Application) => {
 	});
 };
 
+// Pending refresh per app and tenant. Refreshes of the same tenant run one after another,
+// each reading the database itself, so a slow earlier read can't overwrite a newer one.
+const pendingRefreshes = new WeakMap<Application, Map<string, Promise<boolean>>>();
+
 /**
  * Copy a tenant's OAuth settings from the database into the live configuration, or remove
  * them there when the tenant has no complete OAuth configuration (anymore).
@@ -56,10 +60,34 @@ const reconfigureOAuth = (app: Application) => {
  * Re-registers the oauth service unless `reconfigure` is false (when loading many tenants at once).
  * Returns true when the tenant has a usable configuration afterwards.
  */
-export const loadTenantOAuth = async (
+export const loadTenantOAuth = (
 	app: Application,
 	tenantId: number | string,
 	reconfigure = true
+): Promise<boolean> => {
+	let perApp = pendingRefreshes.get(app);
+
+	if (!perApp) {
+		perApp = new Map();
+		pendingRefreshes.set(app, perApp);
+	}
+
+	const key = String(tenantId);
+	const previous = perApp.get(key) ?? Promise.resolve(false);
+	const refresh = previous.catch(() => false).then(() => refreshTenantOAuth(app, tenantId, reconfigure));
+
+	perApp.set(key, refresh);
+	refresh.catch(() => false).finally(() => {
+		if (perApp?.get(key) === refresh) perApp.delete(key);
+	});
+
+	return refresh;
+};
+
+const refreshTenantOAuth = async (
+	app: Application,
+	tenantId: number | string,
+	reconfigure: boolean
 ): Promise<boolean> => {
 	const config = app.get('authentication');
 
@@ -83,7 +111,7 @@ export const loadTenantOAuth = async (
 			profile_url: row.profile_url,
 			// An absolute URL is required (the identity provider redirects the browser there).
 			redirect_uri: row.redirect_uri || tenantCallbackUrl(app),
-			scope_delimiter: row.scope_delimiter || ' ',
+			scope_delimiter: row.scope_delimiter === undefined ? ' ' : row.scope_delimiter,
 			name_parameter: row.name_parameter,
 			token_endpoint_auth_method: 'client_secret_basic'
 		};
@@ -155,13 +183,47 @@ export const dynamicOAuthSetup = async (context: HookContext, next: NextFunction
 	await next();
 };
 
+type TenantId = number | string;
+type TenantRef = { tenantId?: TenantId } | null | undefined;
+
+const tenantIdsOf = (value: unknown): TenantId[] =>
+	(Array.isArray(value) ? value : [ value ])
+		.map((r: TenantRef) => r?.tenantId)
+		.filter((t): t is TenantId => t !== undefined && t !== null);
+
+// Tenants an operation touched, collected by rememberOAuthTenants (before) for reloadTenantOAuth (after).
+const touchedTenants = new WeakMap<object, TenantId[]>();
+
+/**
+ * tenantOAuths before hook for patch and remove (register it after the permission checks):
+ * remember which tenants the affected entries belong to now. The result alone isn't enough:
+ * a `$select` without tenantId hides it, and a patch can move an entry to another tenant.
+ */
+export const rememberOAuthTenants = async (context: HookContext) => {
+	// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
+	const { $select, ...query } = context.params.query ?? {};
+	// adapter methods: read the rows as they are, without running the service hooks again
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const service = context.service as any;
+	const rows = context.id !== undefined && context.id !== null
+		? [ await service._get(context.id, { query }).catch(() => null) ]
+		: await service._find({ query, paginate: false });
+
+	touchedTenants.set(context, tenantIdsOf(rows));
+
+	return context;
+};
+
 // tenantOAuths after hook: apply created, changed and removed configurations immediately.
 export const reloadTenantOAuth = async (context: HookContext) => {
-	const results = Array.isArray(context.result) ? context.result : [ context.result ];
-	const tenantIds = new Set(results.map((r: { tenantId?: number | string }) => r?.tenantId).filter((t) => t !== undefined));
+	const tenantIds = new Set<string>([
+		...(touchedTenants.get(context) ?? []),
+		...tenantIdsOf(context.data),
+		...tenantIdsOf(context.result)
+	].map(String));
 
 	for (const tenantId of tenantIds) {
-		await loadTenantOAuth(context.app, tenantId as number | string);
+		await loadTenantOAuth(context.app, tenantId);
 	}
 
 	return context;
