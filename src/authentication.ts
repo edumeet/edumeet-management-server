@@ -36,6 +36,16 @@ export const authentication = (app: Application) => {
 		error: { create: [ loginThrottleError ] }
 	});
 
+	// Public URL of this server, e.g. https://example.com/mgmt behind a reverse proxy. Tenant OAuth
+	// providers without an explicit redirect_uri get <MGMT_URL>/oauth/tenant/callback;
+	// otherwise the callback would be built from host/port (http://0.0.0.0:3030/...).
+	// authentication.oauth.defaults.origin in the config takes precedence.
+	const oauthConfig = app.get('authentication')?.oauth as { defaults?: Record<string, unknown> } | undefined;
+
+	if (oauthConfig && process.env.MGMT_URL && !oauthConfig.defaults?.origin) {
+		oauthConfig.defaults = { ...oauthConfig.defaults, origin: process.env.MGMT_URL.replace(/\/+$/, '') };
+	}
+
 	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
 

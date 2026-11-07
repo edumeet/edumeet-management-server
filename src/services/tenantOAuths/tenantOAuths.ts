@@ -21,6 +21,7 @@ import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { reloadTenantOAuth } from '../../hooks/dynamicOAuth';
 
 export * from './tenantOAuths.class';
 export * from './tenantOAuths.schema';
@@ -66,7 +67,11 @@ export const tenantOAuth = (app: Application) => {
 			]
 		},
 		after: {
-			all: []
+			all: [],
+			// apply OAuth changes right away instead of after the next restart
+			create: [ reloadTenantOAuth ],
+			patch: [ reloadTenantOAuth ],
+			remove: [ reloadTenantOAuth ]
 		},
 		error: {
 			all: []
