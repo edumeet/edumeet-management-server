@@ -77,7 +77,7 @@ export const loadTenantOAuth = async (
 			key: row.key,
 			client_id: row.key,
 			secret: row.secret,
-			scope: row.scope || 'openid profile email',
+			scope: row.scope === undefined ? 'openid profile email' : row.scope,
 			authorize_url: row.authorize_url,
 			access_url: row.access_url,
 			profile_url: row.profile_url,
