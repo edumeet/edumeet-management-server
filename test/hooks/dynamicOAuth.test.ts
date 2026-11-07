@@ -135,6 +135,8 @@ describe('dynamicOAuth', () => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const first = loadTenantOAuth(app as any, 1);
 
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
 			rows[0].secret = 'new';
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const second = loadTenantOAuth(app as any, 1);
