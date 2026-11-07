@@ -38,7 +38,7 @@ export const tenantCallbackUrl = (app: Application): string => {
 			: `http://${host}:${port}`;
 	}
 
-	return `${origin}${defaults.prefix ?? '/oauth'}/tenant/callback`;
+	return `${origin.replace(/\/+$/, '')}${defaults.prefix ?? '/oauth'}/tenant/callback`;
 };
 
 const reconfigureOAuth = (app: Application) => {
