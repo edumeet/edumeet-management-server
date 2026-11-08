@@ -37,7 +37,8 @@ describe('application client tests', () => {
 		const userData: UserData = {
 			email: 'someone@example.com',
 			password: 'supersecret',
-			tenantId: 1
+			// the tenant created above; its id is only 1 in a freshly created test database
+			tenantId: Number(tenant.id)
 		};
 
 		// Same reason as the tenant above: `users` requires a JWT on every method and
