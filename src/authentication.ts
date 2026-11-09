@@ -6,8 +6,8 @@ import type { Params } from '@feathersjs/feathers';
 
 import type { Application } from './declarations';
 import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
-import { OAuthService } from '@feathersjs/authentication-oauth/lib/service';
-import { dynamicOAuth } from './hooks/dynamicOAuth';
+import { OAuthCallbackService, OAuthService } from '@feathersjs/authentication-oauth/lib/service';
+import { oauthCallbackHooks, oauthServiceHooks } from './hooks/dynamicOAuth';
 import { loginThrottleBefore, loginThrottleError } from './hooks/loginThrottle';
 import { refreshAccessCheck } from './hooks/refreshAccessCheck';
 import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
@@ -16,6 +16,7 @@ declare module './declarations' {
 	interface ServiceTypes {
 		authentication: AuthenticationService;
 		'oauth/:provider': OAuthService;
+		'oauth/:provider/callback': OAuthCallbackService;
 		// eslint-disable-next-line no-unused-vars
 		'token-refresh': { create(data: unknown, params?: Params): Promise<{ accessToken: string }> };
 	}
@@ -49,10 +50,8 @@ export const authentication = (app: Application) => {
 	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
 
-	app.service('oauth/:provider').hooks(
-		{
-			before: { find: [ dynamicOAuth ] },
-		});
+	app.service('oauth/:provider').hooks(oauthServiceHooks());
+	app.service('oauth/:provider/callback').hooks(oauthCallbackHooks());
 
 	// Issues a fresh JWT for an already-authenticated user. refreshAccessCheck runs first,
 	// so the new token keeps the original auth_time and the session ends at its maximum age.

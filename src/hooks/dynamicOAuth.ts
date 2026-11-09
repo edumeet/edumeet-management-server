@@ -41,12 +41,47 @@ export const tenantCallbackUrl = (app: Application): string => {
 	return `${origin.replace(/\/+$/, '')}${defaults.prefix ?? '/oauth'}/tenant/callback`;
 };
 
+// Every sign in has to start with find (GET /oauth/tenant?tenantId=...), which resolves the
+// tenant's provider and checks the origin. get (GET /oauth/:provider/:override) and create
+// (POST /oauth/:provider) would start a grant connect without those checks, with the
+// provider taken from the URL and its settings from the request, so they are refused.
+// The callback is a separate service (oauth/:provider/callback) and is not affected.
+export const rejectOAuthConnect = async () => {
+	throw errorPage('Not allowed');
+};
+
+export const oauthServiceHooks = () => ({
+	before: {
+		find: [ dynamicOAuth ],
+		get: [ rejectOAuthConnect ],
+		create: [ rejectOAuthConnect ]
+	}
+});
+
+// Without a code, grant takes the callback's query (or body) itself as the token response
+// and skips both the code exchange and the state check, so a request carrying someone's
+// access_token would sign in as them. Only let through what an identity provider sends:
+// a code, or an error.
+export const requireOAuthCode = async (context: HookContext) => {
+	const input = { ...(context.data ?? {}), ...(context.params.query ?? {}) };
+	const hasCode = typeof input.code === 'string' && input.code !== '';
+	const smuggled = [ 'access_token', 'id_token', 'refresh_token' ].some((key) => key in input);
+
+	if (smuggled || (!hasCode && !input.error)) throw errorPage('Invalid OAuth callback');
+};
+
+export const oauthCallbackHooks = () => ({
+	before: {
+		find: [ requireOAuthCode ],
+		create: [ requireOAuthCode ]
+	}
+});
+
 const reconfigureOAuth = (app: Application) => {
 	app.unuse('oauth/:provider');
 	app.configure(oauth());
-	app.service('oauth/:provider').hooks({
-		before: { find: [ dynamicOAuth ] },
-	});
+	app.service('oauth/:provider').hooks(oauthServiceHooks());
+	app.service('oauth/:provider/callback').hooks(oauthCallbackHooks());
 };
 
 // Pending refresh per app and tenant. Refreshes of the same tenant run one after another,
@@ -113,7 +148,10 @@ const refreshTenantOAuth = async (
 			redirect_uri: row.redirect_uri || tenantCallbackUrl(app),
 			scope_delimiter: row.scope_delimiter === undefined ? ' ' : row.scope_delimiter,
 			name_parameter: row.name_parameter,
-			token_endpoint_auth_method: 'client_secret_basic'
+			token_endpoint_auth_method: 'client_secret_basic',
+			// Never let the request override the provider's endpoints or credentials,
+			// even if authentication.oauth.defaults sets a dynamic list.
+			dynamic: false
 		};
 	} else if (tenantId in providers) {
 		delete providers[tenantId];
@@ -136,7 +174,17 @@ export const dynamicOAuth = async (context: HookContext) => {
 	const query = context.params.query ?? {};
 	const { tenantId } = query;
 
+	// @feathersjs/authentication-oauth links the identity provider account to the user of a
+	// feathers_token in the query. A link carrying someone else's token would attach the
+	// visitor's sign in to that account, so it is never accepted here.
+	delete query.feathers_token;
+
 	if (!tenantId) throw new Error('Missing tenantId');
+
+	// Only a plain decimal id: the provider is stored under this exact string, while the
+	// lookups parse it. Aliases such as "1e1" or "01" would load one tenant's provider
+	// under a key that other code reads as a different tenant.
+	if (typeof tenantId !== 'string' || !/^[1-9]\d*$/.test(tenantId)) throw errorPage('Invalid tenantId');
 
 	const authService = context.app.service('authentication');
 
