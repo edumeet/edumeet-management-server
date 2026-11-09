@@ -21,6 +21,8 @@ import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
+import { userInCallerTenant } from '../../hooks/userInCallerTenant';
 
 export * from './tenantOwners.class';
 export * from './tenantOwners.schema';
@@ -52,10 +54,14 @@ export const tenantOwner = (app: Application) => {
 			get: [],
 			create: [
 				schemaHooks.validateData(tenantOwnerDataValidator),
+				// the row stays in the caller's tenant and names a user of that tenant
+				iff(notSuperAdmin(), pinTenantToCaller, userInCallerTenant),
 				schemaHooks.resolveData(tenantOwnerDataResolver)
 			],
 			patch: [
 				schemaHooks.validateData(tenantOwnerPatchValidator),
+				// the row stays in the caller's tenant and names a user of that tenant
+				iff(notSuperAdmin(), pinTenantToCaller, userInCallerTenant),
 				schemaHooks.resolveData(tenantOwnerPatchResolver)
 			],
 			remove: [
