@@ -49,7 +49,7 @@ describe('token-refresh with the real services', () => {
 		});
 		const localUser = await createUser.call(app.service('users'), {
 			email: `local-${suffix}@acme.edu`,
-			password: 'supersecret',
+			password: 'test-password-1234',
 			name: 'Local User',
 			tenantId
 		});
@@ -78,7 +78,7 @@ describe('token-refresh with the real services', () => {
 		const { accessToken } = await app.service('authentication').create({
 			strategy: 'local',
 			email: `local-${suffix}@acme.edu`,
-			password: 'supersecret'
+			password: 'test-password-1234'
 		});
 		const payload = await app.service('authentication').verifyAccessToken(accessToken);
 

@@ -28,6 +28,7 @@ describe('OAuth tenant login against existing accounts', () => {
 		tenantId = Number(tenant.id);
 
 		// An SSO account as the strategy creates it: no password.
+		// eslint-disable-next-line no-unused-vars
 		const createUser = app.service('users').create as unknown as (data: Record<string, unknown>, params: unknown) => Promise<{ id: number }>;
 		const user = await createUser.call(app.service('users'), { email, name: 'Owner', tenantId, ssoId: 'original-sub' }, internal);
 
