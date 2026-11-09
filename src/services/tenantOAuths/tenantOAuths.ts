@@ -20,6 +20,7 @@ import { tenantOAuthPath, tenantOAuthMethods } from './tenantOAuths.shared';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { rememberOAuthTenants, reloadTenantOAuth } from '../../hooks/dynamicOAuth';
 
@@ -53,10 +54,13 @@ export const tenantOAuth = (app: Application) => {
 			get: [],
 			create: [
 				schemaHooks.validateData(tenantOAuthDataValidator),
+				// a tenant admin may only configure the login of their own tenant
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(tenantOAuthDataResolver)
 			],
 			patch: [
 				schemaHooks.validateData(tenantOAuthPatchValidator),
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(tenantOAuthPatchResolver),
 				rememberOAuthTenants
 			],
