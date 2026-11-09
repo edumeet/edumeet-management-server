@@ -1,3 +1,4 @@
+import { Forbidden } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
 
 export const isTenantAdmin = async (context: HookContext): Promise<void> => {
@@ -17,23 +18,18 @@ export const checkTenantAdminOrGroupMemberOnDelete = async (context: HookContext
 
 	const id = context.id;
 
-	if (id) {
-		const { groupId } = await context.app.service('groupUsers').get(id);
-		const { tenantId } = await context.app.service('groups').get(groupId);
+	if (id === undefined || id === null) throw new Forbidden('Remove one membership at a time');
 
-		if (tenantId == parseInt(context.params.user.tenantId) && (context.params.user.tenantAdmin || context.params.user.tenantOwner)) {
-			// tenant admin in the same tenant 
-			return;
-		}
-		const { total } = await context.app.service('groupUsers').find({
-			query: {
-				groupId: groupId,
-				userId: context.params.user.id
-			}
-		});
+	const { groupId, userId } = await context.app.service('groupUsers').get(id);
+	const { tenantId } = await context.app.service('groups').get(groupId);
 
-		if (total === 0)
-			throw new Error('You are not part of this group!');
+	if (String(tenantId) === String(context.params.user.tenantId) && (context.params.user.tenantAdmin || context.params.user.tenantOwner)) {
+		// tenant admin in the same tenant
+		return;
 	}
+
+	// anyone else may only leave a group themselves
+	if (String(userId) !== String(context.params.user.id))
+		throw new Forbidden('You can only remove your own membership');
 
 };
