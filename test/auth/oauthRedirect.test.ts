@@ -1,5 +1,7 @@
+/* eslint-disable camelcase */
 import assert from 'assert';
 import qs from 'qs';
+import { OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
 import OAuthTenantStrategy from '../../src/auth/strategies/OAuthTenantStrategy';
 import { consumeCallbackCode } from '../../src/auth/callbackCodes';
 import { dynamicOAuth } from '../../src/hooks/dynamicOAuth';
@@ -99,4 +101,66 @@ describe('dynamicOAuth origin check', () => {
 			assert.strictEqual(context.params.route.provider, undefined);
 		});
 	}
+});
+
+describe('OAuth tenant callback', () => {
+	// eslint-disable-next-line no-unused-vars
+	const withUsers = (byQuery: (query: Record<string, unknown>) => unknown[]) => {
+		const strategy = makeStrategy();
+
+		Object.defineProperty(strategy, 'entityService', {
+			value: { find: async ({ query }: { query: Record<string, unknown> }) => byQuery(query) }
+		});
+
+		return strategy;
+	};
+
+	const victim = { id: 7, tenantId: 1, email: 'admin@acme.edu', ssoId: 'old' };
+	const byEmail = (query: Record<string, unknown>) => (query.email === victim.email ? [ victim ] : []);
+
+	it('refuses a callback whose grant provider is not the tenant being signed in to', async () => {
+		for (const session of [ {}, { grant: { provider: 'tenant' } }, { grant: { provider: '2' } } ]) {
+			await assert.rejects(
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				makeStrategy().authenticate({ strategy: 'tenant' }, { query: { tenantId: '1' }, session } as any),
+				/OAuth provider does not match tenant/
+			);
+		}
+		await assert.rejects(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			makeStrategy().authenticate({ strategy: 'tenant' }, { query: { tenantId: '1e1' }, session: { grant: { provider: '1e1' } } } as any),
+			/OAuth provider does not match tenant/
+		);
+	});
+
+	it('signs in when the grant provider is the tenant being signed in to', async () => {
+		const original = OAuthStrategy.prototype.authenticate;
+
+		OAuthStrategy.prototype.authenticate = async () => ({ accessToken: 'a.b.c', authentication: { strategy: 'tenant' } });
+		try {
+			const result = await makeStrategy().authenticate(
+				{ strategy: 'tenant', id_token: 'x.y.z' },
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				{ query: { tenantId: '1' }, session: { grant: { provider: '1' } } } as any
+			);
+
+			assert.deepStrictEqual(result, { accessToken: 'a.b.c', authentication: { strategy: 'tenant' }, idToken: 'x.y.z' });
+		} finally {
+			OAuthStrategy.prototype.authenticate = original;
+		}
+	});
+
+	it('links an existing account by e-mail only when the address is verified', async () => {
+		const params = { query: { tenantId: '1' } };
+
+		assert.strictEqual(await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email }, params), null);
+		assert.strictEqual(
+			await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email, email_verified: false }, params),
+			null
+		);
+		assert.strictEqual(
+			await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email, email_verified: true }, params),
+			victim
+		);
+	});
 });

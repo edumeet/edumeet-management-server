@@ -1,7 +1,7 @@
 import { OAuthProfile, OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
 import { AuthenticationRequest, AuthenticationResult } from '@feathersjs/authentication/lib';
 import { Params } from '@feathersjs/feathers';
-import { Forbidden } from '@feathersjs/errors';
+import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
 import { isAccessPermitted } from '../../hooks/accessDecision';
@@ -13,6 +13,19 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 	// forwarded to the client and used as id_token_hint at logout time
 	// (required by spec-strict OPs when post_logout_redirect_uri is sent).
 	async authenticate(authentication: AuthenticationRequest, originalParams: Params) {
+		// The profile must come from the provider of the tenant the user signs in to.
+		// dynamicOAuth stores both together (grant provider = tenantId), so anything else
+		// means the flow was not started through it.
+		const grantProvider = (originalParams as Params & { session?: { grant?: { provider?: unknown } } })?.session?.grant?.provider;
+		const tenantId = originalParams?.query?.tenantId;
+
+		if (
+			typeof tenantId !== 'string' || !/^[1-9]\d*$/.test(tenantId) ||
+			grantProvider === undefined || String(grantProvider) !== tenantId
+		) {
+			throw new NotAuthenticated('OAuth provider does not match tenant');
+		}
+
 		const result = await super.authenticate(authentication, originalParams);
 
 		if (authentication?.id_token) {
@@ -51,6 +64,11 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		const found = await super.findEntity(profile, params);
 
 		if (found || !profile?.email || !params.query?.tenantId) return found;
+
+		// Only link an existing account by e-mail when the identity provider says the
+		// address is verified; otherwise anyone who can get that address into a profile
+		// would take over the account.
+		if (profile.email_verified !== true && profile.email_verified !== 'true') return found;
 
 		const result = await this.entityService.find({
 			...params,

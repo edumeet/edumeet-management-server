@@ -1,7 +1,20 @@
 /* eslint-disable camelcase */
 import assert from 'assert';
 import qs from 'qs';
-import { dynamicOAuth, loadTenantOAuth, rememberOAuthTenants, reloadTenantOAuth, tenantCallbackUrl } from '../../src/hooks/dynamicOAuth';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import grant from 'grant/lib/grant';
+import {
+	dynamicOAuth,
+	loadTenantOAuth,
+	oauthCallbackHooks,
+	oauthServiceHooks,
+	rejectOAuthConnect,
+	rememberOAuthTenants,
+	requireOAuthCode,
+	reloadTenantOAuth,
+	tenantCallbackUrl
+} from '../../src/hooks/dynamicOAuth';
 
 type Row = Record<string, unknown>;
 
@@ -43,7 +56,7 @@ const fakeApp = (rows: Row[], oauth: Record<string, unknown> = {}, settings: Rec
 			}
 			if (name === 'authentication') return { configuration: config };
 			if (name === 'tenantFQDNs') return { find: async () => [ { id: 1, fqdn: 'rooms.acme.edu', tenantId: 1 } ] };
-			if (name === 'oauth/:provider') return { hooks: () => undefined };
+			if (name === 'oauth/:provider' || name === 'oauth/:provider/callback') return { hooks: () => undefined };
 			throw new Error(`unexpected service ${name}`);
 		}
 	};
@@ -253,6 +266,118 @@ describe('dynamicOAuth', () => {
 			assert.strictEqual(context.params.route.provider, '1');
 			assert.ok(!('oauthReload' in context.params.query));
 			assert.strictEqual(context.params.query.origin, 'https://rooms.acme.edu');
+		});
+	});
+
+	describe('provider overrides from the request', () => {
+		it('refuses get and create on the oauth service, which would skip the login hook', async () => {
+			const hooks = oauthServiceHooks();
+
+			assert.deepStrictEqual(hooks.before.get, [ rejectOAuthConnect ]);
+			assert.deepStrictEqual(hooks.before.create, [ rejectOAuthConnect ]);
+			assert.deepStrictEqual(hooks.before.find, [ dynamicOAuth ]);
+
+			const location = await rejectsWithLocation(rejectOAuthConnect());
+
+			assert.ok(location.startsWith('/auth/callback?error='));
+		});
+
+		it('loads tenant providers with request overrides switched off', async () => {
+			const app = fakeApp([ completeRow() ], { defaults: { dynamic: true } });
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await loadTenantOAuth(app as any, 1);
+			assert.strictEqual(providers(app)[1].dynamic, false);
+		});
+
+		it('grant ignores endpoint and credential overrides in the query for a tenant provider', async () => {
+			const app = fakeApp([ completeRow() ], { defaults: { origin: 'https://meet.example.org', dynamic: true, state: true } });
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await loadTenantOAuth(app as any, 1, false);
+
+			const result = await grant({ config: providers(app) })({
+				method: 'GET',
+				params: { provider: '1' },
+				query: {
+					tenantId: '1',
+					key: 'evil',
+					secret: 'evil',
+					authorize_url: 'https://evil.example/auth',
+					access_url: 'https://evil.example/token',
+					profile_url: 'https://evil.example/me'
+				},
+				state: {},
+				session: {}
+			});
+
+			assert.ok(String(result.location).startsWith('https://idp.example/auth?'), result.location);
+			assert.ok(String(result.location).includes('client_id=client'));
+			assert.ok(!String(result.location).includes('evil'));
+		});
+	});
+
+	describe('tenantId format', () => {
+		for (const tenantId of [ '1e1', '01', '0b1', ' 1', '1.0', 'tenant', '__proto__', [ '1' ] ]) {
+			it(`refuses ${JSON.stringify(tenantId)} before loading anything`, async () => {
+				const app = fakeApp([ completeRow({ tenantId: 10 }), completeRow() ]);
+				const location = await rejectsWithLocation(dynamicOAuth(loginContext(app, { tenantId, origin: 'https://rooms.acme.edu' })));
+
+				assert.ok(location.startsWith('/auth/callback?error='));
+				assert.strictEqual(app.reconfigured, 0);
+			});
+		}
+	});
+
+	describe('account linking', () => {
+		it('drops feathers_token so a sign in link cannot attach to another account', async () => {
+			const app = fakeApp([], { 1: { key: 'client' } });
+			const context = loginContext(app, { tenantId: '1', origin: 'https://rooms.acme.edu', feathers_token: 'attacker.jwt' });
+
+			await dynamicOAuth(context);
+			assert.ok(!('feathers_token' in context.params.query));
+		});
+
+		it('drops feathers_token from the reload redirect too', async () => {
+			const app = fakeApp([ completeRow() ]);
+			const location = await rejectsWithLocation(
+				dynamicOAuth(loginContext(app, { tenantId: '1', origin: 'https://rooms.acme.edu', feathers_token: 'attacker.jwt' }))
+			);
+
+			assert.ok(!location.includes('attacker.jwt'));
+		});
+	});
+
+	describe('callback input', () => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const callbackContext = (query: Record<string, unknown>, data?: Record<string, unknown>): any => ({
+			params: { query },
+			data
+		});
+
+		it('guards both callback methods', () => {
+			assert.deepStrictEqual(oauthCallbackHooks().before, { find: [ requireOAuthCode ], create: [ requireOAuthCode ] });
+		});
+
+		it('lets an authorization code or an identity provider error through', async () => {
+			await requireOAuthCode(callbackContext({ code: 'c', state: 's' }));
+			await requireOAuthCode(callbackContext({}, { code: 'c', state: 's' }));
+			await requireOAuthCode(callbackContext({ error: 'access_denied' }));
+		});
+
+		it('refuses a callback without a code, or with tokens the browser supplied', async () => {
+			for (const [ query, data ] of [
+				[ {} ],
+				[ { access_token: 'stolen' } ],
+				[ { code: 'c', access_token: 'stolen' } ],
+				[ { error: 'x', id_token: 'forged' } ],
+				[ { code: [ 'c' ] } ],
+				[ {}, { access_token: 'stolen' } ]
+			] as Array<[Record<string, unknown>, Record<string, unknown>?]>) {
+				const location = await rejectsWithLocation(requireOAuthCode(callbackContext(query, data)));
+
+				assert.ok(location.startsWith('/auth/callback?error='), JSON.stringify(query));
+			}
 		});
 	});
 });

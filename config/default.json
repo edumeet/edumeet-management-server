@@ -40,8 +40,7 @@
 				"nonce": true
             },
 			"tenant": {
-				"oauth": 2,
-				"dynamic": [ "key", "secret", "authorize_url", "access_url", "profile_url", "scope_delimiter", "scope", "redirect_uri" ]
+				"oauth": 2
 			}
 		}
 	},
