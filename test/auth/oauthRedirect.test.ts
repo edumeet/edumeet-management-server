@@ -153,11 +153,13 @@ describe('OAuth tenant callback', () => {
 	it('links an existing account by e-mail only when the address is verified', async () => {
 		const params = { query: { tenantId: '1' } };
 
-		assert.strictEqual(await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email }, params), null);
-		assert.strictEqual(
-			await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email, email_verified: false }, params),
-			null
+		await assert.rejects(withUsers(byEmail).findEntity({ sub: 'new', email: victim.email }, params), /did not confirm the address/);
+		await assert.rejects(
+			withUsers(byEmail).findEntity({ sub: 'new', email: victim.email, email_verified: false }, params),
+			/did not confirm the address/
 		);
+		assert.strictEqual(await withUsers(byEmail).findEntity({ sub: 'new', email: 'nobody@acme.edu' }, params), undefined);
+		await assert.rejects(withUsers(byEmail).getEntityQuery({ email: victim.email }, params), /no sub or id/);
 		assert.strictEqual(
 			await withUsers(byEmail).findEntity({ sub: 'new', email: victim.email, email_verified: true }, params),
 			victim

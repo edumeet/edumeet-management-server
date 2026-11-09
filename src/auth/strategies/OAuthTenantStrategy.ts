@@ -42,18 +42,11 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// const paramKey = params?.query?.name_parameter;
 		// const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 		
-		const ssoId = profile?.sub || profile?.id || undefined;
+		const ssoId = profile?.sub || profile?.id;
 
-		if (ssoId) {
-			return {
-				ssoId: profile?.sub || profile?.id || undefined,
-				tenantId: parseInt(params.query?.tenantId),
-			};
-		}
+		if (!ssoId) throw new NotAuthenticated('Identity provider profile has no sub or id');
 
-		return {
-			tenantId: parseInt(params.query?.tenantId),
-		};
+		return { ssoId, tenantId: parseInt(params.query?.tenantId) };
 	}
 
 	// Fall back to (tenantId, email) when the ssoId lookup misses. Handles IdP
@@ -68,8 +61,6 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// Only link an existing account by e-mail when the identity provider says the
 		// address is verified; otherwise anyone who can get that address into a profile
 		// would take over the account.
-		if (profile.email_verified !== true && profile.email_verified !== 'true') return found;
-
 		const result = await this.entityService.find({
 			...params,
 			query: {
@@ -79,8 +70,13 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 			},
 			provider: undefined,
 		});
+		const existing = Array.isArray(result) ? result[0] : result.data?.[0];
 
-		return Array.isArray(result) ? result[0] : result.data?.[0];
+		if (existing && profile.email_verified !== true && profile.email_verified !== 'true') {
+			throw new NotAuthenticated('An account with this e-mail address already exists, but the identity provider did not confirm the address. Ask your administrator.');
+		}
+
+		return existing;
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
