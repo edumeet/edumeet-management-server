@@ -68,3 +68,22 @@ describe('isMeetingOver', () => {
 		assert.strictEqual(isMeetingOver({ ...series, timezone: 'Mars/Olympus' }, now + (HOUR / 2)), false);
 	});
 });
+
+describe('isMeetingOver on rules with very many occurrences', () => {
+	// Stored before the schema refused them: one occurrence per second since 1970, and
+	// the same through BY* lists on a daily rule.
+	for (const rrule of [ 'FREQ=SECONDLY', 'FREQ=DAILY;BYHOUR=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23;BYMINUTE=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59' ]) {
+		it(`returns quickly for ${rrule.slice(0, 40)}`, () => {
+			const started = Date.now();
+
+			assert.strictEqual(isMeetingOver({ startsAt: 0, endsAt: 1000, rrule }, now), true);
+			assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+		});
+	}
+
+	it('still finds the next occurrence of a daily meeting from years ago', () => {
+		const start = now - (20 * 365 * DAY) - HOUR;
+
+		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + (2 * HOUR), rrule: 'FREQ=DAILY;INTERVAL=1' }, now), false);
+	});
+});

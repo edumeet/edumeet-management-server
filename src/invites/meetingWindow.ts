@@ -29,6 +29,9 @@ const usableZone = (tz: string | null | undefined): string => {
 	}
 };
 
+// More occurrences than a daily meeting has in 25 years.
+const MAX_OCCURRENCES = 10000;
+
 export const isMeetingOver = (meeting: MeetingWindow, now: number): boolean => {
 	const startsAt = Number(meeting.startsAt);
 	const endsAt = Number(meeting.endsAt);
@@ -40,11 +43,28 @@ export const isMeetingOver = (meeting: MeetingWindow, now: number): boolean => {
 
 	try {
 		const rule = rrulestr(meeting.rrule, { dtstart: asFloating(startsAt, tz) });
+		const nowFloating = asFloating(now, tz).getTime();
+		let last: Date | undefined;
+		let upcoming = false;
+		let seen = 0;
 
-		if (rule.after(asFloating(now, tz), true)) return false;
+		// Walk the occurrences once, up to the first one from now on. rule.after() and
+		// rule.before() also walk from dtstart, with no limit, so a rule with a start far
+		// in the past and a short period would block the event loop for hours.
+		rule.all((date) => {
+			if (date.getTime() >= nowFloating) {
+				upcoming = true;
 
-		const last = rule.before(asFloating(now, tz), true);
+				return false;
+			}
+			last = date;
 
+			return ++seen < MAX_OCCURRENCES;
+		});
+
+		// A rule with more past occurrences than any real meeting is treated as over.
+		if (upcoming) return false;
+		if (seen >= MAX_OCCURRENCES) return true;
 		if (!last) return endsAt < now;
 
 		return fromFloating(last, tz) + duration < now;
