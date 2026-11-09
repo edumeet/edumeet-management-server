@@ -70,22 +70,74 @@ const decodeQuotedPrintable = (input: string): string => {
 	return Buffer.from(bytes).toString('utf8');
 };
 
-const BASE64_PART = /Content-Transfer-Encoding:\s*base64[\s\S]*?\r?\n\r?\n([A-Za-z0-9+/=\s]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi;
-const QP_PART = /Content-Transfer-Encoding:\s*quoted-printable[\s\S]*?\r?\n\r?\n([\s\S]+?)(?=\r?\n--|$)/gi;
-const VCALENDAR = /BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/;
+// Parsed by hand, with indexOf only: the regular expressions this replaces backtracked
+// quadratically, so one crafted e-mail of a megabyte blocked the event loop for half an hour.
+// The number of encoded parts looked at is capped, so the scans stay linear in the message.
+const MAX_ENCODED_PARTS = 20;
+const MAX_REPLY_BYTES = 1024 * 1024;
+const ENCODING_HEADER = /Content-Transfer-Encoding:\s*(base64|quoted-printable)/gi;
+
+// The end of the next blank line (a header block's end) from `from`, or -1.
+const afterBlankLine = (source: string, from: number): number => {
+	const lf = source.indexOf('\n\n', from);
+	const crlf = source.indexOf('\n\r\n', from);
+
+	if (lf === -1 && crlf === -1) return -1;
+	if (crlf === -1 || (lf !== -1 && lf < crlf)) return lf + 2;
+
+	return crlf + 3;
+};
+
+const endOfPart = (source: string, from: number, stopAtBlankLine: boolean): number => {
+	let end = source.indexOf('\n--', from);
+
+	if (end === -1) end = source.length;
+	if (stopAtBlankLine) {
+		const blank = source.indexOf('\n\n', from);
+		const blankCrlf = source.indexOf('\n\r\n', from);
+
+		for (const pos of [ blank, blankCrlf ]) if (pos !== -1 && pos < end) end = pos;
+	}
+
+	return end;
+};
+
+const vcalendarBlocks = (text: string): string[] => {
+	const blocks: string[] = [];
+	let from = 0;
+
+	for (;;) {
+		const begin = text.indexOf('BEGIN:VCALENDAR', from);
+
+		if (begin === -1) break;
+
+		const end = text.indexOf('END:VCALENDAR', begin + 'BEGIN:VCALENDAR'.length + 1);
+
+		if (end === -1) break;
+
+		blocks.push(text.slice(begin, end + 'END:VCALENDAR'.length));
+		from = end + 'END:VCALENDAR'.length;
+	}
+
+	return blocks;
+};
 
 export const extractIcs = (source: string): string | null => {
 	const candidates: string[] = [];
+	let parts = 0;
 
-	for (const part of source.matchAll(BASE64_PART)) {
-		try {
-			candidates.push(Buffer.from(part[1].replace(/\s/g, ''), 'base64').toString('utf8'));
-		} catch { /* noop */ }
-	}
+	for (const header of source.matchAll(ENCODING_HEADER)) {
+		if (++parts > MAX_ENCODED_PARTS) break;
 
-	for (const part of source.matchAll(QP_PART)) {
+		const bodyStart = afterBlankLine(source, (header.index ?? 0) + header[0].length);
+
+		if (bodyStart === -1) break;
+
+		const base64 = header[1].toLowerCase() === 'base64';
+		const body = source.slice(bodyStart, endOfPart(source, bodyStart, base64)).replace(/\r$/, '');
+
 		try {
-			candidates.push(decodeQuotedPrintable(part[1]));
+			candidates.push(base64 ? Buffer.from(body.replace(/\s/g, ''), 'base64').toString('utf8') : decodeQuotedPrintable(body));
 		} catch { /* noop */ }
 	}
 
@@ -95,11 +147,7 @@ export const extractIcs = (source: string): string | null => {
 	// original REQUEST attached as invite.ics. Decoded attachments are tried first, so the
 	// first hit is not necessarily the REPLY. Prefer a block that is one; otherwise fall back
 	// to the first, which processReplyIcs will then correctly refuse as not a reply.
-	const blocks: string[] = [];
-
-	for (const candidate of candidates) {
-		for (const match of candidate.matchAll(new RegExp(VCALENDAR.source, 'g'))) blocks.push(match[0]);
-	}
+	const blocks = candidates.flatMap(vcalendarBlocks);
 
 	return blocks.find((b) => /^METHOD:REPLY\s*$/mi.test(b)) ?? blocks[0] ?? null;
 };
@@ -341,7 +389,8 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 			let unclaimedCount = 0;
 			const uidsToMarkSeen: number[] = [];
 
-			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
+			// A reply is a few kilobytes; only the start of a larger message is fetched and parsed.
+			for await (const msg of client.fetch({ seen: false }, { source: { maxLength: MAX_REPLY_BYTES }, envelope: true, uid: true })) {
 				unseenCount++;
 				if (!msg.source) continue;
 

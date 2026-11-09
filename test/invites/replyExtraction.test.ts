@@ -166,4 +166,32 @@ describe('reply ICS extraction', () => {
 		assert.ok(found);
 		assert.strictEqual(partstatOf(found as string), 'ACCEPTED');
 	});
+
+	describe('on crafted input', () => {
+		const quick = (source: string) => {
+			const started = Date.now();
+
+			extractIcs(source);
+
+			return Date.now() - started;
+		};
+
+		it('parses a base64 header followed by many line breaks quickly', () => {
+			const ms = quick(`Content-Transfer-Encoding: base64${'\r\n'.repeat(32 * 1024)}!`);
+
+			assert.ok(ms < 1000, `took ${ms} ms`);
+		});
+
+		it('parses a megabyte of unterminated calendars quickly', () => {
+			const ms = quick('BEGIN:VCALENDAR\r\n'.repeat(64 * 1024));
+
+			assert.ok(ms < 1000, `took ${ms} ms`);
+		});
+
+		it('parses many encoded parts quickly', () => {
+			const ms = quick('Content-Transfer-Encoding: base64\r\n\r\nQUJD\r\n'.repeat(32 * 1024));
+
+			assert.ok(ms < 1000, `took ${ms} ms`);
+		});
+	});
 });
