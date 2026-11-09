@@ -20,7 +20,7 @@ import { defaultPath, defaultMethods } from './defaults.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
-import { tenantDefault } from '../../hooks/tenantDefault';
+import { stripLocks, tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
 import { normalizeDefaults } from '../../hooks/normalizeDefaults';
@@ -56,6 +56,7 @@ export const defaults = (app: Application) => {
 				// iff(notSuperAdmin(), notInSameTenant),
 				// numberLimit is super-admin only — strip it from create requests by tenant admins
 				iff(notSuperAdmin(), (context) => { delete context.data['numberLimit']; }),
+				iff(notSuperAdmin(), stripLocks),
 				normalizeDefaults,
 				schemaHooks.validateData(defaultDataValidator),
 				schemaHooks.resolveData(defaultDataResolver) ],

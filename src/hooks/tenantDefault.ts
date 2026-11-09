@@ -1,5 +1,13 @@
 import { HookContext } from '../declarations';
 
+// The locks are the super administrator's: a tenant admin may change what is not locked, never
+// whether it is, or a mandate set for the tenant would be one request away from withdrawn.
+export const stripLocks = (context: HookContext): void => {
+	for (const key of Object.keys(context.data ?? {})) {
+		if (key.endsWith('Lock')) delete context.data[key];
+	}
+};
+
 export const tenantDefault = async (context: HookContext): Promise<void> => {
 	// If the user is not logged in, throw an error.
 	if (context.params.provider && !context.params.user)
@@ -18,6 +26,8 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 		// tenant admins cannot move their default to another tenant — the row's
 		// tenant is fixed at creation, so never let a patched tenantId through
 		delete context.data['tenantId'];
+
+		stripLocks(context);
 
 		if (item['managerManagedRoomNumberLimit'] && typeof item['managerManagedRoomNumberLimit'] == 'string') {
 			context.data['managerManagedRoomNumberLimit'] = parseInt(String(item['managerManagedRoomNumberLimit']));
@@ -40,6 +50,9 @@ export const tenantDefault = async (context: HookContext): Promise<void> => {
 		}
 		if (item['raiseHandEnabledLock']) {
 			context.data['raiseHandEnabledUnmanaged'] = Boolean(item['raiseHandEnabledUnmanaged']);
+		}
+		if (item['reactionsEnabledLock']) {
+			context.data['reactionsEnabledUnmanaged'] = Boolean(item['reactionsEnabledUnmanaged']);
 		}
 		if (item['localRecordingEnabledLock']) {
 			context.data['localRecordingEnabledUnmanaged'] = Boolean(item['localRecordingEnabledUnmanaged']);
