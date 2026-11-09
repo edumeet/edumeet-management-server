@@ -11,6 +11,7 @@ import { loginThrottleBefore, loginThrottleError } from './hooks/loginThrottle';
 import { refreshAccessCheck } from './hooks/refreshAccessCheck';
 import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
 import { EdumeetLocalStrategy } from './auth/EdumeetLocalStrategy';
+import { assertSigningKeyNotPublished } from './auth/publishedKeys';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -23,6 +24,8 @@ declare module './declarations' {
 }
 
 export const authentication = (app: Application) => {
+	assertSigningKeyNotPublished(app.get('authentication')?.secret);
+
 	const authenticationService = new EdumeetAuthenticationService(app, 'authentication');
 
 	authenticationService.register('jwt', new JWTStrategy());
