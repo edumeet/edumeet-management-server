@@ -22,6 +22,7 @@ import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 
 export * from './tenantFQDNs.class';
 export * from './tenantFQDNs.schema';
@@ -69,6 +70,8 @@ export const tenantFqdn = (app: Application) => {
 				iff(notSuperAdmin(), isTenantAdmin),
 				iff(notSuperAdmin(), notInSameTenantByContextId),
 				schemaHooks.validateData(tenantFqdnPatchValidator),
+				// the row may not be moved to another tenant
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],
 			remove: [ 

@@ -2,6 +2,7 @@
 import assert from 'assert';
 import type { Params } from '@feathersjs/feathers';
 import { app } from '../../../src/app';
+import { resolveAllowedOrigin } from '../../../src/auth/allowedOrigin';
 
 const internal = { provider: undefined, query: {} };
 
@@ -50,6 +51,23 @@ describe('tenantFQDNs service', () => {
 		it('refuses an admin of another tenant on patch and remove', async () => {
 			await assert.rejects(app.service('tenantFQDNs').patch(fqdnId, { description: 'x' }, admin({ tenantId: tenantId + 1 })), /same tenant/);
 			await assert.rejects(app.service('tenantFQDNs').remove(fqdnId, admin({ tenantId: tenantId + 1 })), /same tenant/);
+		});
+
+		it('keeps the row in the own tenant when a patch sends another tenantId', async () => {
+			const other = await app.service('tenants').create({ name: `fqdn-other-${Date.now()}`, description: 'target tenant' }, internal);
+			const fqdn = `moved-${Date.now()}.example.edu`;
+			const row = await app.service('tenantFQDNs').create({ tenantId, fqdn, description: 'to move' }, admin());
+
+			try {
+				const patched = await app.service('tenantFQDNs').patch(row.id, { tenantId: Number(other.id) }, admin());
+
+				assert.strictEqual(Number(patched.tenantId), tenantId);
+				assert.strictEqual(Number((await app.service('tenantFQDNs').get(row.id, internal)).tenantId), tenantId);
+				await assert.rejects(resolveAllowedOrigin(app, Number(other.id), `https://${fqdn}`));
+			} finally {
+				await app.service('tenantFQDNs').remove(row.id, internal);
+				await app.service('tenants').remove(other.id, internal);
+			}
 		});
 
 		it('lets the own admin patch and remove', async () => {
