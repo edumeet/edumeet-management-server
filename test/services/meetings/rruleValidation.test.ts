@@ -1,6 +1,7 @@
 import assert from 'assert';
 
-import { meetingDataValidator, meetingPatchValidator } from '../../../src/services/meetings/meetings.schema';
+import { meetingDataValidator, meetingExternalResolver, meetingPatchValidator } from '../../../src/services/meetings/meetings.schema';
+import type { HookContext } from '../../../src/declarations';
 
 const valid = async (rrule: string) => {
 	try {
@@ -49,5 +50,20 @@ describe('meeting rrule validation', () => {
 		for (const startsAt of [ 0, -1e12, Date.UTC(2101, 0, 1) ])
 			await assert.rejects(meetingPatchValidator({ startsAt }), String(startsAt));
 		await meetingPatchValidator({ startsAt: Date.UTC(2026, 10, 10), endsAt: Date.UTC(2026, 10, 10, 1) });
+	});
+
+	it('refuses a BYDAY sign without an ordinal', async () => {
+		assert.strictEqual(await valid('FREQ=WEEKLY;BYDAY=+MO'), false);
+		assert.ok(await valid('FREQ=MONTHLY;BYDAY=+2MO'));
+	});
+
+	it('does not hand out a stored rule or start the limits refuse, so clients do not expand it', async () => {
+		const resolve = (meeting: Record<string, unknown>) =>
+			meetingExternalResolver.resolve(meeting as never, {} as HookContext) as Promise<Record<string, unknown>>;
+		const ok = { startsAt: Date.UTC(2026, 0, 1), endsAt: Date.UTC(2026, 0, 1, 1) };
+
+		assert.strictEqual((await resolve({ ...ok, rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=3' })).rrule, 'FREQ=WEEKLY;INTERVAL=1;COUNT=3');
+		assert.strictEqual((await resolve({ ...ok, rrule: 'FREQ=SECONDLY' })).rrule, undefined);
+		assert.strictEqual((await resolve({ startsAt: 0, endsAt: 1000, rrule: 'FREQ=DAILY' })).rrule, undefined);
 	});
 });

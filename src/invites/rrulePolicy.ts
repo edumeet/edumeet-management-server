@@ -9,7 +9,7 @@
 //   can match nothing (BYMONTH=2;BYMONTHDAY=30), and rrule then walks every period up to
 //   the year 9999 looking for an occurrence, whatever end or count it is given.
 // - One line, so it cannot add lines to the invitation.
-const DAY = '[+-]?[1-5]?(MO|TU|WE|TH|FR|SA|SU)';
+const DAY = '([+-]?[1-5])?(MO|TU|WE|TH|FR|SA|SU)';
 
 export const RRULE_PATTERN = [
 	'^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)',
@@ -35,3 +35,16 @@ export const isAllowedRrule = (rrule: unknown): rrule is string =>
 // walk from there to today.
 export const MEETING_TIME_MIN = Date.UTC(2000, 0, 1);
 export const MEETING_TIME_MAX = Date.UTC(2100, 0, 1);
+
+const inMeetingTime = (value: unknown): boolean => {
+	const time = Number(value);
+
+	return Number.isFinite(time) && time >= MEETING_TIME_MIN && time <= MEETING_TIME_MAX;
+};
+
+/**
+ * Whether a stored meeting's recurrence may be expanded: its rule passes the policy and its
+ * times are in range. Meetings stored before these limits are shown and sent as single ones.
+ */
+export const isExpandableMeeting = (meeting: { rrule?: unknown, startsAt?: unknown, endsAt?: unknown }): boolean =>
+	isAllowedRrule(meeting.rrule) && inMeetingTime(meeting.startsAt) && inMeetingTime(meeting.endsAt);

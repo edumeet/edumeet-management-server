@@ -6,7 +6,7 @@ import type { Static } from '@feathersjs/typebox';
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { generateMeetingToken } from './meetingToken';
-import { MEETING_TIME_MAX, MEETING_TIME_MIN, RRULE_MAX_LENGTH, RRULE_PATTERN } from '../../invites/rrulePolicy';
+import { MEETING_TIME_MAX, MEETING_TIME_MIN, RRULE_MAX_LENGTH, RRULE_PATTERN, isExpandableMeeting } from '../../invites/rrulePolicy';
 
 export { RRULE_PATTERN };
 
@@ -61,7 +61,11 @@ export const meetingResolver = resolve<Meeting, HookContext>({
 	}),
 });
 
-export const meetingExternalResolver = resolve<Meeting, HookContext>({});
+export const meetingExternalResolver = resolve<Meeting, HookContext>({
+	// The clients expand the rule themselves; one stored before the limits (rrulePolicy) could
+	// hang their browser, so it is not handed out and the meeting shows as a single one.
+	rrule: async (value, meeting) => (isExpandableMeeting(meeting) ? value : undefined)
+});
 
 // A bare UUID with no "@domain" part. RFC 5545 leaves the UID form open and RFC 7986
 // recommends exactly this. A domain suffix is actively harmful in practice: Thunderbird

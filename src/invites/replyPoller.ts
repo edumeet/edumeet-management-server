@@ -173,7 +173,8 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 	let parsed: any;
 
 	try {
-		parsed = ical.sync.parseICS(icsSource);
+		// A reply needs no recurrence rule; dropping RRULE lines keeps the parser from building one.
+		parsed = ical.sync.parseICS(icsSource.replace(/^RRULE[:;].*$/gim, ''));
 	} catch (err) {
 		logger.warn('[invites/replyPoller] failed to parse ICS body:', err);
 
