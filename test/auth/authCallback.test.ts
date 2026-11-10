@@ -74,14 +74,30 @@ describe('auth callback page', () => {
 		assert.strictEqual((String(ctx.body).match(/<\/script>/g) ?? []).length, 1);
 	});
 
-	it('shows a sanitized error message', () => {
+	it('shows the error message as text only', () => {
 		const ctx = makeCtx({ error: 'Action not allowed by rule<img src=x onerror=alert(1)>' });
 
 		handleAuthCallback(ctx);
 
 		assert.strictEqual(ctx.status, 200);
-		assert.ok(String(ctx.body).includes('Action not allowed by rule'));
-		assert.ok(!String(ctx.body).includes('onerror'));
+		assert.ok(String(ctx.body).includes('Action not allowed by rule&lt;img src=x onerror=alert(1)&gt;!'));
+		assert.ok(!String(ctx.body).includes('<img'));
 		assert.ok(!String(ctx.body).includes('postMessage'));
+	});
+
+	it('cannot be made to show a form, a link or styles of the caller\'s choice', () => {
+		for (const error of [
+			'<form action=https://evil.example><input name=password></form>',
+			'<a href=https://evil.example>Sign in again</a>',
+			'<style>body{display:none}</style>',
+			'<p style="font-size:99px">x</p>',
+		]) {
+			const ctx = makeCtx({ error });
+
+			handleAuthCallback(ctx);
+
+			assert.ok(!/<(form|input|a|style|p|img)[\s>]/i.test(String(ctx.body)), error);
+			assert.strictEqual(ctx.headers['Content-Security-Policy'], 'default-src \'none\'; form-action \'none\'; base-uri \'none\'');
+		}
 	});
 });

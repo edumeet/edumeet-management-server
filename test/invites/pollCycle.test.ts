@@ -29,7 +29,7 @@ const captureWarnings = (): { calls: string[], restore: () => void } => {
 	return { calls, restore: () => { (logger as any).warn = original; } };
 };
 
-interface Message { uid: number; source: string | null; envelope?: { date?: Date } }
+interface Message { uid: number; source: string | null; envelope?: { date?: Date, from?: Array<{ address?: string }> } }
 
 // records the order of IMAP operations so the test can prove STORE runs after the FETCH
 // iterator drains, which is the ordering some servers hang on if violated
@@ -128,7 +128,7 @@ const cfg = (over: Partial<TenantInviteConfig> = {}): TenantInviteConfig => ({
 
 const replyMessage = (uid: number, meetingUid: string, sentAt = new Date()): Message => ({
 	uid,
-	envelope: { date: sentAt },
+	envelope: { date: sentAt, from: [ { address: 'guest@example.org' } ] },
 	source: [
 		'From: guest@example.org',
 		'Content-Type: text/calendar; method=REPLY',
@@ -171,7 +171,7 @@ const app = (retentionDays?: number): Application => ({
 					if (params.query.uid === 'boom') throw new Error('database is down');
 					if (params.query.uid === 'not-ours') return [];
 
-					return [ { id: 11 } ];
+					return [ { id: 11, sequence: 1 } ];
 				}
 			};
 		}
@@ -228,6 +228,27 @@ describe('poll cycle', () => {
 			await pollOnce(app(), cfg());
 
 			assert.deepStrictEqual(trace.flagged, [ [ 7 ] ]);
+		});
+
+		it('applies a reply only when its From address is the attendee\'s', async () => {
+			const patched: unknown[] = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const base = app() as any;
+			const recording = {
+				...base,
+				service: (name: string) => (name === 'meetingAttendees'
+					? { ...base.service(name), patch: async (id: unknown) => patched.push(id) }
+					: base.service(name))
+			} as Application;
+			const forged = replyMessage(4, 'uid-1@meet.example.edu');
+
+			forged.envelope = { date: new Date(), from: [ { address: 'other.guest@example.org' } ] };
+			const trace = installImap([ forged, replyMessage(5, 'uid-1@meet.example.edu') ]);
+
+			await pollOnce(recording, cfg());
+
+			assert.deepStrictEqual(patched, [ 22 ]);
+			assert.deepStrictEqual(trace.flagged, [ [ 4, 5 ] ]);
 		});
 
 		it('issues one STORE only after the fetch iterator has drained', async () => {

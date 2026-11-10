@@ -13,6 +13,7 @@ import {
 
 import type { Application, HookContext } from '../../declarations';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { onlyLookedUpUsers } from '../../hooks/userLookups';
 import { ResolvedUserService, getOptions } from './resolvedUsers.class';
 import { resolvedUserPath, resolvedUserMethods } from './resolvedUsers.shared';
 
@@ -63,7 +64,8 @@ export const resolvedUser = (app: Application) => {
 					}
 
 					return context;
-				}
+				},
+				onlyLookedUpUsers
 			],
 			remove: [ ownRowsOnly ]
 		},

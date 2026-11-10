@@ -168,7 +168,7 @@ export interface ReplyOutcome {
 	updated: number;
 }
 
-export const processReplyIcs = async (app: Application, icsSource: string): Promise<ReplyOutcome> => {
+export const processReplyIcs = async (app: Application, icsSource: string, sender: string | undefined): Promise<ReplyOutcome> => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let parsed: any;
 
@@ -256,7 +256,7 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 				query: { uid }
 			});
 			const list = Array.isArray(meetingsRes) ? meetingsRes : (meetingsRes as { data: unknown[] }).data;
-			const meeting = (list as Array<{ id: number }>)[0];
+			const meeting = (list as Array<{ id: number, sequence?: number | string }>)[0];
 
 			if (!meeting) {
 				// Debug, not warn: with deployments sharing a mailbox this is the normal outcome on
@@ -280,6 +280,19 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 
 			claimed++;
 
+			// Anyone holding the invitation can name any attendee in the ICS. Only the attendee's
+			// own address answers for them; the receiving mail server checks that address for
+			// domains that enforce DMARC.
+			if (email !== sender?.trim().toLowerCase()) {
+				logger.warn(`[invites/replyPoller] REPLY for attendee id=${attendeeRow.id} was not sent from the attendee's address, ignored`);
+				continue;
+			}
+
+			// A reply cannot be newer than the invitation it answers, nor than now. Otherwise one
+			// reply with a huge SEQUENCE or a future DTSTAMP makes every later reply look stale.
+			const sequence = Math.min(evSequence, Number(meeting.sequence) || 0);
+			const dtstamp = Math.min(evDtstampMs, Date.now());
+
 			// Per-occurrence exception: write to meetingOccurrenceRsvps; leave series partstat alone.
 			if (recurrenceId != null) {
 				// Coerce — Postgres bigint columns deserialize as strings and the schema validator rejects non-numbers.
@@ -296,14 +309,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 					const rStamp = rsvpRow.replyDtstamp != null ? Number(rsvpRow.replyDtstamp) : null;
 
 					if (rSeq != null && rStamp != null &&
-						(evSequence < rSeq || (evSequence === rSeq && evDtstampMs <= rStamp))) {
+						(sequence < rSeq || (sequence === rSeq && dtstamp <= rStamp))) {
 						logger.info(`[invites/replyPoller] stale occurrence REPLY for attendee id=${attendeeIdNum} recurrenceId=${recurrenceId}, skipping`);
 						continue;
 					}
 
 					await app.service('meetingOccurrenceRsvps').patch(
 						Number(rsvpRow.id),
-						{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+						{ partstat, replyDtstamp: dtstamp, replySequence: sequence },
 						{ provider: undefined }
 					);
 				} else {
@@ -312,14 +325,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 							meetingAttendeeId: attendeeIdNum,
 							recurrenceId,
 							partstat,
-							replyDtstamp: evDtstampMs,
-							replySequence: evSequence
+							replyDtstamp: dtstamp,
+							replySequence: sequence
 						},
 						{ provider: undefined }
 					);
 				}
 				updated++;
-				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
+				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${sequence})`);
 				continue;
 			}
 
@@ -330,19 +343,19 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 			const storedDtstamp = attendeeRow.replyDtstamp != null ? Number(attendeeRow.replyDtstamp) : null;
 
 			if (storedSeq != null && storedDtstamp != null) {
-				if (evSequence < storedSeq || (evSequence === storedSeq && evDtstampMs <= storedDtstamp)) {
-					logger.info(`[invites/replyPoller] stale REPLY for attendee id=${attendeeRow.id} (incoming seq=${evSequence} dtstamp=${evDtstampMs} <= stored seq=${storedSeq} dtstamp=${storedDtstamp}), skipping`);
+				if (sequence < storedSeq || (sequence === storedSeq && dtstamp <= storedDtstamp)) {
+					logger.info(`[invites/replyPoller] stale REPLY for attendee id=${attendeeRow.id} (incoming seq=${sequence} dtstamp=${dtstamp} <= stored seq=${storedSeq} dtstamp=${storedDtstamp}), skipping`);
 					continue;
 				}
 			}
 
 			await app.service('meetingAttendees').patch(
 				attendeeRow.id,
-				{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+				{ partstat, replyDtstamp: dtstamp, replySequence: sequence },
 				{ provider: undefined }
 			);
 			updated++;
-			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${evSequence})`);
+			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${sequence})`);
 		}
 	}
 
@@ -422,7 +435,8 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 				// batch was re-fetched next cycle and a permanently unprocessable one stalled the
 				// mailbox for good. Unmarked on failure, so a transient error still retries.
 				try {
-					const outcome = await processReplyIcs(app, ics);
+					const from = msg.envelope?.from ?? [];
+					const outcome = await processReplyIcs(app, ics, from.length === 1 ? from[0].address : undefined);
 
 					if (!outcome.isReply) continue;
 

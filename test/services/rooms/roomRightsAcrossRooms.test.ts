@@ -117,6 +117,9 @@ describe('room rights across rooms and tenants', () => {
 	describe('resolved users', () => {
 		it('are only seen and removed by the user who resolved them', async () => {
 			const asUser = (id: number): Params => ({ provider: 'rest', authenticated: true, user: { id, tenantId: tenantA, roles: [] }, query: {} }) as unknown as Params;
+
+			// A resolution needs the user found by their exact e-mail address first.
+			await svc('users').find({ ...asUser(owner), query: { email: `${stamp}-a@example.edu` } });
 			const mine = await svc('resolvedUsers').create({ resolvedUserId: userA }, asUser(owner));
 			const seen = await svc('resolvedUsers').find({ ...asUser(userA), paginate: false }) as Array<{ id: number }>;
 

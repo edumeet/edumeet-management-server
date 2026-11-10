@@ -21,6 +21,7 @@ import { UserService, getOptions } from './users.class';
 import { userPath, userMethods } from './users.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { canSeeAllUsers, exactEmailQueriesOnly, rememberEmailLookup } from '../../hooks/userLookups';
 import { notTenantManager } from '../../hooks/notTenantManager';
 
 import { checkPermissions } from '../../hooks/checkPermissions';
@@ -62,7 +63,7 @@ export const user = (app: Application) => {
 		if (!reqUser) return context;
 
 		const isSuperAdmin = !notSuperAdmin()(context);
-		const canSeeAll = isSuperAdmin || reqUser.tenantAdmin || reqUser.tenantOwner;
+		const canSeeAll = canSeeAllUsers(context);
 
 		// Check if the tenant has disabled user detail hiding
 		let tenantHidesDetails = true;
@@ -81,6 +82,13 @@ export const user = (app: Application) => {
 			} catch (err) {
 				logger.error('sanitizeUsersForPrivacy: tenant lookup failed', err);
 			}
+		}
+
+		// Who was found by an exact e-mail address may be resolved by the caller afterwards.
+		if (!canSeeAll && context.params.provider && context.method === 'find' && typeof context.params.query?.email === 'string') {
+			const found = isPaginatedUsers(context.result) ? context.result.data : Array.isArray(context.result) ? context.result as UserResult[] : [];
+
+			rememberEmailLookup(reqUser.id, found.map((item) => item.id));
 		}
 
 		// Fetch resolved user IDs for this user
@@ -162,6 +170,7 @@ export const user = (app: Application) => {
 		before: {
 			all: [
 				schemaHooks.validateQuery(userQueryValidator),
+				exactEmailQueriesOnly,
 				iff(
 					notSuperAdmin(),
 					iff(
