@@ -86,6 +86,10 @@ describe('room rights across rooms and tenants', () => {
 			assert.strictEqual(Number((await svc('roomOwners').get(otherOwnerRow, internal)).userId), userA);
 		});
 
+		it('cannot slip a fractional room id past the check', async () => {
+			await assert.rejects(svc('roomOwners').create({ roomId: otherRoom + 0.7, userId: owner }, asOwner()), /roomId must be a positive integer|should be integer|must be integer/);
+		});
+
 		it('still manages the own room', async () => {
 			const row = await svc('roomGroupRoles').create({ roomId: ownRoom, groupId: groupA, roleId: roleA }, asOwner());
 

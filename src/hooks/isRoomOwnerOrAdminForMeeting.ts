@@ -1,11 +1,12 @@
 import { HookContext } from '../declarations';
+import { strictId } from './strictId';
 
 type MeetingPath = 'meetings' | 'meetingAttendees' | 'meetingOccurrenceRsvps';
 
 type Getter = { get: (id: number, params: unknown) => Promise<Record<string, unknown>> };
 
 const internalGet = (context: HookContext, path: MeetingPath, id: unknown) =>
-	(context.app.service(path) as unknown as Getter).get(Number(id), {
+	(context.app.service(path) as unknown as Getter).get(strictId(id), {
 		...context.params,
 		provider: undefined,
 		query: {}
@@ -39,7 +40,7 @@ const resolveRoomIds = async (context: HookContext, path: MeetingPath): Promise<
 		throw new Error('Only one row at a time');
 
 	const parentKey = { meetings: 'roomId', meetingAttendees: 'meetingId', meetingOccurrenceRsvps: 'meetingAttendeeId' }[path];
-	const roomOfParent = { meetings: async (_context: HookContext, roomId: unknown) => String(roomId), meetingAttendees: roomOfMeeting, meetingOccurrenceRsvps: roomOfAttendee }[path];
+	const roomOfParent = { meetings: async (_context: HookContext, roomId: unknown) => String(strictId(roomId, 'roomId')), meetingAttendees: roomOfMeeting, meetingOccurrenceRsvps: roomOfAttendee }[path];
 	const rows: Array<Record<string, unknown>> = Array.isArray(context.data) ? context.data : context.data ? [ context.data ] : [];
 	const rooms: string[] = [];
 
@@ -74,7 +75,7 @@ const assertRoomAccess = async (context: HookContext, roomId: string): Promise<v
 
 	const { total } = await context.app.service('roomOwners').find({
 		query: {
-			roomId: parseInt(roomId),
+			roomId: strictId(roomId, 'roomId'),
 			userId: context.params.user.id
 		}
 	});

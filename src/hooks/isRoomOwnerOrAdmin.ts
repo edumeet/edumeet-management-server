@@ -1,5 +1,6 @@
 import { Forbidden } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
+import { strictId } from './strictId';
 
 type RoomRowPath = 'rooms' | 'roomOwners' | 'roomGroupRoles' | 'roomUserRoles';
 
@@ -31,8 +32,9 @@ const roomsOfRequest = async (context: HookContext, path: RoomRowPath): Promise<
 	return [ ...new Set(rooms) ];
 };
 
-const assertRoomOwnerOrAdmin = async (context: HookContext, roomId: string): Promise<void> => {
+const assertRoomOwnerOrAdmin = async (context: HookContext, roomIdText: string): Promise<void> => {
 	const { user } = context.params;
+	const roomId = strictId(roomIdText, 'roomId');
 
 	if (user?.tenantAdmin || user?.tenantOwner) {
 		// is tenant admin but still might be from an other tenant
@@ -46,7 +48,7 @@ const assertRoomOwnerOrAdmin = async (context: HookContext, roomId: string): Pro
 
 	const { total } = await context.app.service('roomOwners').find({
 		query: {
-			roomId: parseInt(roomId),
+			roomId,
 			userId: context.params.user.id
 		}
 	});

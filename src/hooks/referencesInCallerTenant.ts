@@ -1,5 +1,6 @@
 import { Forbidden } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
+import { strictId } from './strictId';
 
 const SERVICE_OF = {
 	userId: 'users',
@@ -31,7 +32,7 @@ export const referencesInCallerTenant = (keys: ReferenceKey[]) => async (context
 			if (id === undefined || id === null) continue;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const target = await (context.app.service(SERVICE_OF[key]) as any).get(Number(id), { provider: undefined, query: {} })
+			const target = await (context.app.service(SERVICE_OF[key]) as any).get(strictId(id, key), { provider: undefined, query: {} })
 				.catch(() => undefined);
 
 			if (!target || String(target.tenantId) !== String(tenantId))
