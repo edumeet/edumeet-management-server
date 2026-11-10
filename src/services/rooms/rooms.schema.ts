@@ -108,8 +108,12 @@ export const roomResolver = resolve<Room, HookContext>({
 		return data;
 	}),
 	defaultRole: virtual(async (room, context) => {
-		if (room.defaultRoleId)
-			return context.app.service('roles').get(room.defaultRoleId);
+		if (!room.defaultRoleId) return undefined;
+
+		const role = await context.app.service('roles').get(room.defaultRoleId);
+
+		// A role of another tenant, stored before that was refused or by a super admin.
+		return String(role.tenantId ?? '') === String(room.tenantId ?? '') ? role : undefined;
 	}),
 });
 

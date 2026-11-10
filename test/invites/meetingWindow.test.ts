@@ -35,8 +35,8 @@ describe('isMeetingOver', () => {
 		assert.strictEqual(isMeetingOver(running, now + HOUR), true);
 	});
 
-	it('an open-ended series is never over', () => {
-		assert.strictEqual(isMeetingOver({ startsAt: now - (365 * DAY), endsAt: now - (365 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1' }, now), false);
+	it('counts a series without an end, stored before that was refused, as a single meeting', () => {
+		assert.strictEqual(isMeetingOver({ startsAt: now - (365 * DAY), endsAt: now - (365 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1' }, now), true);
 	});
 
 	it('falls back to the end date when the rule cannot be parsed', () => {
@@ -84,7 +84,7 @@ describe('isMeetingOver on rules with very many occurrences', () => {
 	it('still finds the next occurrence of a daily meeting from years ago', () => {
 		const start = now - (20 * 365 * DAY) - HOUR;
 
-		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + (2 * HOUR), rrule: 'FREQ=DAILY;INTERVAL=1' }, now), false);
+		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + (2 * HOUR), rrule: 'FREQ=DAILY;INTERVAL=1;UNTIL=20991231' }, now), false);
 	});
 
 	it('returns quickly for a rule that never matches', () => {

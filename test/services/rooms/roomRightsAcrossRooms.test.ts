@@ -112,6 +112,14 @@ describe('room rights across rooms and tenants', () => {
 			await svc('roomUserRoles').remove(row.id, asAdmin());
 			await svc('rooms').patch(ownRoom, { defaultRoleId: roleA }, asAdmin());
 		});
+
+		it('never shows a default role of another tenant, even one a super admin stored', async () => {
+			await svc('rooms').patch(ownRoom, { defaultRoleId: roleB }, internal);
+			assert.strictEqual((await svc('rooms').get(ownRoom, internal)).defaultRole, undefined);
+
+			await svc('rooms').patch(ownRoom, { defaultRoleId: roleA }, internal);
+			assert.strictEqual(Number((await svc('rooms').get(ownRoom, internal)).defaultRole.id), roleA);
+		});
 	});
 
 	describe('resolved users', () => {
