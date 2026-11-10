@@ -35,6 +35,25 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		return result;
 	}
 
+	/**
+	 * Whether the profile's e-mail address may decide anything: access and gain rules,
+	 * linking to an existing account, the stored address. Either the identity provider
+	 * marked it verified, or the tenant trusts the provider's addresses (trust_email),
+	 * for providers that never verify but read the address from a managed directory.
+	 */
+	async isEmailTrusted(profile: OAuthProfile, tenantId: number): Promise<boolean> {
+		if (profile?.email_verified === true || profile?.email_verified === 'true') return true;
+		if (Number.isNaN(tenantId)) return false;
+
+		const result = await (this.app as Application).service('tenantOAuths').find({
+			query: { tenantId, $limit: 1 },
+			provider: undefined,
+		} as Params);
+		const row = (Array.isArray(result) ? result[0] : result.data?.[0]) as { trust_email?: unknown } | undefined;
+
+		return Boolean(row?.trust_email);
+	}
+
 	// name attribute can come from displayName or sn + givenName
 	async getEntityQuery(profile: OAuthProfile, params: Params) {
 		if (profile?.error)	throw new Error(profile.error);
@@ -72,7 +91,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		});
 		const existing = Array.isArray(result) ? result[0] : result.data?.[0];
 
-		if (existing && profile.email_verified !== true && profile.email_verified !== 'true') {
+		if (existing && !await this.isEmailTrusted(profile, parseInt(params.query.tenantId))) {
 			throw new NotAuthenticated('An account with this e-mail address already exists, but the identity provider did not confirm the address. Ask your administrator.');
 		}
 
@@ -92,6 +111,16 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 			tenantId: parseInt(params.query?.tenantId),
 		};
 
+		// An address the provider did not verify is the user's claim. It must not admit
+		// anyone or earn a grant, and it does not replace the stored address of an
+		// existing account. createEntity and updateEntity pass these params on to the
+		// users service, where the gain rules read the flag.
+		const emailTrusted = await this.isEmailTrusted(profile, data.tenantId);
+
+		(params as Params & { emailUnverified?: boolean }).emailUnverified = !emailTrusted;
+
+		if (!emailTrusted && existingEntity?.email) data.email = existingEntity.email;
+
 		// The tenant's access rules are applied here rather than on the users service
 		// because this method is called by BOTH createEntity and updateEntity, so it
 		// covers first registration and every subsequent sign in from one place. It
@@ -101,13 +130,21 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// first registration. It is what lets an administrator through a rule that
 		// would otherwise refuse them; a new account cannot be an administrator yet.
 		if (!Number.isNaN(data.tenantId)) {
-			const permitted = await isAccessPermitted(
+			// An unverified address is decided both ways and must pass both: without it,
+			// so it cannot satisfy an allow rule, and with it, so a block rule on it still
+			// applies.
+			const decide = (attributes: Record<string, unknown>) => isAccessPermitted(
 				this.app as Application,
 				data.tenantId,
-				data,
+				attributes,
 				'accessRules(sso)',
 				existingEntity
 			);
+			// A rule on a missing attribute is skipped (see matchRule).
+			const withoutEmail = { ...data, email: undefined };
+			const permitted = emailTrusted
+				? await decide(data)
+				: await decide(withoutEmail) && await decide({ ...withoutEmail, email: profile.email });
 
 			// getRedirect() turns this into ?error=<message> on the auth callback
 			if (!permitted) throw new Forbidden('Action not allowed by rule');

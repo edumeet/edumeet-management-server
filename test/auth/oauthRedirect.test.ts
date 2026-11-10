@@ -16,6 +16,11 @@ const fakeApp = {
 			return { configuration: { oauth: { 1: {} } } };
 		}
 
+		// The tenant's OAuth configuration, without trust_email.
+		if (name === 'tenantOAuths') {
+			return { find: async () => ({ data: [ { tenantId: 1 } ] }) };
+		}
+
 		throw new Error(`unexpected service ${name}`);
 	}
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
