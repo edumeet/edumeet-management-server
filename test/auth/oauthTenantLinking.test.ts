@@ -65,4 +65,16 @@ describe('OAuth tenant login against existing accounts', () => {
 		assert.strictEqual(Number(result.user.id), userId);
 		assert.strictEqual(await storedSsoId(), 'migrated-sub');
 	});
+
+	it('refuses to sign a super admin in through the tenant\'s identity provider', async () => {
+		await app.service('users').patch(userId, { roles: [ 'super-admin' ] } as never, internal);
+		try {
+			await assert.rejects(
+				strategy().authenticate({ strategy: 'tenant', profile: { sub: 'original-sub', email, email_verified: true } }, callbackParams()),
+				/super admin account cannot sign in/
+			);
+		} finally {
+			await app.service('users').patch(userId, { roles: [] } as never, internal);
+		}
+	});
 });

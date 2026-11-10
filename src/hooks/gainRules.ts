@@ -7,7 +7,9 @@ interface GainRule extends MatchableRule {
 	accessId?: string | null;
 }
 
-export const GAIN_ACTIONS = [ 'groupUsers', 'tenantOwners', 'tenantAdmins', 'superAdmin' ] as const;
+// No 'superAdmin': a tenant's admins control its identity provider and could satisfy such a
+// rule at will. Rules stored with it are skipped (see applyGain).
+export const GAIN_ACTIONS = [ 'groupUsers', 'tenantOwners', 'tenantAdmins' ] as const;
 
 /**
  * Add the user to a tenantOwners/tenantAdmins table, unless they are in it already.
@@ -72,18 +74,12 @@ const applyGain = async (
 			break;
 		}
 		case 'superAdmin': {
-			// Make user super-admin (user table)
-			const roles = context.result.roles;
-			const alreadySuperAdmin = roles != null && roles.includes('super-admin');
-
-			if (!alreadySuperAdmin) {
-				// This patch re-enters this hook, but its data carries no tenantId so the
-				// guard at the top of gainRules() stops it immediately.
-				if (context.app.get('postgresql')?.client == 'mysql2')
-					await context.app.service('users').patch(userId, { roles: [ '["super-admin"]' ] });
-				else
-					await context.app.service('users').patch(userId, { roles: [ 'super-admin' ] });
-			}
+			// Rules no longer grant super admin: the tenant's admins control the identity
+			// provider whose claims the rule matches. A rule stored earlier does nothing.
+			logger.warn(
+				'gainRules: rule (id:%s name:%s tenantId:%s) would make user %s super admin; rules can no longer do that, remove it',
+				rule.id, rule.name, rule.tenantId, userId
+			);
 
 			break;
 		}

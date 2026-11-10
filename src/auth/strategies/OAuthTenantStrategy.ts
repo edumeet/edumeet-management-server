@@ -8,6 +8,21 @@ import { isAccessPermittedWithEmail } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
 
+// roles is a VARCHAR[] on Postgres and a json column on MySQL, and has been seen as a JSON string.
+const hasSuperAdminRole = (roles: unknown): boolean => {
+	let list = roles;
+
+	if (typeof list === 'string') {
+		try {
+			list = JSON.parse(list);
+		} catch {
+			return list === 'super-admin';
+		}
+	}
+
+	return Array.isArray(list) && list.includes('super-admin');
+};
+
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// Capture the OIDC id_token from the raw grant response so it can be
 	// forwarded to the client and used as id_token_hint at logout time
@@ -121,6 +136,12 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// anyone or earn a grant, and it does not replace the stored address of an
 		// existing account. createEntity and updateEntity pass these params on to the
 		// users service, where the gain rules read the flag.
+		// A super admin manages every tenant; the tenant's admins control this identity
+		// provider and could make it answer with the super admin's subject or address. Super
+		// admins sign in with their password (yarn set-password).
+		if (hasSuperAdminRole(existingEntity?.roles))
+			throw new NotAuthenticated('A super admin account cannot sign in through a tenant\'s identity provider; use the password login.');
+
 		const emailTrusted = await this.isEmailTrusted(profile, data.tenantId);
 
 		(params as Params & { emailUnverified?: boolean }).emailUnverified = !emailTrusted;

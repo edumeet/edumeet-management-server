@@ -19,7 +19,7 @@ import { RuleService, getOptions } from './rules.class';
 import { rulePath, ruleMethods } from './rules.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { adminOnlyData } from '../../hooks/adminOnlyData';
+import { noSuperAdminRules } from '../../hooks/adminOnlyData';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { logRuleShape } from '../../hooks/logRuleShape';
@@ -53,7 +53,7 @@ export const rule = (app: Application) => {
 			get: [
 			],
 			create: [
-				iff(notSuperAdmin(), adminOnlyData),
+				noSuperAdminRules,
 				schemaHooks.validateData(ruleDataValidator),
 				logRuleShape,
 				// ruleDataResolver pins tenantId to the caller's own tenant. Super-admins
@@ -62,7 +62,7 @@ export const rule = (app: Application) => {
 				iff(notSuperAdmin(), schemaHooks.resolveData(ruleDataResolver))
 			],
 			patch: [ 
-				iff(notSuperAdmin(), adminOnlyData),
+				noSuperAdminRules,
 				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rulePatchValidator),
 				logRuleShape,
