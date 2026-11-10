@@ -191,6 +191,37 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 			await assert.rejects(refresh(await app.service('users').get(Number(user.id), internal)), /not allowed by rule/);
 		});
 
+		it('is treated as unverified also when stored as 0, as MySQL returns it', async () => {
+			const close = await openTenant();
+			let user;
+
+			try {
+				user = (await signIn('mysql-sub', 'mysql@uni.example', true)).user;
+			} finally {
+				await close();
+			}
+
+			const stored = await app.service('users').get(Number(user.id), internal);
+
+			await assert.rejects(refresh({ ...stored, email: 'someone@uni.example', emailVerified: 0 }), /not allowed by rule/);
+		});
+
+		it('settles an account from before the flag at its next sign in', async () => {
+			const close = await openTenant();
+
+			try {
+				// eslint-disable-next-line no-unused-vars
+				const createUser = app.service('users').create as unknown as (data: Record<string, unknown>, params: unknown) => Promise<{ id: number }>;
+				const legacy = await createUser.call(app.service('users'), { email: 'legacy@uni.example', name: 'Legacy', tenantId, ssoId: 'legacy-sub' }, internal);
+
+				assert.strictEqual((await app.service('users').get(Number(legacy.id), internal)).emailVerified ?? null, null);
+				await signIn('legacy-sub', 'legacy@uni.example');
+				assert.strictEqual((await app.service('users').get(Number(legacy.id), internal)).emailVerified, false);
+			} finally {
+				await close();
+			}
+		});
+
 		it('cannot be taken over by someone signing in with that address, verified', async () => {
 			const close = await openTenant();
 

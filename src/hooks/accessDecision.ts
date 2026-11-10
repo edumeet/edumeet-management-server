@@ -163,6 +163,10 @@ export const isExemptFromAccessRules = async (
  * so a negated block ("block whose e-mail does not end with @uni.example") refuses it as
  * it would refuse any outsider.
  */
+// users.emailVerified as stored: false on Postgres, 0 on MySQL (booleans are tinyint there).
+// null means an account from before the column, treated as verified until it signs in again.
+export const isStoredUnverified = (value: unknown): boolean => value === false || value === 0 || value === '0';
+
 export const isAccessPermittedWithEmail = async (
 	app: Application,
 	tenantId: number,

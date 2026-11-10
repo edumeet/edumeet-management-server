@@ -57,6 +57,9 @@ describe('OAuth tenant login against existing accounts', () => {
 	});
 
 	it('links a new subject when the identity provider verified the e-mail', async () => {
+		// The account's own address was confirmed when it was stored; the sign in without
+		// email_verified above marked it unverified, which refuses linking onto it.
+		await app.service('users').patch(userId, { emailVerified: true } as never, internal);
 		const result = await strategy().authenticate(
 			{ strategy: 'tenant', profile: { sub: 'migrated-sub', email, email_verified: true } },
 			callbackParams()
@@ -72,6 +75,18 @@ describe('OAuth tenant login against existing accounts', () => {
 			await assert.rejects(
 				strategy().authenticate({ strategy: 'tenant', profile: { sub: 'original-sub', email, email_verified: true } }, callbackParams()),
 				/super admin account cannot sign in/
+			);
+		} finally {
+			await app.service('users').patch(userId, { roles: [] } as never, internal);
+		}
+	});
+
+	it('refuses to sign the room servers\' service account in through the tenant\'s identity provider', async () => {
+		await app.service('users').patch(userId, { roles: [ 'edumeet-server' ] } as never, internal);
+		try {
+			await assert.rejects(
+				strategy().authenticate({ strategy: 'tenant', profile: { sub: 'original-sub', email, email_verified: true } }, callbackParams()),
+				/cannot sign in/
 			);
 		} finally {
 			await app.service('users').patch(userId, { roles: [] } as never, internal);

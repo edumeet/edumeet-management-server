@@ -1,7 +1,7 @@
 import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import type { Application, HookContext } from '../declarations';
 import { logger } from '../logger';
-import { isAccessPermittedWithEmail } from './accessDecision';
+import { isAccessPermittedWithEmail, isStoredUnverified } from './accessDecision';
 
 export const DEFAULT_AUTH_SESSION_MAX_DAYS = 30;
 
@@ -34,7 +34,7 @@ export const refreshAccessCheck = async (context: HookContext): Promise<HookCont
 		app,
 		tenantId,
 		{ ssoId: user.ssoId, email: user.email, name: user.name, tenantId },
-		user.emailVerified !== false,
+		!isStoredUnverified(user.emailVerified),
 		'accessRules(refresh)',
 		user
 	);

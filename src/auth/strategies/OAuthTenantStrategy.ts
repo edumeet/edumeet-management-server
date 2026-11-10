@@ -4,11 +4,14 @@ import { Params } from '@feathersjs/feathers';
 import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
-import { isAccessPermittedWithEmail } from '../../hooks/accessDecision';
+import { isAccessPermittedWithEmail, isStoredUnverified } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
 
 // roles is a VARCHAR[] on Postgres and a json column on MySQL, and has been seen as a JSON string.
+// super-admin and edumeet-server (the room servers' service account) pass every tenant check.
+const PRIVILEGED_ROLES = [ 'super-admin', 'edumeet-server' ];
+
 const hasSuperAdminRole = (roles: unknown): boolean => {
 	let list = roles;
 
@@ -16,11 +19,11 @@ const hasSuperAdminRole = (roles: unknown): boolean => {
 		try {
 			list = JSON.parse(list);
 		} catch {
-			return list === 'super-admin';
+			return PRIVILEGED_ROLES.includes(list as string);
 		}
 	}
 
-	return Array.isArray(list) && list.includes('super-admin');
+	return Array.isArray(list) && list.some((role) => PRIVILEGED_ROLES.includes(role));
 };
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
@@ -108,7 +111,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 
 		// Nor onto an account whose own address was never verified: whoever registered it
 		// first with someone else's address would get that person's sign-in.
-		if (existing && existing.emailVerified === false) {
+		if (existing && isStoredUnverified(existing.emailVerified)) {
 			throw new NotAuthenticated('An account with this e-mail address already exists, but its address was never confirmed. Ask your administrator.');
 		}
 
@@ -149,9 +152,12 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// The account remembers whether its address was vouched for, so that token refresh,
 		// later grants and linking by e-mail do not trust a claim. A returning user's
 		// unverified claim changes neither the address nor this flag.
+		// An account from before emailVerified (null) is settled at its next sign in.
 		if (emailTrusted) data.emailVerified = true;
-		else if (existingEntity?.email) data.email = existingEntity.email;
-		else data.emailVerified = false;
+		else if (existingEntity?.email) {
+			data.email = existingEntity.email;
+			if (existingEntity.emailVerified === null || existingEntity.emailVerified === undefined) data.emailVerified = false;
+		} else data.emailVerified = false;
 
 		// The tenant's access rules are applied here rather than on the users service
 		// because this method is called by BOTH createEntity and updateEntity, so it
