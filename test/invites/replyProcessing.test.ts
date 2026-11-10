@@ -330,6 +330,36 @@ describe('reply processing', () => {
 			assert.strictEqual(f.rec.rsvpPatches.length, 0);
 		});
 
+		it('answers for the listed attendee who sent the reply, not just the first one', async () => {
+			const f = fixture();
+			const asked: unknown[] = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const service = (f.app as any).service.bind(f.app) as (name: string) => any;
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(f.app as any).service = (name: string) => {
+				const s = service(name);
+
+				if (name !== 'meetingAttendees') return s;
+
+				return {
+					...s,
+					find: async (params: { query: { email: string } }) => {
+						asked.push(params.query.email);
+
+						return s.find(params);
+					}
+				};
+			};
+
+			const ics = reply().replace('ATTENDEE;', 'ATTENDEE;PARTSTAT=DECLINED:mailto:other.guest@example.org\r\nATTENDEE;');
+			const outcome = await processReplyIcs(f.app, ics, GUEST);
+
+			assert.deepStrictEqual(asked, [ GUEST ]);
+			assert.deepStrictEqual(outcome, { isReply: true, claimed: 1, updated: 1 });
+			assert.strictEqual(f.rec.attendeePatches[0].data.partstat, 'ACCEPTED');
+		});
+
 		it('accepts the attendee\'s own address in any case', async () => {
 			const f = fixture();
 
@@ -365,7 +395,7 @@ describe('reply processing', () => {
 		});
 	});
 
-	it('reads only the first attendee of a reply and a bounded number of events', async () => {
+	it('reads one attendee of a reply and a bounded number of events', async () => {
 		let lookups = 0;
 		const f = fixture();
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -159,6 +159,13 @@ export const extractIcs = (source: string): string | null => {
 	return blocks.find((b) => /^METHOD:REPLY\s*$/mi.test(b)) ?? blocks[0] ?? null;
 };
 
+// node-ical yields an attendee as a plain value or as { val, params }.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const attendeeEmail = (att: any): string => String(typeof att === 'string' ? att : (att?.val ?? ''))
+	.replace(/^MAILTO:/i, '')
+	.trim()
+	.toLowerCase();
+
 export interface ReplyOutcome {
 	isReply: boolean;
 	// attendee rows this deployment recognised, whether or not anything was written. A
@@ -232,14 +239,14 @@ export const processReplyIcs = async (app: Application, icsSource: string, sende
 
 		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs} recurrenceId=${recurrenceId ?? 'none'}`);
 
-		// RFC 5546: a REPLY carries the one attendee who answers. More would each cost
-		// database lookups, so only the first is read.
-		for (const att of attendees.slice(0, 1)) {
-			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
-			const email = String(rawVal)
-				.replace(/^MAILTO:/i, '')
-				.trim()
-				.toLowerCase();
+		// RFC 5546: a REPLY carries the one attendee who answers, but some clients list more.
+		// Each would cost database lookups, so only one is read: the one that sent the message,
+		// otherwise the first, which the sender check below then refuses.
+		const sending = sender?.trim().toLowerCase();
+		const answering = attendees.find((att) => attendeeEmail(att) === sending) ?? attendees[0];
+
+		for (const att of answering === undefined ? [] : [ answering ]) {
+			const email = attendeeEmail(att);
 
 			if (!email) {
 				logger.warn('[invites/replyPoller] attendee has empty email, skipping:', att);
