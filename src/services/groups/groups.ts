@@ -19,7 +19,8 @@ import { GroupService, getOptions } from './groups.class';
 import { groupPath, groupMethods } from './groups.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 
 export * from './groups.class';
@@ -53,8 +54,9 @@ export const group = (app: Application) => {
 				schemaHooks.resolveData(groupDataResolver) ],
 			patch: [
 				iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(groupPatchValidator),
+				// the group stays in the caller's tenant; the query only reaches its rows
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(groupPatchResolver) ],
 			remove: [
 				iff(notSuperAdmin(), isTenantAdmin),

@@ -12,6 +12,7 @@ import {
 } from './resolvedUsers.schema';
 
 import type { Application, HookContext } from '../../declarations';
+import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { ResolvedUserService, getOptions } from './resolvedUsers.class';
 import { resolvedUserPath, resolvedUserMethods } from './resolvedUsers.shared';
 
@@ -19,6 +20,15 @@ export * from './resolvedUsers.class';
 export * from './resolvedUsers.schema';
 
 // A configure function that registers the service and its hooks via `app.configure`
+const ownRowsOnly = async (context: HookContext<ResolvedUserService>) => {
+	if (!context.params.provider || !context.params.user) return context;
+	if (!notSuperAdmin()(context)) return context;
+
+	context.params.query = { ...context.params.query, userId: context.params.user.id };
+
+	return context;
+};
+
 export const resolvedUser = (app: Application) => {
 	// Register our service on the Feathers application
 	app.use(resolvedUserPath, new ResolvedUserService(getOptions(app)), {
@@ -41,7 +51,8 @@ export const resolvedUser = (app: Application) => {
 				schemaHooks.validateQuery(resolvedUserQueryValidator),
 				schemaHooks.resolveQuery(resolvedUserQueryResolver)
 			],
-			find: [],
+			// Each user sees and removes only the names they resolved themselves.
+			find: [ ownRowsOnly ],
 			create: [
 				schemaHooks.validateData(resolvedUserDataValidator),
 				schemaHooks.resolveData(resolvedUserDataResolver),
@@ -54,7 +65,7 @@ export const resolvedUser = (app: Application) => {
 					return context;
 				}
 			],
-			remove: []
+			remove: [ ownRowsOnly ]
 		},
 		after: {
 			all: []

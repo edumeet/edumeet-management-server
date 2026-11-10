@@ -30,6 +30,7 @@ import { notTenantManager } from '../../hooks/notTenantManager';
 import { tenantManagerManagedRoomNumberLimit } from '../../hooks/managerManagedRoomNumberLimit';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { rememberMeetingsOnly, resendInvitesOnMeetingsOnlyChange } from '../../hooks/meetingsOnlyChange';
+import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 
 export * from './rooms.class';
 export * from './rooms.schema';
@@ -70,6 +71,7 @@ export const room = (app: Application) => {
 					notSuperAdmin(),
 					// non-superadmin branch
 					schemaHooks.validateData(roomDataValidator),
+					referencesInCallerTenant([ 'defaultRoleId' ]),
 					schemaHooks.resolveData(roomDataResolver)
 				).else(
 					// superadmin branch
@@ -80,6 +82,8 @@ export const room = (app: Application) => {
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomPatchValidator),
+				// a room's default role must be one of its own tenant
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'defaultRoleId' ])),
 				schemaHooks.resolveData(roomPatchResolver),
 				rememberMeetingsOnly
 			],
