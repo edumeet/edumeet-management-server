@@ -1,12 +1,13 @@
 import { OAuthProfile, OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
 import { AuthenticationRequest, AuthenticationResult } from '@feathersjs/authentication/lib';
 import { Params } from '@feathersjs/feathers';
-import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
+import { FeathersError, Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
 import { isAccessPermittedWithEmail, isStoredUnverified } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
+import { logger } from '../../logger';
 
 // roles is a VARCHAR[] on Postgres and a json column on MySQL, and has been seen as a JSON string.
 // super-admin and edumeet-server (the room servers' service account) pass every tenant check.
@@ -124,7 +125,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async getEntityData(profile: OAuthProfile, existingEntity: any, params: Params) {
-		if (!profile?.email || !params?.query?.tenantId) throw new Error('Missing paramenter(s)');
+		if (!profile?.email || !params?.query?.tenantId) throw new NotAuthenticated('The identity provider sent no e-mail address');
 		const paramKey = params?.query?.name_parameter;
 		const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 
@@ -185,6 +186,18 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		return data;
 	}
 
+	// Our own refusals (401, 403) are shown as they are. Anything else comes from the requests
+	// to the identity provider, whose error text could describe the server's network.
+	shownError(error: Error, params?: Params): string {
+		const code = (error as FeathersError).code;
+
+		if (code === 401 || code === 403) return error.message || 'OAuth Authentication not successful';
+
+		logger.warn(`[OAuthTenantStrategy] tenant ${params?.query?.tenantId}: sign in failed at the identity provider: ${error.message}`);
+
+		return 'Sign in at the identity provider failed. Ask your administrator.';
+	}
+
 	async getRedirect(
 		data: AuthenticationResult | Error,
 		params?: Params
@@ -193,7 +206,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		const authResult: AuthenticationResult = data;
 
 		if (!authResult.accessToken) {
-			return `${redirectUrl}${qs.stringify({ error: data.message || 'OAuth Authentication not successful' })}`;
+			return `${redirectUrl}${qs.stringify({ error: this.shownError(data as Error, params) })}`;
 		}
 
 		try {

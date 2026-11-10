@@ -2,6 +2,7 @@
 import assert from 'assert';
 import qs from 'qs';
 import { OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
+import { Forbidden, GeneralError } from '@feathersjs/errors';
 import OAuthTenantStrategy from '../../src/auth/strategies/OAuthTenantStrategy';
 import { consumeCallbackCode } from '../../src/auth/callbackCodes';
 import { dynamicOAuth } from '../../src/hooks/dynamicOAuth';
@@ -72,9 +73,20 @@ describe('OAuth tenant redirect', () => {
 	});
 
 	it('keeps login errors as an error page', async () => {
-		const location = await makeStrategy().getRedirect(new Error('Action not allowed by rule'), { query: { tenantId: '1' } });
+		const location = await makeStrategy().getRedirect(new Forbidden('Action not allowed by rule'), { query: { tenantId: '1' } });
 
 		assert.strictEqual(queryOf(location).error, 'Action not allowed by rule');
+	});
+
+	it('does not show the text of a failed request to the identity provider', async () => {
+		for (const error of [
+			new GeneralError('connect ECONNREFUSED 10.0.0.5:5432'),
+			new Error('<html>internal admin console</html>')
+		]) {
+			const location = await makeStrategy().getRedirect(error, { query: { tenantId: '1' } });
+
+			assert.strictEqual(queryOf(location).error, 'Sign in at the identity provider failed. Ask your administrator.');
+		}
 	});
 });
 

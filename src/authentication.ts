@@ -12,6 +12,7 @@ import { refreshAccessCheck } from './hooks/refreshAccessCheck';
 import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
 import { EdumeetLocalStrategy } from './auth/EdumeetLocalStrategy';
 import { assertSigningKeyNotPublished } from './auth/publishedKeys';
+import { restrictOAuthRequests } from './auth/oauthEgress';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -52,6 +53,7 @@ export const authentication = (app: Application) => {
 
 	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
+	restrictOAuthRequests(app);
 
 	app.service('oauth/:provider').hooks(oauthServiceHooks());
 	app.service('oauth/:provider/callback').hooks(oauthCallbackHooks());

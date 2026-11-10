@@ -54,7 +54,7 @@ const fakeApp = (rows: Row[], oauth: Record<string, unknown> = {}, settings: Rec
 					}
 				};
 			}
-			if (name === 'authentication') return { configuration: config };
+			if (name === 'authentication') return { configuration: config, app };
 			if (name === 'tenantFQDNs') return { find: async () => [ { id: 1, fqdn: 'rooms.acme.edu', tenantId: 1 } ] };
 			if (name === 'oauth/:provider' || name === 'oauth/:provider/callback') return { hooks: () => undefined };
 			throw new Error(`unexpected service ${name}`);
@@ -128,6 +128,21 @@ describe('dynamicOAuth', () => {
 			assert.strictEqual(await loadTenantOAuth(app as any, 1), false);
 			assert.ok(!(1 in providers(app)));
 			assert.strictEqual(app.reconfigured, 1);
+		});
+
+		it('does not load a provider whose token or profile URL is a private IP address', async () => {
+			for (const over of [ { access_url: 'https://10.0.0.5/token' }, { profile_url: 'https://[::1]/me' } ]) {
+				const app = fakeApp([ completeRow(over) ]);
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				assert.strictEqual(await loadTenantOAuth(app as any, 1), false, JSON.stringify(over));
+				assert.ok(!(1 in providers(app)));
+			}
+
+			const allowed = fakeApp([ completeRow({ access_url: 'https://10.0.0.5/token' }) ], {}, { oauthPrivateHosts: [ '10.0.0.5' ] });
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			assert.strictEqual(await loadTenantOAuth(allowed as any, 1), true);
 		});
 
 		it('ignores incomplete rows without touching the oauth service', async () => {

@@ -54,6 +54,21 @@ describe('tenantOAuths service', () => {
 			assert.strictEqual(loadedProvider(tenantB), undefined);
 		});
 
+		it('refuses identity provider URLs that are not https or point to private addresses', async () => {
+			for (const [ over, message ] of [
+				[ { access_url: 'http://169.254.169.254/latest/meta-data' }, /access_url must start with https/ ],
+				[ { profile_url: 'https://127.0.0.1:5432/' }, /profile_url must not point to a private or local address/ ],
+				[ { access_url: 'https://localhost/token' }, /access_url must not point to a private or local address/ ],
+				[ { authorize_url: 'https://user:pw@idp.example/auth' }, /authorize_url must not contain a user name or password/ ],
+			] as const) {
+				await assert.rejects(app.service('tenantOAuths').create({ tenantId: tenantA, ...idp(over) }, adminOfA()), message);
+			}
+
+			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, adminOfA());
+
+			await assert.rejects(app.service('tenantOAuths').patch(created.id, { access_url: 'https://10.1.2.3/token' }, adminOfA()), /private or local/);
+		});
+
 		it('keeps the configuration in the own tenant when a patch sends another tenantId', async () => {
 			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, adminOfA());
 
