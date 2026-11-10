@@ -24,6 +24,7 @@ import { stripLocks, tenantDefault } from '../../hooks/tenantDefault';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { adminOnly } from '../../hooks/adminOnly';
 import { normalizeDefaults } from '../../hooks/normalizeDefaults';
+import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 
 export * from './defaults.class';
 export * from './defaults.schema';
@@ -59,6 +60,8 @@ export const defaults = (app: Application) => {
 				iff(notSuperAdmin(), stripLocks),
 				normalizeDefaults,
 				schemaHooks.validateData(defaultDataValidator),
+				// the tenant's default role must be one of its own roles
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'defaultRoleId' ])),
 				schemaHooks.resolveData(defaultDataResolver) ],
 			patch: [
 				iff(notSuperAdmin(), isTenantAdmin),
@@ -68,6 +71,7 @@ export const defaults = (app: Application) => {
 				iff(notSuperAdmin(), tenantDefault),
 				normalizeDefaults,
 				schemaHooks.validateData(defaultPatchValidator),
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'defaultRoleId' ])),
 				schemaHooks.resolveData(defaultPatchResolver) ],
 			remove: [
 				iff(notSuperAdmin(), adminOnly),

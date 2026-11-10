@@ -71,4 +71,22 @@ describe('defaults locks', () => {
 
 		assert.strictEqual(Boolean(read.endToEndEncryptionLock), false);
 	});
+
+	it('takes the default role only from the own tenant', async () => {
+		const other = Number((await app.service('tenants').create({ name: `locks-role-${Date.now()}`, description: 'x' }, internal)).id);
+		const foreignRole = await app.service('roles').create({ name: `foreign-${Date.now()}`, description: 'x', tenantId: other }, internal);
+		const ownRole = await app.service('roles').create({ name: `own-${Date.now()}`, description: 'x', tenantId }, internal);
+
+		try {
+			await assert.rejects(app.service('defaults').patch(defaultsId, { defaultRoleId: Number(foreignRole.id) }, tenantAdmin(tenantId)), /defaultRoleId must belong/);
+			await app.service('defaults').patch(defaultsId, { defaultRoleId: Number(ownRole.id) }, tenantAdmin(tenantId));
+		} finally {
+			// The service ignores an empty role; clear the reference so the roles can go.
+			await app.get('postgresqlClient')('defaults').where({ id: defaultsId })
+				.update({ defaultRoleId: null });
+			await app.service('roles').remove(ownRole.id, internal);
+			await app.service('roles').remove(foreignRole.id, internal);
+			await app.service('tenants').remove(other, internal);
+		}
+	});
 });

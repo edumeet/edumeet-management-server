@@ -29,7 +29,8 @@ export const referencesInCallerTenant = (keys: ReferenceKey[]) => async (context
 		for (const key of keys) {
 			const id = row[key];
 
-			if (id === undefined || id === null) continue;
+			// The admin forms send 0 or '' when nothing is chosen; the database decides about those.
+			if (id === undefined || id === null || id === 0 || id === '') continue;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const target = await (context.app.service(SERVICE_OF[key]) as any).get(strictId(id, key), { provider: undefined, query: {} })
