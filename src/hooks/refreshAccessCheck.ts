@@ -1,7 +1,7 @@
 import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import type { Application, HookContext } from '../declarations';
 import { logger } from '../logger';
-import { isAccessPermitted } from './accessDecision';
+import { isAccessPermittedWithEmail } from './accessDecision';
 
 export const DEFAULT_AUTH_SESSION_MAX_DAYS = 30;
 
@@ -28,10 +28,13 @@ export const refreshAccessCheck = async (context: HookContext): Promise<HookCont
 	if (user.tenantId === undefined || user.tenantId === null || !user.ssoId) return context;
 
 	const tenantId = parseInt(String(user.tenantId));
-	const permitted = await isAccessPermitted(
+	// An address stored from an unverified claim is decided as a claim, as at sign in.
+	// Accounts from before emailVerified existed (null) are decided as before.
+	const permitted = await isAccessPermittedWithEmail(
 		app,
 		tenantId,
 		{ ssoId: user.ssoId, email: user.email, name: user.name, tenantId },
+		user.emailVerified !== false,
 		'accessRules(refresh)',
 		user
 	);

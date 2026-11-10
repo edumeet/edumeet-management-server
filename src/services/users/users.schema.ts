@@ -12,6 +12,8 @@ export const userSchema = Type.Object(
 	{
 		id: Type.Number(),
 		ssoId: Type.Optional(Type.String()),
+		// false when the stored address is an unverified claim of the identity provider
+		emailVerified: Type.Optional(Type.Union([ Type.Boolean(), Type.Null() ])),
 		tenantId: Type.Optional(Type.Number()),
 		email: Type.String(),
 		password: Type.Optional(Type.String()),

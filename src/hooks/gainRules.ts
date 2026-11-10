@@ -132,7 +132,7 @@ export const gainRules = async (context: HookContext): Promise<void> => {
 
 	// An e-mail address the identity provider did not verify earns nothing (set by
 	// OAuthTenantStrategy); rules on other attributes still apply.
-	const attributes = context.params?.emailUnverified
+	const attributes = context.params?.emailUnverified || context.data?.emailVerified === false
 		? Object.fromEntries(Object.entries(context.data).filter(([ key ]) => key !== 'email'))
 		: context.data;
 

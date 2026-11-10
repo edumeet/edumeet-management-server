@@ -5,6 +5,8 @@ import assert from 'assert';
 import type { Params } from '@feathersjs/feathers';
 import { app } from '../../src/app';
 import type OAuthTenantStrategy from '../../src/auth/strategies/OAuthTenantStrategy';
+import { refreshAccessCheck } from '../../src/hooks/refreshAccessCheck';
+import type { HookContext } from '../../src/declarations';
 
 const internal = { provider: undefined, query: {} };
 
@@ -142,5 +144,62 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 		} finally {
 			await app.service('rules').patch(Number(blockAnyone?.id), { type: 'block' }, internal);
 		}
+	});
+	describe('an account created from an unverified address', () => {
+		// Lets the unverified user in, by turning the catch-all block into an allow.
+		const openTenant = async () => {
+			const rules = await app.service('rules').find({ ...internal, query: { tenantId }, paginate: false } as unknown as Params) as unknown as Array<{ id: number, type: string, method: string }>;
+			const catchAll = rules.find((r) => r.method === 'anyone');
+
+			await app.service('rules').patch(Number(catchAll?.id), { type: 'allow' }, internal);
+
+			return () => app.service('rules').patch(Number(catchAll?.id), { type: 'block' }, internal);
+		};
+		const refresh = (user: unknown) => refreshAccessCheck({
+			app,
+			params: { user, authentication: { payload: { auth_time: Math.floor(Date.now() / 1000) } } }
+		} as unknown as HookContext);
+
+		it('remembers that its address is unverified', async () => {
+			const close = await openTenant();
+
+			try {
+				const result = await signIn('claim-sub', 'claimed@uni.example');
+				const stored = await app.service('users').get(Number(result.user.id), internal);
+
+				assert.strictEqual(stored.emailVerified, false);
+
+				const verified = await signIn('verified-sub', 'verified@uni.example', true);
+
+				assert.strictEqual((await app.service('users').get(Number(verified.user.id), internal)).emailVerified, true);
+			} finally {
+				await close();
+			}
+		});
+
+		it('is not let in by an allow rule at token refresh', async () => {
+			const close = await openTenant();
+			let user;
+
+			try {
+				user = (await signIn('refresh-sub', 'someone@uni.example')).user;
+			} finally {
+				await close();
+			}
+
+			// The tenant is an allow list again: the stored, unverified address must not pass it.
+			await assert.rejects(refresh(await app.service('users').get(Number(user.id), internal)), /not allowed by rule/);
+		});
+
+		it('cannot be taken over by someone signing in with that address, verified', async () => {
+			const close = await openTenant();
+
+			try {
+				await signIn('squatter-sub', 'victim@uni.example');
+				await assert.rejects(signIn('victim-sub', 'victim@uni.example', true), /never confirmed/);
+			} finally {
+				await close();
+			}
+		});
 	});
 });

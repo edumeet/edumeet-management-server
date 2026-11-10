@@ -4,13 +4,9 @@ import { Params } from '@feathersjs/feathers';
 import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
-import { isAccessPermitted } from '../../hooks/accessDecision';
+import { isAccessPermittedWithEmail } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
-
-// Stands in for an unverified address when the access rules are decided: no real address
-// or rule value can equal or contain it, so only negated rules match it.
-const UNVERIFIED_EMAIL = '\u0000unverified\u0000';
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// Capture the OIDC id_token from the raw grant response so it can be
@@ -95,6 +91,12 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		});
 		const existing = Array.isArray(result) ? result[0] : result.data?.[0];
 
+		// Nor onto an account whose own address was never verified: whoever registered it
+		// first with someone else's address would get that person's sign-in.
+		if (existing && existing.emailVerified === false) {
+			throw new NotAuthenticated('An account with this e-mail address already exists, but its address was never confirmed. Ask your administrator.');
+		}
+
 		if (existing && !await this.isEmailTrusted(profile, parseInt(params.query.tenantId))) {
 			throw new NotAuthenticated('An account with this e-mail address already exists, but the identity provider did not confirm the address. Ask your administrator.');
 		}
@@ -108,7 +110,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		const paramKey = params?.query?.name_parameter;
 		const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 
-		const data = {
+		const data: { ssoId: string, email: string, name: string, tenantId: number, emailVerified?: boolean } = {
 			ssoId: profile.sub || profile.id,
 			email: profile.email,
 			name: name,
@@ -123,7 +125,12 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 
 		(params as Params & { emailUnverified?: boolean }).emailUnverified = !emailTrusted;
 
-		if (!emailTrusted && existingEntity?.email) data.email = existingEntity.email;
+		// The account remembers whether its address was vouched for, so that token refresh,
+		// later grants and linking by e-mail do not trust a claim. A returning user's
+		// unverified claim changes neither the address nor this flag.
+		if (emailTrusted) data.emailVerified = true;
+		else if (existingEntity?.email) data.email = existingEntity.email;
+		else data.emailVerified = false;
 
 		// The tenant's access rules are applied here rather than on the users service
 		// because this method is called by BOTH createEntity and updateEntity, so it
@@ -134,24 +141,15 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// first registration. It is what lets an administrator through a rule that
 		// would otherwise refuse them; a new account cannot be an administrator yet.
 		if (!Number.isNaN(data.tenantId)) {
-			// An unverified address must pass three ways: without it, so it cannot satisfy
-			// an allow rule; with it, so a block rule on it still applies; and with an
-			// address no rule names, so a negated block ("block whose e-mail does not end
-			// with @uni.example") refuses it as it would refuse any outsider.
-			const decide = (attributes: Record<string, unknown>) => isAccessPermitted(
+			// An unverified address is decided as a claim (see isAccessPermittedWithEmail).
+			const permitted = await isAccessPermittedWithEmail(
 				this.app as Application,
 				data.tenantId,
-				attributes,
+				{ ssoId: data.ssoId, name: data.name, tenantId: data.tenantId, email: profile.email },
+				emailTrusted,
 				'accessRules(sso)',
 				existingEntity
 			);
-			// A rule on a missing attribute is skipped (see matchRule).
-			const withoutEmail = { ...data, email: undefined };
-			const permitted = emailTrusted
-				? await decide(data)
-				: await decide(withoutEmail)
-					&& await decide({ ...withoutEmail, email: profile.email })
-					&& await decide({ ...withoutEmail, email: UNVERIFIED_EMAIL });
 
 			// getRedirect() turns this into ?error=<message> on the auth callback
 			if (!permitted) throw new Forbidden('Action not allowed by rule');
