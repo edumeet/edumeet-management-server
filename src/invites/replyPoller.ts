@@ -75,6 +75,7 @@ const decodeQuotedPrintable = (input: string): string => {
 // The number of encoded parts looked at is capped, so the scans stay linear in the message.
 const MAX_ENCODED_PARTS = 20;
 const MAX_REPLY_BYTES = 1024 * 1024;
+const MAX_REPLY_EVENTS = 10;
 const ENCODING_HEADER = /Content-Transfer-Encoding:\s*(base64|quoted-printable)/gi;
 
 // The end of the next blank line (a header block's end) from `from`, or -1.
@@ -126,6 +127,8 @@ export const extractIcs = (source: string): string | null => {
 	const candidates: string[] = [];
 	let parts = 0;
 
+	let decodedBytes = 0;
+
 	for (const header of source.matchAll(ENCODING_HEADER)) {
 		if (++parts > MAX_ENCODED_PARTS) break;
 
@@ -135,6 +138,10 @@ export const extractIcs = (source: string): string | null => {
 
 		const base64 = header[1].toLowerCase() === 'base64';
 		const body = source.slice(bodyStart, endOfPart(source, bodyStart, base64)).replace(/\r$/, '');
+
+		// Parts can overlap up to the end of the message; decode at most a message's worth.
+		decodedBytes += body.length;
+		if (decodedBytes > MAX_REPLY_BYTES) break;
 
 		try {
 			candidates.push(base64 ? Buffer.from(body.replace(/\s/g, ''), 'base64').toString('utf8') : decodeQuotedPrintable(body));
@@ -192,10 +199,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 	let claimed = 0;
 	let updated = 0;
 
+	let events = 0;
+
 	for (const key of Object.keys(parsed)) {
 		const ev = parsed[key];
 
 		if (!ev || ev.type !== 'VEVENT' || !ev.uid) continue;
+		// A reply answers one meeting, maybe one occurrence of it: a few VEVENTs at most.
+		if (++events > MAX_REPLY_EVENTS) break;
 		const uid = String(ev.uid);
 		const attendeeEntry = ev.attendee;
 		// node-ical yields attendee as object or array
@@ -220,7 +231,9 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 
 		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs} recurrenceId=${recurrenceId ?? 'none'}`);
 
-		for (const att of attendees) {
+		// RFC 5546: a REPLY carries the one attendee who answers. More would each cost
+		// database lookups, so only the first is read.
+		for (const att of attendees.slice(0, 1)) {
 			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
 			const email = String(rawVal)
 				.replace(/^MAILTO:/i, '')

@@ -274,4 +274,13 @@ describe('ics builder', () => {
 		assert.ok(unfold(ics).includes('Piotr Pawałowski z Politechniki Poznańskiej'));
 		assert.ok(!ics.includes('�'), 'a fold must not cut a UTF-8 sequence in half');
 	});
+
+	it('leaves out a stored rule the schema refuses today', () => {
+		const ics = build({ rrule: 'FREQ=DAILY\r\nATTENDEE:mailto:intruder@example.org' });
+
+		// The time zone block has RRULE lines of its own (daylight saving), so look for the event's.
+		assert.ok(!ics.includes('RRULE:FREQ=DAILY'));
+		assert.ok(!ics.includes('intruder'));
+		assert.ok(build({ rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=3' }).includes('RRULE:FREQ=WEEKLY;INTERVAL=1;COUNT=3'));
+	});
 });

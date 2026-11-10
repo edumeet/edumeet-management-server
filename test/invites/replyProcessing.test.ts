@@ -310,4 +310,31 @@ describe('reply processing', () => {
 			assert.strictEqual(f.rec.rsvpCreates.length, 0);
 		});
 	});
+
+	it('reads only the first attendee of a reply and a bounded number of events', async () => {
+		let lookups = 0;
+		const f = fixture();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const service = (f.app as any).service.bind(f.app) as (name: string) => unknown;
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(f.app as any).service = (name: string) => {
+			const s = service(name);
+
+			if (name === 'meetings') return { find: async () => {
+				lookups++; 
+
+				return [ { id: 11 } ]; 
+			} };
+
+			return s;
+		};
+
+		const attendees = Array.from({ length: 500 }, (_, i) => `ATTENDEE;PARTSTAT=ACCEPTED:mailto:a${i}@example.org`);
+		const event = (i: number) => [ 'BEGIN:VEVENT', `UID:uid-${i}@x`, 'DTSTAMP:20260910T090000Z', 'DTSTART:20260910T100000Z', ...attendees, 'END:VEVENT' ];
+		const ics = [ 'BEGIN:VCALENDAR', 'VERSION:2.0', 'METHOD:REPLY', ...Array.from({ length: 50 }, (_, i) => event(i)).flat(), 'END:VCALENDAR' ].join('\r\n');
+
+		await processReplyIcs(f.app, ics);
+		assert.ok(lookups <= 10, `${lookups} meeting lookups`);
+	});
 });

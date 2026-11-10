@@ -18,10 +18,15 @@ describe('meeting rrule validation', () => {
 			assert.ok(await valid(`FREQ=${freq};INTERVAL=2;COUNT=10`), freq);
 	});
 
-	it('accepts common BY* rules', async () => {
+	it('accepts weekday rules', async () => {
 		assert.ok(await valid('FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20271231T235959Z'));
 		assert.ok(await valid('FREQ=MONTHLY;BYDAY=-1FR'));
-		assert.ok(await valid('FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=1;WKST=MO'));
+		assert.ok(await valid('FREQ=YEARLY;INTERVAL=2;WKST=MO'));
+	});
+
+	it('refuses parts with which a rule can match nothing', async () => {
+		for (const rrule of [ 'FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30', 'FREQ=MONTHLY;BYSETPOS=40', 'FREQ=MONTHLY;BYDAY=53MO' ])
+			assert.strictEqual(await valid(rrule), false, rrule);
 	});
 
 	it('refuses sub-daily rules and BY* parts that multiply the occurrences', async () => {
@@ -38,5 +43,11 @@ describe('meeting rrule validation', () => {
 		await assert.rejects(meetingDataValidator({
 			roomId: 1, title: 't', startsAt: 0, endsAt: 1, timezone: 'UTC', rrule: 'FREQ=SECONDLY'
 		}));
+	});
+
+	it('refuses meeting times before 2000 or after 2100', async () => {
+		for (const startsAt of [ 0, -1e12, Date.UTC(2101, 0, 1) ])
+			await assert.rejects(meetingPatchValidator({ startsAt }), String(startsAt));
+		await meetingPatchValidator({ startsAt: Date.UTC(2026, 10, 10), endsAt: Date.UTC(2026, 10, 10, 1) });
 	});
 });

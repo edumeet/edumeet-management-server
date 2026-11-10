@@ -6,30 +6,11 @@ import type { Static } from '@feathersjs/typebox';
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { generateMeetingToken } from './meetingToken';
+import { MEETING_TIME_MAX, MEETING_TIME_MIN, RRULE_MAX_LENGTH, RRULE_PATTERN } from '../../invites/rrulePolicy';
+
+export { RRULE_PATTERN };
 
 export const MeetingStatus = StringEnum([ 'CONFIRMED', 'CANCELLED' ]);
-
-// The recurrence rules the meeting dialog writes, plus the usual BY* parts. No HOURLY,
-// MINUTELY or SECONDLY and no BYHOUR/BYMINUTE/BYSECOND: those multiply the occurrences
-// the server and every client expand. One line, so it cannot add lines to the invitation.
-const DAY = '[+-]?[0-9]{0,2}(MO|TU|WE|TH|FR|SA|SU)';
-const NUMS = (digits: number) => `-?[0-9]{1,${digits}}(,-?[0-9]{1,${digits}})*`;
-
-export const RRULE_PATTERN = [
-	'^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)',
-	'(;(',
-	[
-		'INTERVAL=[1-9][0-9]{0,2}',
-		'COUNT=[1-9][0-9]{0,3}',
-		'UNTIL=[0-9]{8}(T[0-9]{6}Z?)?',
-		`BYDAY=${DAY}(,${DAY})*`,
-		`BYMONTHDAY=${NUMS(2)}`,
-		`BYMONTH=${NUMS(2)}`,
-		`BYSETPOS=${NUMS(3)}`,
-		'WKST=(MO|TU|WE|TH|FR|SA|SU)'
-	].join('|'),
-	'))*$'
-].join('');
 
 export const meetingSchema = Type.Object(
 	{
@@ -39,15 +20,15 @@ export const meetingSchema = Type.Object(
 		organizerId: Type.Number(),
 		title: Type.String(),
 		description: Type.Optional(Type.String()),
-		startsAt: Type.Number(),
-		endsAt: Type.Number(),
+		startsAt: Type.Number({ minimum: MEETING_TIME_MIN, maximum: MEETING_TIME_MAX }),
+		endsAt: Type.Number({ minimum: MEETING_TIME_MIN, maximum: MEETING_TIME_MAX }),
 		timezone: Type.String(),
 		locale: Type.String(),
 		uid: Type.String(),
 		meetingToken: Type.String(),
 		sequence: Type.Number(),
 		status: MeetingStatus,
-		rrule: Type.Optional(Type.String({ maxLength: 200, pattern: RRULE_PATTERN })),
+		rrule: Type.Optional(Type.String({ maxLength: RRULE_MAX_LENGTH, pattern: RRULE_PATTERN })),
 		recurrenceEnd: Type.Optional(Type.Number()),
 		recurrenceCount: Type.Optional(Type.Number()),
 		createdAt: Type.Number(),

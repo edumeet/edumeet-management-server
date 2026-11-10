@@ -86,4 +86,18 @@ describe('isMeetingOver on rules with very many occurrences', () => {
 
 		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + (2 * HOUR), rrule: 'FREQ=DAILY;INTERVAL=1' }, now), false);
 	});
+
+	it('returns quickly for a rule that never matches', () => {
+		const started = Date.now();
+		const start = now - (365 * DAY);
+
+		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + HOUR, rrule: 'FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30' }, now), true);
+		assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+	});
+
+	it('treats a stored rule or start the schema refuses as a single meeting', () => {
+		assert.strictEqual(isMeetingOver({ startsAt: now - HOUR, endsAt: now + HOUR, rrule: 'FREQ=SECONDLY' }, now), false, 'still running');
+		assert.strictEqual(isMeetingOver({ startsAt: now - (2 * HOUR), endsAt: now - HOUR, rrule: 'FREQ=DAILY\r\nX:Y' }, now), true);
+		assert.strictEqual(isMeetingOver({ startsAt: -1e12, endsAt: -1e12 + HOUR, rrule: 'FREQ=DAILY' }, now), true);
+	});
 });

@@ -33,6 +33,11 @@ const queryIds = (value: unknown): unknown[] => {
  * Without an id, the rooms named in the body, else in the query. All of them must pass.
  */
 const resolveRoomIds = async (context: HookContext, path: MeetingPath): Promise<string[]> => {
+	// A patch or remove without an id would reach rows by the query, which this does not
+	// check when the body names a parent. The services allow no such calls today.
+	if ((context.method === 'patch' || context.method === 'remove') && (context.id === undefined || context.id === null))
+		throw new Error('Only one row at a time');
+
 	const parentKey = { meetings: 'roomId', meetingAttendees: 'meetingId', meetingOccurrenceRsvps: 'meetingAttendeeId' }[path];
 	const roomOfParent = { meetings: async (_context: HookContext, roomId: unknown) => String(roomId), meetingAttendees: roomOfMeeting, meetingOccurrenceRsvps: roomOfAttendee }[path];
 	const rows: Array<Record<string, unknown>> = Array.isArray(context.data) ? context.data : context.data ? [ context.data ] : [];
