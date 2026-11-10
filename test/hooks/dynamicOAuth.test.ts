@@ -56,7 +56,8 @@ const fakeApp = (rows: Row[], oauth: Record<string, unknown> = {}, settings: Rec
 			}
 			if (name === 'authentication') return { configuration: config, app };
 			if (name === 'tenantFQDNs') return { find: async () => [ { id: 1, fqdn: 'rooms.acme.edu', tenantId: 1 } ] };
-			if (name === 'oauth/:provider' || name === 'oauth/:provider/callback') return { hooks: () => undefined };
+			if (name === 'oauth/:provider') return { hooks: () => undefined };
+			if (name === 'oauth/:provider/callback') return { hooks: () => undefined, service: { handler: () => undefined } };
 			throw new Error(`unexpected service ${name}`);
 		}
 	};

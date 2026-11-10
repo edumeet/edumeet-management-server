@@ -1,9 +1,11 @@
 /* eslint-disable camelcase */
 import assert from 'assert';
-import net from 'net';
+import axios from 'axios';
+import http from 'http';
+import type { AddressInfo } from 'net';
 import { app } from '../../src/app';
 import type { Application } from '../../src/declarations';
-import { isOwnNetworkAddress, oauthLookup, oauthUrlProblem, restrictOAuthRequests } from '../../src/auth/oauthEgress';
+import { isOwnNetworkAddress, oauthLookup, oauthUrlProblem } from '../../src/auth/oauthEgress';
 
 const withHosts = (oauthPrivateHosts: string[]) => ({ get: (name: string) => (name === 'oauthPrivateHosts' ? oauthPrivateHosts : undefined) }) as unknown as Application;
 
@@ -44,60 +46,162 @@ describe('tenant identity provider addresses', () => {
 	});
 });
 
+// A complete sign in over HTTP, the way a browser and an identity provider drive it: the
+// requests to the provider are made by the callback route.
 describe('requests to a tenant identity provider', () => {
-	it('never connect to the server\'s own host, even when its name resolves there', async () => {
-		let connections = 0;
-		const servers: net.Server[] = [];
-		const listen = (host: string, port: number) => new Promise<number>((resolve, reject) => {
-			const server = net.createServer((socket) => {
-				connections++;
-				socket.destroy();
-			});
+	const internal = { provider: undefined, query: {} };
+	const baseUrl = `http://${app.get('host')}:${app.get('port')}`;
+	const fqdn = `egress-${Date.now()}.example.edu`;
+	const refused = 'Sign in at the identity provider failed. Ask your administrator.';
+	const profile = { sub: 'egress-sub', email: `egress-${Date.now()}@example.edu`, email_verified: true, name: 'Egress' };
+	const configuredHosts = app.get('oauthPrivateHosts');
 
+	type Loopback = { port: number, connections: number, close: () => void };
+
+	// The name localhost can resolve to either loopback address.
+	const listenOnLoopback = async (handler: http.RequestListener): Promise<Loopback> => {
+		const servers: http.Server[] = [];
+		const loopback: Loopback = {
+			port: 0,
+			connections: 0,
+			close: () => servers.forEach((server) => {
+				server.closeAllConnections();
+				server.close();
+			})
+		};
+		const listen = (host: string, port: number) => new Promise<number>((resolve, reject) => {
+			const server = http.createServer(handler);
+
+			server.on('connection', () => { loopback.connections++; });
 			server.once('error', reject);
 			server.listen(port, host, () => {
 				servers.push(server);
-				resolve((server.address() as net.AddressInfo).port);
+				resolve((server.address() as AddressInfo).port);
 			});
 		});
-		const port = await listen('127.0.0.1', 0);
 
-		await listen('::1', port).catch(() => undefined);
+		loopback.port = await listen('127.0.0.1', 0);
+		await listen('::1', loopback.port).catch(() => undefined);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const providers = (app.get('authentication') as any).oauth as Record<string, unknown>;
-		const id = '987654';
+		return loopback;
+	};
 
-		providers[id] = {
-			oauth: 2,
+	let tenantId: number;
+	let fqdnId: number;
+	let oauthId: number;
+	let provider: Loopback;
+	let elsewhere: Loopback;
+	let requests: string[] = [];
+	let profileRedirect: string | undefined;
+
+	const signIn = async (): Promise<URL> => {
+		const options = { maxRedirects: 0, validateStatus: () => true };
+		const started = await axios.get(`${baseUrl}/oauth/tenant`, { ...options, params: { tenantId: String(tenantId), origin: `https://${fqdn}` } });
+		const authorize = new URL(String(started.headers.location), baseUrl);
+
+		assert.strictEqual(`${authorize.origin}${authorize.pathname}`, `http://localhost:${provider.port}/auth`);
+
+		const cookie = (started.headers['set-cookie'] ?? []).map((value) => value.split(';')[0]).join('; ');
+		const returned = await axios.get(`${baseUrl}/oauth/tenant/callback`, {
+			...options,
+			params: { code: 'c', state: authorize.searchParams.get('state') },
+			headers: { cookie }
+		});
+
+		return new URL(String(returned.headers.location), baseUrl);
+	};
+
+	before(async () => {
+		await app.listen(app.get('port'));
+
+		provider = await listenOnLoopback((req, res) => {
+			const path = String(req.url).split('?')[0];
+
+			requests.push(`${req.method} ${path}`);
+			req.resume();
+			// No connection is kept for the next request: each one has to connect, and so resolve the name, again.
+			res.setHeader('Connection', 'close');
+
+			if (path === '/userinfo' && profileRedirect) {
+				res.writeHead(302, { Location: profileRedirect }).end();
+
+				return;
+			}
+
+			res.setHeader('Content-Type', 'application/json');
+			res.end(JSON.stringify(path === '/token' ? { access_token: 'at', token_type: 'Bearer' } : profile));
+		});
+		elsewhere = await listenOnLoopback((req, res) => {
+			req.resume();
+			res.setHeader('Content-Type', 'application/json');
+			res.end(JSON.stringify(profile));
+		});
+
+		app.set('oauthPrivateHosts', [ 'localhost' ]);
+
+		const tenant = await app.service('tenants').create({ name: `egress-${Date.now()}`, description: 'identity provider requests test' }, internal);
+
+		tenantId = Number(tenant.id);
+		fqdnId = Number((await app.service('tenantFQDNs').create({ tenantId, fqdn }, internal)).id);
+		oauthId = Number((await app.service('tenantOAuths').create({
+			tenantId,
 			key: 'client',
 			secret: 's1',
-			authorize_url: 'https://idp.example/auth',
-			access_url: `https://localhost:${port}/token`,
-			profile_url: `https://localhost:${port}/userinfo`,
-			redirect_uri: 'https://mgmt.example/oauth/tenant/callback',
-			dynamic: false
-		};
+			authorize_url: `http://localhost:${provider.port}/auth`,
+			access_url: `http://localhost:${provider.port}/token`,
+			profile_url: `http://localhost:${provider.port}/userinfo`
+		}, internal)).id);
+	});
 
-		try {
-			restrictOAuthRequests(app);
+	beforeEach(() => {
+		app.set('oauthPrivateHosts', [ 'localhost' ]);
+		requests = [];
+		profileRedirect = undefined;
+		provider.connections = 0;
+		elsewhere.connections = 0;
+	});
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const service = app.service('oauth/:provider') as any;
-			const result = await service.grant({
-				method: 'GET',
-				params: { provider: id, override: 'callback' },
-				query: { code: 'c', state: 's' },
-				session: { provider: id, state: 's' },
-				state: {}
-			});
+	after(async () => {
+		app.set('oauthPrivateHosts', configuredHosts);
 
-			assert.strictEqual(connections, 0);
-			assert.match(JSON.stringify(result), /resolves only to private or local addresses/);
-		} finally {
-			delete providers[id];
-			restrictOAuthRequests(app);
-			for (const server of servers) server.close();
+		if (tenantId) {
+			const users = await app.service('users').find({ ...internal, query: { tenantId }, paginate: false });
+
+			for (const user of users) await app.service('users').remove(user.id, internal);
 		}
+		if (oauthId) await app.service('tenantOAuths').remove(oauthId, internal);
+		if (fqdnId) await app.service('tenantFQDNs').remove(fqdnId, internal);
+		if (tenantId) await app.service('tenants').remove(tenantId, internal);
+
+		provider?.close();
+		elsewhere?.close();
+		await app.teardown();
+	});
+
+	it('reach a provider on a private host the operator allows', async () => {
+		const callback = await signIn();
+
+		assert.strictEqual(callback.pathname, '/auth/callback');
+		assert.ok(callback.searchParams.get('code'), callback.search);
+		assert.deepStrictEqual(requests, [ 'POST /token', 'GET /userinfo' ]);
+	});
+
+	it('never connect to the server\'s own host, even when the provider\'s name resolves there', async () => {
+		app.set('oauthPrivateHosts', []);
+
+		const callback = await signIn();
+
+		assert.strictEqual(callback.searchParams.get('error'), refused);
+		assert.strictEqual(provider.connections, 0);
+	});
+
+	it('do not follow a redirect, which could lead to an address that is never looked up', async () => {
+		profileRedirect = `http://127.0.0.1:${elsewhere.port}/userinfo`;
+
+		const callback = await signIn();
+
+		assert.strictEqual(callback.searchParams.get('error'), refused);
+		assert.deepStrictEqual(requests, [ 'POST /token', 'GET /userinfo' ]);
+		assert.strictEqual(elsewhere.connections, 0);
 	});
 });

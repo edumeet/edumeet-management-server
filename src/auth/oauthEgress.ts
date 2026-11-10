@@ -139,7 +139,12 @@ export const restrictOAuthRequests = (app: Application): void => {
 
 	if (!authService?.configuration?.oauth) return;
 
-	const service = app.service('oauth/:provider') as unknown as { grant: unknown };
+	// The callback service makes those requests, and it calls the OAuthService object it was
+	// built with. app.service('oauth/:provider') is not that object but one Feathers derives
+	// from it: a grant set there is only used for the redirect to the provider.
+	const { service } = app.service('oauth/:provider/callback');
+
+	if (typeof service?.handler !== 'function') throw new Error('oauth service not found, its requests cannot be restricted');
 
 	service.grant = grant({
 		config: getGrantConfig(authService),
