@@ -91,6 +91,24 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 		await assert.rejects(signIn('banned-sub', 'banned@uni.example'), /not allowed by rule/);
 	});
 
+	it('is refused by a negated block rule that describes the allowed domain', async () => {
+		// "Block whose e-mail does not end with @uni.example": an allow list written as a block.
+		const rules = await app.service('rules').find({ ...internal, query: { tenantId }, paginate: false } as unknown as Params) as unknown as Array<{ id: number, type: string, method: string }>;
+		const blockAnyone = rules.find((r) => r.type === 'block' && r.method === 'anyone');
+
+		await app.service('rules').patch(Number(blockAnyone?.id), { type: 'block', method: 'endswith', parameter: 'email', value: '@uni.example', negate: true }, internal);
+		try {
+			await assert.rejects(signIn('negated-sub', 'someone@uni.example'), /not allowed by rule/);
+			await assert.rejects(signIn('negated-sub', 'Someone@UNI.example', 'false'), /not allowed by rule/);
+
+			const verified = await signIn('negated-ok', 'someone@uni.example', true);
+
+			assert.ok(verified.user.id);
+		} finally {
+			await app.service('rules').patch(Number(blockAnyone?.id), { type: 'block', method: 'anyone', parameter: '', value: '', negate: false }, internal);
+		}
+	});
+
 	it('trusts the provider\'s addresses when the tenant says so (trust_email)', async () => {
 		await setTrust(true);
 

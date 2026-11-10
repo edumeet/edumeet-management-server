@@ -8,6 +8,10 @@ import { isAccessPermitted } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
 
+// Stands in for an unverified address when the access rules are decided: no real address
+// or rule value can equal or contain it, so only negated rules match it.
+const UNVERIFIED_EMAIL = '\u0000unverified\u0000';
+
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// Capture the OIDC id_token from the raw grant response so it can be
 	// forwarded to the client and used as id_token_hint at logout time
@@ -130,9 +134,10 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// first registration. It is what lets an administrator through a rule that
 		// would otherwise refuse them; a new account cannot be an administrator yet.
 		if (!Number.isNaN(data.tenantId)) {
-			// An unverified address is decided both ways and must pass both: without it,
-			// so it cannot satisfy an allow rule, and with it, so a block rule on it still
-			// applies.
+			// An unverified address must pass three ways: without it, so it cannot satisfy
+			// an allow rule; with it, so a block rule on it still applies; and with an
+			// address no rule names, so a negated block ("block whose e-mail does not end
+			// with @uni.example") refuses it as it would refuse any outsider.
 			const decide = (attributes: Record<string, unknown>) => isAccessPermitted(
 				this.app as Application,
 				data.tenantId,
@@ -144,7 +149,9 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 			const withoutEmail = { ...data, email: undefined };
 			const permitted = emailTrusted
 				? await decide(data)
-				: await decide(withoutEmail) && await decide({ ...withoutEmail, email: profile.email });
+				: await decide(withoutEmail)
+					&& await decide({ ...withoutEmail, email: profile.email })
+					&& await decide({ ...withoutEmail, email: UNVERIFIED_EMAIL });
 
 			// getRedirect() turns this into ?error=<message> on the auth callback
 			if (!permitted) throw new Forbidden('Action not allowed by rule');
