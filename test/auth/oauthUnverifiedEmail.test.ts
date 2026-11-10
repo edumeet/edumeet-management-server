@@ -8,6 +8,9 @@ import type OAuthTenantStrategy from '../../src/auth/strategies/OAuthTenantStrat
 import { refreshAccessCheck } from '../../src/hooks/refreshAccessCheck';
 import type { HookContext } from '../../src/declarations';
 
+// MySQL stores the flag as 0 or 1.
+const flag = (value: unknown): boolean | null => (value === null || value === undefined ? null : Boolean(Number(value)));
+
 const internal = { provider: undefined, query: {} };
 
 describe('OAuth tenant login with an unverified e-mail', () => {
@@ -167,11 +170,11 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 				const result = await signIn('claim-sub', 'claimed@uni.example');
 				const stored = await app.service('users').get(Number(result.user.id), internal);
 
-				assert.strictEqual(stored.emailVerified, false);
+				assert.strictEqual(flag(stored.emailVerified), false);
 
 				const verified = await signIn('verified-sub', 'verified@uni.example', true);
 
-				assert.strictEqual((await app.service('users').get(Number(verified.user.id), internal)).emailVerified, true);
+				assert.strictEqual(flag((await app.service('users').get(Number(verified.user.id), internal)).emailVerified), true);
 			} finally {
 				await close();
 			}
@@ -214,9 +217,9 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 				const createUser = app.service('users').create as unknown as (data: Record<string, unknown>, params: unknown) => Promise<{ id: number }>;
 				const legacy = await createUser.call(app.service('users'), { email: 'legacy@uni.example', name: 'Legacy', tenantId, ssoId: 'legacy-sub' }, internal);
 
-				assert.strictEqual((await app.service('users').get(Number(legacy.id), internal)).emailVerified ?? null, null);
+				assert.strictEqual(flag((await app.service('users').get(Number(legacy.id), internal)).emailVerified), null);
 				await signIn('legacy-sub', 'legacy@uni.example');
-				assert.strictEqual((await app.service('users').get(Number(legacy.id), internal)).emailVerified, false);
+				assert.strictEqual(flag((await app.service('users').get(Number(legacy.id), internal)).emailVerified), false);
 			} finally {
 				await close();
 			}

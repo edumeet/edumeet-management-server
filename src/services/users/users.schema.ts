@@ -6,6 +6,7 @@ import { passwordHash } from '@feathersjs/authentication-local';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { jsonColumn } from '../../hooks/jsonColumn';
 
 // Main data model schema
 export const userSchema = Type.Object(
@@ -73,6 +74,7 @@ export const userDataValidator = getValidator(userDataSchema, dataValidator);
 export const userDataAdminValidator = getValidator(userDataAdminSchema, dataValidator);
 export const userDataResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' }),
+	roles: jsonColumn,
 	createdAt: async () => Date.now(),
 	updatedAt: async () => Date.now()
 });
@@ -90,6 +92,7 @@ export const userPatchValidator = getValidator(userPatchSchema, dataValidator);
 export const userPatchAdminValidator = getValidator(userPatchAdminSchema, dataValidator);
 export const userPatchResolver = resolve<User, HookContext>({
 	password: passwordHash({ strategy: 'local' }),
+	roles: jsonColumn,
 	updatedAt: async () => Date.now()
 });
 
