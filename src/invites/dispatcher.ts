@@ -7,8 +7,10 @@ import { isMeetingOver, MeetingWindow } from './meetingWindow';
 import { logger } from '../logger';
 
 
-// Invite messages are sent a few at a time for the whole process (the SMTP transporter sends
-// 10 a second at most anyway), so only that many are ever built and waiting in memory.
+// Invite messages are sent a few at a time per SMTP mailbox (its transporter sends 10 a second
+// at most anyway), so only that many are ever built and waiting in memory. Per mailbox, not for
+// the whole process: a mailbox that cannot be reached makes each message wait for the
+// connection timeout, and that must hold back only the tenants that send through it.
 export const INVITE_SEND_CONCURRENCY = 4;
 
 export const createSendQueue = (concurrency: number) => {
@@ -36,7 +38,28 @@ export const createSendQueue = (concurrency: number) => {
 	};
 };
 
-const sendQueue = createSendQueue(INVITE_SEND_CONCURRENCY);
+const sendQueues = new Map<string, ReturnType<typeof createSendQueue>>();
+
+export const sendThroughMailbox = async <T>(
+	cfg: Pick<TenantInviteConfig, 'smtpHost' | 'smtpPort' | 'smtpUser'>,
+	task: () => Promise<T>
+): Promise<T> => {
+	const key = [ cfg.smtpHost, cfg.smtpPort, cfg.smtpUser ].join(':');
+	let queue = sendQueues.get(key);
+
+	if (!queue) {
+		queue = createSendQueue(INVITE_SEND_CONCURRENCY);
+		sendQueues.set(key, queue);
+	}
+
+	try {
+		return await queue.run(task);
+	} finally {
+		if (queue.pending === 0 && sendQueues.get(key) === queue) sendQueues.delete(key);
+	}
+};
+
+export const sendQueueCount = (): number => sendQueues.size;
 
 // How long to wait for additional events on the same meeting before dispatching.
 // 2s absorbs the client's create-meeting + create-attendees burst into one dispatch.
@@ -151,10 +174,10 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 		// path there. Their attendee row is pre-set ACCEPTED, so it shows as accepted.
 		const toNotify = attendees.filter((a) => (a.lastNotifiedSequence ?? -1) < currentSequence);
 
-		// Through the process-wide queue: each message (ICS, text and HTML, each with the whole
-		// guest list) is built only when it is about to be sent, so memory does not grow with the
-		// square of the guest list, nor with the number of meetings dispatching at once.
-		await Promise.all(toNotify.map((a) => sendQueue.run(() => sendInviteEmail(app, {
+		// Through the queue of the tenant's mailbox: each message (ICS, text and HTML, each with
+		// the whole guest list) is built only when it is about to be sent, so memory does not grow
+		// with the square of the guest list, nor with the number of meetings dispatching at once.
+		await Promise.all(toNotify.map((a) => sendThroughMailbox(tenantConfig, () => sendInviteEmail(app, {
 			method,
 			meeting,
 			attendee: a,

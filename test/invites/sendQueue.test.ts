@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { createSendQueue } from '../../src/invites/dispatcher';
+import { createSendQueue, INVITE_SEND_CONCURRENCY, sendQueueCount, sendThroughMailbox } from '../../src/invites/dispatcher';
 import { limitAttendeesPerMeeting } from '../../src/hooks/limitAttendeesPerMeeting';
 import type { HookContext } from '../../src/declarations';
 
@@ -51,6 +51,53 @@ describe('invite send queue', () => {
 			throw new Error('smtp down');
 		}));
 		assert.strictEqual(await queue.run(async () => 'next'), 'next');
+	});
+});
+
+describe('invite send queues per mailbox', () => {
+	const mailbox = (smtpHost: string) => ({ smtpHost, smtpPort: 587, smtpUser: 'invites' });
+
+	it('a mailbox that cannot be reached does not hold back another one', async () => {
+		const stuck: Array<() => void> = [];
+		const hanging = Array.from({ length: INVITE_SEND_CONCURRENCY * 3 }, () =>
+			sendThroughMailbox(mailbox('down.example'), () => new Promise<void>((resolve) => stuck.push(resolve))));
+
+		assert.strictEqual(await sendThroughMailbox(mailbox('up.example'), async () => 'sent'), 'sent');
+		assert.strictEqual(stuck.length, INVITE_SEND_CONCURRENCY);
+
+		while (stuck.length > 0) {
+			stuck.shift()?.();
+			await tick();
+		}
+
+		await Promise.all(hanging);
+	});
+
+	it('tenants on one mailbox share its limit, and an idle queue is dropped', async () => {
+		let running = 0;
+		let peak = 0;
+		const release: Array<() => void> = [];
+		const task = () => new Promise<void>((resolve) => {
+			running++;
+			peak = Math.max(peak, running);
+			release.push(() => {
+				running--;
+				resolve();
+			});
+		});
+		const before = sendQueueCount();
+		const all = Promise.all(Array.from({ length: 10 }, () => sendThroughMailbox(mailbox('shared.example'), task)));
+
+		assert.strictEqual(sendQueueCount(), before + 1);
+
+		while (release.length > 0) {
+			release.shift()?.();
+			await tick();
+		}
+
+		await all;
+		assert.strictEqual(peak, INVITE_SEND_CONCURRENCY);
+		assert.strictEqual(sendQueueCount(), before);
 	});
 });
 
