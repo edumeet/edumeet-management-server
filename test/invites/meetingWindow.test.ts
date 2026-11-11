@@ -95,6 +95,14 @@ describe('isMeetingOver on rules with very many occurrences', () => {
 		assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 	});
 
+	it('returns quickly for a stored daily weekday rule whose interval stays on a weekday it leaves out', () => {
+		const started = Date.now();
+		const monday = Date.UTC(2026, 10, 9, 10);
+
+		assert.strictEqual(isMeetingOver({ startsAt: monday, endsAt: monday + HOUR, rrule: 'FREQ=DAILY;INTERVAL=7;BYDAY=TU;COUNT=5', timezone: 'Europe/Oslo' }, Date.UTC(2026, 10, 10)), true);
+		assert.ok(Date.now() - started < 100, `took ${Date.now() - started} ms`);
+	});
+
 	it('treats a stored rule or start the schema refuses as a single meeting', () => {
 		assert.strictEqual(isMeetingOver({ startsAt: now - HOUR, endsAt: now + HOUR, rrule: 'FREQ=SECONDLY' }, now), false, 'still running');
 		assert.strictEqual(isMeetingOver({ startsAt: now - (2 * HOUR), endsAt: now - HOUR, rrule: 'FREQ=DAILY\r\nX:Y' }, now), true);

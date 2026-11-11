@@ -8,13 +8,17 @@
 // - No BYMONTH, BYMONTHDAY or BYSETPOS, and BYDAY ordinals only up to 5: with those a rule
 //   can match nothing (BYMONTH=2;BYMONTHDAY=30), and rrule then walks every period up to
 //   the year 9999 looking for an occurrence, whatever end or count it is given.
+// - BYDAY with FREQ=DAILY only with INTERVAL 1 ("every weekday"). A daily rule whose interval
+//   is a multiple of 7 stays on one weekday: with a BYDAY that leaves that weekday out it
+//   matches nothing, and rrule walks to the year 9999 (seconds per expansion). The dialog
+//   writes neither BYDAY nor a daily interval with it.
 // - An end, COUNT or an UNTIL before 2100, as the dialog always writes one. A series without
 //   one would never be over, and its meeting token would stay valid for good.
 // - One line, so it cannot add lines to the invitation.
 const DAY = '([+-]?[1-5])?(MO|TU|WE|TH|FR|SA|SU)';
 
 export const RRULE_PATTERN = [
-	'^(?=.*;(COUNT|UNTIL)=)FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)',
+	'^(?=.*;(COUNT|UNTIL)=)(?!FREQ=DAILY(?=.*;BYDAY=)(?=.*;INTERVAL=([2-9]|[1-9][0-9]{1,2})(;|$)))FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)',
 	'(;(',
 	[
 		'INTERVAL=[1-9][0-9]{0,2}',

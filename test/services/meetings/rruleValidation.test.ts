@@ -30,6 +30,15 @@ describe('meeting rrule validation', () => {
 			assert.strictEqual(await valid(rrule), false, rrule);
 	});
 
+	it('refuses a daily weekday rule with an interval, which can stay on a weekday it leaves out', async () => {
+		for (const rrule of [ 'FREQ=DAILY;INTERVAL=7;BYDAY=TU;COUNT=5', 'FREQ=DAILY;BYDAY=WE;INTERVAL=14;UNTIL=20991231T000000Z', 'FREQ=DAILY;COUNT=3;BYDAY=MO;INTERVAL=2' ])
+			assert.strictEqual(await valid(rrule), false, rrule);
+		assert.ok(await valid('FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;COUNT=10'));
+		assert.ok(await valid('FREQ=DAILY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR;COUNT=10'));
+		assert.ok(await valid('FREQ=DAILY;INTERVAL=7;COUNT=10'));
+		assert.ok(await valid('FREQ=WEEKLY;INTERVAL=7;BYDAY=TU;COUNT=5'));
+	});
+
 	it('refuses sub-daily rules and BY* parts that multiply the occurrences', async () => {
 		for (const rrule of [ 'FREQ=SECONDLY', 'FREQ=MINUTELY;COUNT=5', 'FREQ=HOURLY', 'FREQ=DAILY;BYHOUR=1,2', 'FREQ=DAILY;BYSECOND=0,1' ])
 			assert.strictEqual(await valid(rrule), false, rrule);
@@ -72,5 +81,6 @@ describe('meeting rrule validation', () => {
 		assert.strictEqual((await resolve({ ...ok, rrule: 'FREQ=SECONDLY' })).rrule, undefined);
 		assert.strictEqual((await resolve({ startsAt: 0, endsAt: 1000, rrule: 'FREQ=DAILY' })).rrule, undefined);
 		assert.strictEqual((await resolve({ ...ok, rrule: 'FREQ=WEEKLY;INTERVAL=1' })).rrule, undefined);
+		assert.strictEqual((await resolve({ ...ok, rrule: 'FREQ=DAILY;INTERVAL=7;BYDAY=TU;COUNT=5' })).rrule, undefined);
 	});
 });
