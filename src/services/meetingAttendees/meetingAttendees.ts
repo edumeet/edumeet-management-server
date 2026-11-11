@@ -19,6 +19,7 @@ import { isRoomOwnerOrAdminForMeetingAttendee } from '../../hooks/isRoomOwnerOrA
 import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { limitAttendeesPerMeeting } from '../../hooks/limitAttendeesPerMeeting';
 
 export * from './meetingAttendees.class';
 export * from './meetingAttendees.schema';
@@ -47,6 +48,7 @@ export const meetingAttendee = (app: Application) => {
 			create: [
 				isRoomOwnerOrAdminForMeetingAttendee,
 				schemaHooks.validateData(meetingAttendeeDataValidator),
+				limitAttendeesPerMeeting,
 				// an attendee who is a user must be one of the caller's tenant
 				iff(notSuperAdmin(), referencesInCallerTenant([ 'userId' ])),
 				schemaHooks.resolveData(meetingAttendeeDataResolver)

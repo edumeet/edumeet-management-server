@@ -6,6 +6,38 @@ import { sendInviteEmail } from './sender';
 import { isMeetingOver, MeetingWindow } from './meetingWindow';
 import { logger } from '../logger';
 
+
+// Invite messages are sent a few at a time for the whole process (the SMTP transporter sends
+// 10 a second at most anyway), so only that many are ever built and waiting in memory.
+export const INVITE_SEND_CONCURRENCY = 4;
+
+export const createSendQueue = (concurrency: number) => {
+	let running = 0;
+	const waiting: Array<() => void> = [];
+
+	return {
+		run: async <T>(task: () => Promise<T>): Promise<T> => {
+			// A finished task hands its slot straight to the next one, so no newcomer slips in between.
+			if (running >= concurrency) await new Promise<void>((resolve) => waiting.push(resolve));
+			else running++;
+
+			try {
+				return await task();
+			} finally {
+				const next = waiting.shift();
+
+				if (next) next();
+				else running--;
+			}
+		},
+		get pending() {
+			return running + waiting.length;
+		}
+	};
+};
+
+const sendQueue = createSendQueue(INVITE_SEND_CONCURRENCY);
+
 // How long to wait for additional events on the same meeting before dispatching.
 // 2s absorbs the client's create-meeting + create-attendees burst into one dispatch.
 export const DISPATCH_DEBOUNCE_MS = 2000;
@@ -119,7 +151,10 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 		// path there. Their attendee row is pre-set ACCEPTED, so it shows as accepted.
 		const toNotify = attendees.filter((a) => (a.lastNotifiedSequence ?? -1) < currentSequence);
 
-		await Promise.all(toNotify.map((a) => sendInviteEmail(app, {
+		// Through the process-wide queue: each message (ICS, text and HTML, each with the whole
+		// guest list) is built only when it is about to be sent, so memory does not grow with the
+		// square of the guest list, nor with the number of meetings dispatching at once.
+		await Promise.all(toNotify.map((a) => sendQueue.run(() => sendInviteEmail(app, {
 			method,
 			meeting,
 			attendee: a,
@@ -129,7 +164,7 @@ const runDispatch = async (app: Application, meetingId: number): Promise<void> =
 			meetingsOnly: room.meetingsOnly,
 			organizerUserName,
 			tenantName
-		})));
+		}))));
 	} catch (err) {
 		logger.error('[invites/dispatcher] runDispatch failed:', err);
 	}
