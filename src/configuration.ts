@@ -27,6 +27,8 @@ export const configurationSchema = Type.Intersect([
 		public: Type.String(),
 		authSessionMaxDays: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
 		invites: Type.Optional(inviteConfigSchema),
+		// Identity provider hosts on a private network that tenant OAuth settings may use.
+		oauthPrivateHosts: Type.Optional(Type.Array(Type.String())),
 		bots: Type.Optional(botConfigSchema)
 	})
 ]);

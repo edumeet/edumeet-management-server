@@ -4,6 +4,8 @@ import { OAuthError } from '@feathersjs/authentication-oauth/lib/service';
 import qs from 'qs';
 import { Application, HookContext, NextFunction } from '../declarations';
 import { resolveAllowedOrigin } from '../auth/allowedOrigin';
+import { hasOwnNetworkIp, restrictOAuthRequests } from '../auth/oauthEgress';
+import { logger } from '../logger';
 
 // The OAuth providers of the tenants live in app.get('authentication').oauth[tenantId].
 // @feathersjs/authentication-oauth reads that configuration only when the oauth service is
@@ -80,6 +82,7 @@ export const oauthCallbackHooks = () => ({
 const reconfigureOAuth = (app: Application) => {
 	app.unuse('oauth/:provider');
 	app.configure(oauth());
+	restrictOAuthRequests(app);
 	app.service('oauth/:provider').hooks(oauthServiceHooks());
 	app.service('oauth/:provider/callback').hooks(oauthCallbackHooks());
 };
@@ -132,7 +135,14 @@ const refreshTenantOAuth = async (
 	const row = data[0];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const providers: Record<string, any> = config.oauth;
-	const usable = Boolean(row?.key && row.secret && row.authorize_url && row.access_url && row.profile_url);
+	const complete = Boolean(row?.key && row.secret && row.authorize_url && row.access_url && row.profile_url);
+	// Stored before such addresses were refused: Node connects to an IP address without the
+	// lookup that checks names, so this provider is not loaded at all. Nor is one whose URL
+	// cannot be parsed, which could not work anyway.
+	const ownNetwork = complete && (hasOwnNetworkIp(app, row.access_url) || hasOwnNetworkIp(app, row.profile_url));
+	const usable = complete && !ownNetwork;
+
+	if (ownNetwork) logger.warn(`[dynamicOAuth] tenant ${tenantId}: OAuth not loaded, its token or profile URL is not a valid URL or is a private or local IP address (allow an internal one in oauthPrivateHosts)`);
 
 	if (usable) {
 		providers[tenantId] = {

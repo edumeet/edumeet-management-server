@@ -2,6 +2,7 @@
 import assert from 'assert';
 import type { Params } from '@feathersjs/feathers';
 import { app } from '../../../src/app';
+import { resolveAllowedOrigin } from '../../../src/auth/allowedOrigin';
 
 const internal = { provider: undefined, query: {} };
 
@@ -33,23 +34,49 @@ describe('tenantFQDNs service', () => {
 			if (tenantId) await app.service('tenants').remove(tenantId, internal);
 		});
 
-		it('creates an FQDN in the own tenant, whatever tenantId the form sent', async () => {
-			const created = await app.service('tenantFQDNs').create({ tenantId: 999999, fqdn: `rooms-${Date.now()}.example.edu`, description: 'made by admin' }, admin());
+		it('lets only a super admin add a host name', async () => {
+			await assert.rejects(
+				app.service('tenantFQDNs').create({ tenantId, fqdn: `claimed-${Date.now()}.example.edu` }, admin()),
+				/Only a super admin/
+			);
+			await assert.rejects(
+				app.service('tenantFQDNs').create({ tenantId, fqdn: 'nope.example.edu' }, admin({ tenantAdmin: false })),
+				/Only a super admin/
+			);
+
+			const created = await app.service('tenantFQDNs').create(
+				{ tenantId, fqdn: `rooms-${Date.now()}.example.edu`, description: 'made by super admin' },
+				admin({ id: 1, tenantAdmin: false, roles: [ 'super-admin' ] })
+			);
 
 			fqdnId = Number(created.id);
 			assert.strictEqual(Number(created.tenantId), tenantId);
 		});
 
-		it('refuses a user who is not a tenant admin', async () => {
-			await assert.rejects(
-				app.service('tenantFQDNs').create({ tenantId, fqdn: 'nope.example.edu' }, admin({ tenantAdmin: false })),
-				/Not a tenant admin/
-			);
+		it('does not let a tenant admin rename a host name', async () => {
+			await assert.rejects(app.service('tenantFQDNs').patch(fqdnId, { fqdn: `other-${Date.now()}.example.edu` }, admin()));
 		});
 
 		it('refuses an admin of another tenant on patch and remove', async () => {
 			await assert.rejects(app.service('tenantFQDNs').patch(fqdnId, { description: 'x' }, admin({ tenantId: tenantId + 1 })), /same tenant/);
 			await assert.rejects(app.service('tenantFQDNs').remove(fqdnId, admin({ tenantId: tenantId + 1 })), /same tenant/);
+		});
+
+		it('keeps the row in the own tenant when a patch sends another tenantId', async () => {
+			const other = await app.service('tenants').create({ name: `fqdn-other-${Date.now()}`, description: 'target tenant' }, internal);
+			const fqdn = `moved-${Date.now()}.example.edu`;
+			const row = await app.service('tenantFQDNs').create({ tenantId, fqdn, description: 'to move' }, internal);
+
+			try {
+				const patched = await app.service('tenantFQDNs').patch(row.id, { tenantId: Number(other.id) }, admin());
+
+				assert.strictEqual(Number(patched.tenantId), tenantId);
+				assert.strictEqual(Number((await app.service('tenantFQDNs').get(row.id, internal)).tenantId), tenantId);
+				await assert.rejects(resolveAllowedOrigin(app, Number(other.id), `https://${fqdn}`));
+			} finally {
+				await app.service('tenantFQDNs').remove(row.id, internal);
+				await app.service('tenants').remove(other.id, internal);
+			}
 		});
 
 		it('lets the own admin patch and remove', async () => {

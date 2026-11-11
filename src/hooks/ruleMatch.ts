@@ -116,8 +116,11 @@ export const matchRule = (rule: MatchableRule, data: Record<string, unknown>): b
 
 	// Attributes are not guaranteed to be strings (a numeric claim would blow up
 	// on .includes/.startsWith), so compare on their string form.
-	const haystack = String(userParameter);
-	const needle = rule.value == null ? '' : String(rule.value);
+	// E-mail addresses are compared without regard to case, as mail systems treat them;
+	// otherwise BAD@example.org would slip past a block on bad@example.org.
+	const fold = (value: string) => (parameter === 'email' ? value.toLowerCase() : value);
+	const haystack = fold(String(userParameter));
+	const needle = fold(rule.value == null ? '' : String(rule.value));
 
 	let condition: boolean;
 

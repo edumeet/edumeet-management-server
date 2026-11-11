@@ -39,7 +39,7 @@ const ensureCleanup = () => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const extractIp = (params: any): string => {
+const extractIp = (params: any): string | undefined => {
 	if (TRUST_PROXY) {
 		const xff = params?.headers?.['x-forwarded-for'];
 
@@ -56,7 +56,10 @@ const extractIp = (params: any): string => {
 
 	if (ip) return String(ip);
 
-	return 'unknown';
+	// Never a shared fallback key: ten failures in it would block every password login.
+	// app.ts puts the address into params for REST and socket.io, so this is only reached
+	// by a transport that does not.
+	return undefined;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,6 +92,12 @@ export const loginThrottleBefore = async (context: HookContext) => {
 	const ip = extractIp(context.params);
 	const now = Date.now();
 
+	if (!ip) {
+		logger.warn('login throttle: no client address, attempt not throttled');
+
+		return;
+	}
+
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(context.params as any)._loginStart = now;
 
@@ -120,6 +129,9 @@ export const loginThrottleError = async (context: HookContext) => {
 	if (errCode !== 401) return;
 
 	const ip = extractIp(context.params);
+
+	if (!ip) return;
+
 	const email = extractEmail(context.data);
 	const ua = extractUa(context.params);
 	const now = Date.now();

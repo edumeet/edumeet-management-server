@@ -21,6 +21,7 @@ import { isRoomOwnerOrAdmin, isRoomOwnerOrAdminRoomIdOfGroupRole } from '../../h
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
+import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 
 export * from './roomGroupRoles.class';
 export * from './roomGroupRoles.schema';
@@ -53,11 +54,14 @@ export const roomGroupRole = (app: Application) => {
 			create: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomGroupRoleDataValidator),
+				// the users, roles and groups given rights in a room are the room's tenant's
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'groupId', 'roleId' ])),
 				schemaHooks.resolveData(roomGroupRoleDataResolver)
 			],
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdmin),
 				schemaHooks.validateData(roomGroupRolePatchValidator),
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'groupId', 'roleId' ])),
 				schemaHooks.resolveData(roomGroupRolePatchResolver)
 			],
 			remove: [ 

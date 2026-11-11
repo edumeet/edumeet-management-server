@@ -1,12 +1,31 @@
 import { OAuthProfile, OAuthStrategy } from '@feathersjs/authentication-oauth/lib';
 import { AuthenticationRequest, AuthenticationResult } from '@feathersjs/authentication/lib';
 import { Params } from '@feathersjs/feathers';
-import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
+import { FeathersError, Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import qs from 'qs';
 import { Application } from '../../declarations';
-import { isAccessPermitted } from '../../hooks/accessDecision';
+import { isAccessPermittedWithEmail, isStoredUnverified } from '../../hooks/accessDecision';
 import { resolveAllowedOrigin } from '../allowedOrigin';
 import { issueCallbackCode } from '../callbackCodes';
+import { logger } from '../../logger';
+
+// roles is a VARCHAR[] on Postgres and a json column on MySQL, and has been seen as a JSON string.
+// super-admin and edumeet-server (the room servers' service account) pass every tenant check.
+const PRIVILEGED_ROLES = [ 'super-admin', 'edumeet-server' ];
+
+const hasSuperAdminRole = (roles: unknown): boolean => {
+	let list = roles;
+
+	if (typeof list === 'string') {
+		try {
+			list = JSON.parse(list);
+		} catch {
+			return PRIVILEGED_ROLES.includes(list as string);
+		}
+	}
+
+	return Array.isArray(list) && list.some((role) => PRIVILEGED_ROLES.includes(role));
+};
 
 export default class OAuthTenantStrategy extends OAuthStrategy {
 	// Capture the OIDC id_token from the raw grant response so it can be
@@ -33,6 +52,25 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Whether the profile's e-mail address may decide anything: access and gain rules,
+	 * linking to an existing account, the stored address. Either the identity provider
+	 * marked it verified, or the tenant trusts the provider's addresses (trust_email),
+	 * for providers that never verify but read the address from a managed directory.
+	 */
+	async isEmailTrusted(profile: OAuthProfile, tenantId: number): Promise<boolean> {
+		if (profile?.email_verified === true || profile?.email_verified === 'true') return true;
+		if (Number.isNaN(tenantId)) return false;
+
+		const result = await (this.app as Application).service('tenantOAuths').find({
+			query: { tenantId, $limit: 1 },
+			provider: undefined,
+		} as Params);
+		const row = (Array.isArray(result) ? result[0] : result.data?.[0]) as { trust_email?: unknown } | undefined;
+
+		return Boolean(row?.trust_email);
 	}
 
 	// name attribute can come from displayName or sn + givenName
@@ -72,7 +110,13 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		});
 		const existing = Array.isArray(result) ? result[0] : result.data?.[0];
 
-		if (existing && profile.email_verified !== true && profile.email_verified !== 'true') {
+		// Nor onto an account whose own address was never verified: whoever registered it
+		// first with someone else's address would get that person's sign-in.
+		if (existing && isStoredUnverified(existing.emailVerified)) {
+			throw new NotAuthenticated('An account with this e-mail address already exists, but its address was never confirmed. Ask your administrator.');
+		}
+
+		if (existing && !await this.isEmailTrusted(profile, parseInt(params.query.tenantId))) {
 			throw new NotAuthenticated('An account with this e-mail address already exists, but the identity provider did not confirm the address. Ask your administrator.');
 		}
 
@@ -81,16 +125,40 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async getEntityData(profile: OAuthProfile, existingEntity: any, params: Params) {
-		if (!profile?.email || !params?.query?.tenantId) throw new Error('Missing paramenter(s)');
+		if (!profile?.email || !params?.query?.tenantId) throw new NotAuthenticated('The identity provider sent no e-mail address');
 		const paramKey = params?.query?.name_parameter;
 		const name = (paramKey ? profile[paramKey] : null) || profile.name || profile.email || '';
 
-		const data = {
+		const data: { ssoId: string, email: string, name: string, tenantId: number, emailVerified?: boolean } = {
 			ssoId: profile.sub || profile.id,
 			email: profile.email,
 			name: name,
 			tenantId: parseInt(params.query?.tenantId),
 		};
+
+		// An address the provider did not verify is the user's claim. It must not admit
+		// anyone or earn a grant, and it does not replace the stored address of an
+		// existing account. createEntity and updateEntity pass these params on to the
+		// users service, where the gain rules read the flag.
+		// A super admin manages every tenant; the tenant's admins control this identity
+		// provider and could make it answer with the super admin's subject or address. Super
+		// admins sign in with their password (yarn set-password).
+		if (hasSuperAdminRole(existingEntity?.roles))
+			throw new NotAuthenticated('A super admin account cannot sign in through a tenant\'s identity provider; use the password login.');
+
+		const emailTrusted = await this.isEmailTrusted(profile, data.tenantId);
+
+		(params as Params & { emailUnverified?: boolean }).emailUnverified = !emailTrusted;
+
+		// The account remembers whether its address was vouched for, so that token refresh,
+		// later grants and linking by e-mail do not trust a claim. A returning user's
+		// unverified claim changes neither the address nor this flag.
+		// An account from before emailVerified (null) is settled at its next sign in.
+		if (emailTrusted) data.emailVerified = true;
+		else if (existingEntity?.email) {
+			data.email = existingEntity.email;
+			if (existingEntity.emailVerified === null || existingEntity.emailVerified === undefined) data.emailVerified = false;
+		} else data.emailVerified = false;
 
 		// The tenant's access rules are applied here rather than on the users service
 		// because this method is called by BOTH createEntity and updateEntity, so it
@@ -101,10 +169,12 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		// first registration. It is what lets an administrator through a rule that
 		// would otherwise refuse them; a new account cannot be an administrator yet.
 		if (!Number.isNaN(data.tenantId)) {
-			const permitted = await isAccessPermitted(
+			// An unverified address is decided as a claim (see isAccessPermittedWithEmail).
+			const permitted = await isAccessPermittedWithEmail(
 				this.app as Application,
 				data.tenantId,
-				data,
+				{ ssoId: data.ssoId, name: data.name, tenantId: data.tenantId, email: profile.email },
+				emailTrusted,
 				'accessRules(sso)',
 				existingEntity
 			);
@@ -116,6 +186,18 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		return data;
 	}
 
+	// Our own refusals (401, 403) are shown as they are. Anything else comes from the requests
+	// to the identity provider, whose error text could describe the server's network.
+	shownError(error: Error, params?: Params): string {
+		const code = (error as FeathersError).code;
+
+		if (code === 401 || code === 403) return error.message || 'OAuth Authentication not successful';
+
+		logger.warn(`[OAuthTenantStrategy] tenant ${params?.query?.tenantId}: sign in failed at the identity provider: ${error.message}`);
+
+		return 'Sign in at the identity provider failed. Ask your administrator.';
+	}
+
 	async getRedirect(
 		data: AuthenticationResult | Error,
 		params?: Params
@@ -124,7 +206,7 @@ export default class OAuthTenantStrategy extends OAuthStrategy {
 		const authResult: AuthenticationResult = data;
 
 		if (!authResult.accessToken) {
-			return `${redirectUrl}${qs.stringify({ error: data.message || 'OAuth Authentication not successful' })}`;
+			return `${redirectUrl}${qs.stringify({ error: this.shownError(data as Error, params) })}`;
 		}
 
 		try {

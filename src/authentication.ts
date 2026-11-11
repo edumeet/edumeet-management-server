@@ -1,6 +1,5 @@
 // For more information about this file see https://dove.feathersjs.com/guides/cli/authentication.html
 import { AuthenticationService, JWTStrategy, authenticate } from '@feathersjs/authentication';
-import { LocalStrategy } from '@feathersjs/authentication-local';
 import { oauth } from '@feathersjs/authentication-oauth';
 import type { Params } from '@feathersjs/feathers';
 
@@ -11,6 +10,9 @@ import { oauthCallbackHooks, oauthServiceHooks } from './hooks/dynamicOAuth';
 import { loginThrottleBefore, loginThrottleError } from './hooks/loginThrottle';
 import { refreshAccessCheck } from './hooks/refreshAccessCheck';
 import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
+import { EdumeetLocalStrategy } from './auth/EdumeetLocalStrategy';
+import { assertSigningKeyNotPublished } from './auth/publishedKeys';
+import { restrictOAuthRequests } from './auth/oauthEgress';
 
 declare module './declarations' {
 	interface ServiceTypes {
@@ -23,10 +25,12 @@ declare module './declarations' {
 }
 
 export const authentication = (app: Application) => {
+	assertSigningKeyNotPublished(app.get('authentication')?.secret);
+
 	const authenticationService = new EdumeetAuthenticationService(app, 'authentication');
 
 	authenticationService.register('jwt', new JWTStrategy());
-	authenticationService.register('local', new LocalStrategy());
+	authenticationService.register('local', new EdumeetLocalStrategy());
 	authenticationService.register('tenant', new OAuthTenantStrategy());
 
 	app.use('authentication', authenticationService);
@@ -49,6 +53,7 @@ export const authentication = (app: Application) => {
 
 	// reconfigure / configure oauth this hardcodes the settings, so after change we have to unuse it and re apply
 	app.configure(oauth());
+	restrictOAuthRequests(app);
 
 	app.service('oauth/:provider').hooks(oauthServiceHooks());
 	app.service('oauth/:provider/callback').hooks(oauthCallbackHooks());

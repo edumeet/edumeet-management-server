@@ -18,10 +18,12 @@ import {
 import type { Application } from '../../declarations';
 import { TenantFqdnService, getOptions } from './tenantFQDNs.class';
 import { tenantFqdnPath, tenantFqdnMethods } from './tenantFQDNs.shared';
-import { iff } from 'feathers-hooks-common';
+import { iff, preventChanges } from 'feathers-hooks-common';
+import { Forbidden } from '@feathersjs/errors';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 
 export * from './tenantFQDNs.class';
 export * from './tenantFQDNs.schema';
@@ -56,10 +58,12 @@ export const tenantFqdn = (app: Application) => {
 			find: [],
 			get: [],
 			create: [
-				// A create has no context.id for the owner/admin lookup to work from; the
-				// data resolver pins tenantId to the caller's tenant, so being a tenant
-				// admin is the whole check.
-				iff(notSuperAdmin(), isTenantAdmin),
+				// A host name decides which tenant a visitor of it gets, whose sign-in and
+				// whose invitation links. Nothing proves a tenant owns a name, so only a super
+				// admin adds one; a tenant admin could otherwise take the deployment's own.
+				iff(notSuperAdmin(), () => {
+					throw new Forbidden('Only a super admin can add a host name to a tenant');
+				}),
 				schemaHooks.validateData(tenantFqdnDataValidator),
 				schemaHooks.resolveData(tenantFqdnDataResolver)
 			],
@@ -69,6 +73,9 @@ export const tenantFqdn = (app: Application) => {
 				iff(notSuperAdmin(), isTenantAdmin),
 				iff(notSuperAdmin(), notInSameTenantByContextId),
 				schemaHooks.validateData(tenantFqdnPatchValidator),
+				// the row may not be moved to another tenant, nor renamed to another host
+				iff(notSuperAdmin(), pinTenantToCaller),
+				iff(notSuperAdmin(), preventChanges(true, 'fqdn')),
 				schemaHooks.resolveData(tenantFqdnPatchResolver)
 			],
 			remove: [ 

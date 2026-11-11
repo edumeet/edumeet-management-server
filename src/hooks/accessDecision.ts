@@ -156,6 +156,40 @@ export const isExemptFromAccessRules = async (
  * decision that came out as a refusal, so the administrator lookup costs nothing
  * for the users who are being let in anyway.
  */
+/**
+ * Like isAccessPermitted, for attributes whose e-mail address may be unverified. An
+ * unverified address must pass three ways: without it, so it cannot satisfy an allow
+ * rule; with it, so a block rule on it still applies; and with an address no rule names,
+ * so a negated block ("block whose e-mail does not end with @uni.example") refuses it as
+ * it would refuse any outsider.
+ */
+// users.emailVerified as stored: false on Postgres, 0 on MySQL (booleans are tinyint there).
+// null means an account from before the column, treated as verified until it signs in again.
+export const isStoredUnverified = (value: unknown): boolean => value === false || value === 0 || value === '0';
+
+export const isAccessPermittedWithEmail = async (
+	app: Application,
+	tenantId: number,
+	attributes: Record<string, unknown>,
+	emailVerified: boolean,
+	hookName: string,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	user?: any
+): Promise<boolean> => {
+	if (emailVerified) return isAccessPermitted(app, tenantId, attributes, hookName, user);
+
+	// A rule on a missing attribute is skipped (see matchRule).
+	const withoutEmail = { ...attributes, email: undefined };
+
+	return await isAccessPermitted(app, tenantId, withoutEmail, hookName, user)
+		&& await isAccessPermitted(app, tenantId, attributes, hookName, user)
+		&& await isAccessPermitted(app, tenantId, { ...withoutEmail, email: UNVERIFIED_EMAIL }, hookName, user);
+};
+
+// Stands in for an unverified address: no real address or rule value can equal or contain
+// it, so only negated rules match it.
+const UNVERIFIED_EMAIL = '\u0000unverified\u0000';
+
 export const isAccessPermitted = async (
 	app: Application,
 	tenantId: number,

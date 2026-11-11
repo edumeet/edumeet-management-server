@@ -4,6 +4,7 @@ import { StringEnum, Type, getValidator, querySyntax } from '@feathersjs/typebox
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
+import { IMAGE_URL_MAX_LENGTH, IMAGE_URL_PATTERN } from '../../hooks/imageUrl';
 import { dataValidator, queryValidator } from '../../validators';
 import { roomGroupRoleSchema } from '../roomGroupRoles/roomGroupRoles.schema';
 import { roomUserRoleSchema } from '../roomUserRoles/roomUserRoles.schema';
@@ -32,8 +33,8 @@ export const roomSchema = Type.Object(
 		defaultRoleId: Type.Optional(Type.Number()), // Default role for users without a role in this room
 
 		// Look and feel
-		logo: Type.Optional(Type.String()),
-		background: Type.Optional(Type.String()),
+		logo: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),
+		background: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),
 
 		// Features of the room
 		maxActiveVideos: Type.Number(),
@@ -108,8 +109,12 @@ export const roomResolver = resolve<Room, HookContext>({
 		return data;
 	}),
 	defaultRole: virtual(async (room, context) => {
-		if (room.defaultRoleId)
-			return context.app.service('roles').get(room.defaultRoleId);
+		if (!room.defaultRoleId) return undefined;
+
+		const role = await context.app.service('roles').get(room.defaultRoleId);
+
+		// A role of another tenant, stored before that was refused or by a super admin.
+		return String(role.tenantId ?? '') === String(room.tenantId ?? '') ? role : undefined;
 	}),
 });
 

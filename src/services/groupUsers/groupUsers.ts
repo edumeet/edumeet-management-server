@@ -19,7 +19,8 @@ import { GroupUserService, getOptions } from './groupUsers.class';
 import { groupUserPath, groupUserMethods } from './groupUsers.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { checkTenantAdminOrGroupMemberOnDelete } from '../../hooks/isTenantAdmin';
+import { checkTenantAdminOrGroupMemberOnDelete, isTenantAdmin } from '../../hooks/isTenantAdmin';
+import { userInCallerTenant } from '../../hooks/userInCallerTenant';
 import { adminOnly } from '../../hooks/adminOnly';
 import { groupAndUserInSameTenant } from '../../hooks/sameTenantGroupUser';
 import { scopeToTenantByParent } from '../../hooks/scopeToTenantByParent';
@@ -54,6 +55,8 @@ export const groupUser = (app: Application) => {
 			get: [ iff(notSuperAdmin(), scopeToTenantByParent({ key: 'groupId', parentService: 'groups' })) ],
 			create: [
 				schemaHooks.validateData(groupUserDataValidator),
+				// only a tenant admin adds members, and only users of their own tenant
+				iff(notSuperAdmin(), isTenantAdmin, userInCallerTenant),
 				// check group and user have the same tenant
 				groupAndUserInSameTenant,
 				schemaHooks.resolveData(groupUserDataResolver)
@@ -65,8 +68,7 @@ export const groupUser = (app: Application) => {
 				schemaHooks.resolveData(groupUserPatchResolver)
 			],
 			remove: [
-				// teant admin or group member (maybe add manager param for group membership or creator id?)
-				// dont let users remove it from other tenants
+				// an admin of the group's tenant, or the member leaving the group
 				iff(notSuperAdmin(), checkTenantAdminOrGroupMemberOnDelete),
 			]
 		},

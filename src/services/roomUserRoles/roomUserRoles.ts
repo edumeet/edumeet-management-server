@@ -21,6 +21,7 @@ import { isRoomOwnerOrAdminRoomIdOfUserRole } from '../../hooks/isRoomOwnerOrAdm
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { BadRequest } from '@feathersjs/errors';
+import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 
 export * from './roomUserRoles.class';
 export * from './roomUserRoles.schema';
@@ -66,11 +67,14 @@ export const roomUserRole = (app: Application) => {
 			create: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole),
 				schemaHooks.validateData(roomUserRoleDataValidator),
+				// the users, roles and groups given rights in a room are the room's tenant's
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'userId', 'roleId' ])),
 				schemaHooks.resolveData(roomUserRoleDataResolver)
 			],
 			patch: [
 				iff(notSuperAdmin(), isRoomOwnerOrAdminRoomIdOfUserRole),
 				schemaHooks.validateData(roomUserRolePatchValidator),
+				iff(notSuperAdmin(), referencesInCallerTenant([ 'userId', 'roleId' ])),
 				schemaHooks.resolveData(roomUserRolePatchResolver)
 			],
 			remove: [

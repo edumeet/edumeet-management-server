@@ -4,6 +4,8 @@ import { TZDate } from '@date-fns/tz';
 import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
 import type { TenantInviteConfig } from '../services/tenantInviteConfigs/tenantInviteConfigs.schema';
+import { isExpandableMeeting } from './rrulePolicy';
+import { logger } from '../logger';
 
 export interface IcsBuildInput {
 	meeting: Meeting;
@@ -74,8 +76,13 @@ const buildBase = (input: IcsBuildInput, method: ICalCalendarMethod) => {
 		status: meeting.status === 'CANCELLED' ? ICalEventStatus.CANCELLED : ICalEventStatus.CONFIRMED
 	});
 
-	if (meeting.rrule)
-		event.repeating(meeting.rrule);
+	// Only a rule the meeting schema accepts today: one stored earlier could carry line
+	// breaks that add lines to the invitation, or expand without end in the recipients'
+	// calendars.
+	if (isExpandableMeeting(meeting))
+		event.repeating(meeting.rrule as string);
+	else if (meeting.rrule)
+		logger.warn('[invites/icsBuilder] meeting %s: its recurrence rule or times do not meet today\'s limits, so it is sent as a single event', meeting.id);
 
 	for (const a of attendees) {
 		// Emit CN only when a human-friendly name exists. Using the email as a fake CN

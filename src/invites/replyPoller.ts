@@ -70,22 +70,81 @@ const decodeQuotedPrintable = (input: string): string => {
 	return Buffer.from(bytes).toString('utf8');
 };
 
-const BASE64_PART = /Content-Transfer-Encoding:\s*base64[\s\S]*?\r?\n\r?\n([A-Za-z0-9+/=\s]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi;
-const QP_PART = /Content-Transfer-Encoding:\s*quoted-printable[\s\S]*?\r?\n\r?\n([\s\S]+?)(?=\r?\n--|$)/gi;
-const VCALENDAR = /BEGIN:VCALENDAR[\s\S]+?END:VCALENDAR/;
+// Parsed by hand, with indexOf only: the regular expressions this replaces backtracked
+// quadratically, so one crafted e-mail of a megabyte blocked the event loop for half an hour.
+// The number of encoded parts looked at is capped, so the scans stay linear in the message.
+const MAX_ENCODED_PARTS = 20;
+const MAX_REPLY_BYTES = 1024 * 1024;
+const MAX_REPLY_EVENTS = 10;
+const ENCODING_HEADER = /Content-Transfer-Encoding:\s*(base64|quoted-printable)/gi;
+
+// The end of the next blank line (a header block's end) from `from`, or -1.
+const afterBlankLine = (source: string, from: number): number => {
+	const lf = source.indexOf('\n\n', from);
+	const crlf = source.indexOf('\n\r\n', from);
+
+	if (lf === -1 && crlf === -1) return -1;
+	if (crlf === -1 || (lf !== -1 && lf < crlf)) return lf + 2;
+
+	return crlf + 3;
+};
+
+const endOfPart = (source: string, from: number, stopAtBlankLine: boolean): number => {
+	let end = source.indexOf('\n--', from);
+
+	if (end === -1) end = source.length;
+	if (stopAtBlankLine) {
+		const blank = source.indexOf('\n\n', from);
+		const blankCrlf = source.indexOf('\n\r\n', from);
+
+		for (const pos of [ blank, blankCrlf ]) if (pos !== -1 && pos < end) end = pos;
+	}
+
+	return end;
+};
+
+const vcalendarBlocks = (text: string): string[] => {
+	const blocks: string[] = [];
+	let from = 0;
+
+	for (;;) {
+		const begin = text.indexOf('BEGIN:VCALENDAR', from);
+
+		if (begin === -1) break;
+
+		const end = text.indexOf('END:VCALENDAR', begin + 'BEGIN:VCALENDAR'.length + 1);
+
+		if (end === -1) break;
+
+		blocks.push(text.slice(begin, end + 'END:VCALENDAR'.length));
+		from = end + 'END:VCALENDAR'.length;
+	}
+
+	return blocks;
+};
 
 export const extractIcs = (source: string): string | null => {
 	const candidates: string[] = [];
+	let parts = 0;
 
-	for (const part of source.matchAll(BASE64_PART)) {
-		try {
-			candidates.push(Buffer.from(part[1].replace(/\s/g, ''), 'base64').toString('utf8'));
-		} catch { /* noop */ }
-	}
+	let decodedBytes = 0;
 
-	for (const part of source.matchAll(QP_PART)) {
+	for (const header of source.matchAll(ENCODING_HEADER)) {
+		if (++parts > MAX_ENCODED_PARTS) break;
+
+		const bodyStart = afterBlankLine(source, (header.index ?? 0) + header[0].length);
+
+		if (bodyStart === -1) break;
+
+		const base64 = header[1].toLowerCase() === 'base64';
+		const body = source.slice(bodyStart, endOfPart(source, bodyStart, base64)).replace(/\r$/, '');
+
+		// Parts can overlap up to the end of the message; decode at most a message's worth.
+		decodedBytes += body.length;
+		if (decodedBytes > MAX_REPLY_BYTES) break;
+
 		try {
-			candidates.push(decodeQuotedPrintable(part[1]));
+			candidates.push(base64 ? Buffer.from(body.replace(/\s/g, ''), 'base64').toString('utf8') : decodeQuotedPrintable(body));
 		} catch { /* noop */ }
 	}
 
@@ -95,14 +154,17 @@ export const extractIcs = (source: string): string | null => {
 	// original REQUEST attached as invite.ics. Decoded attachments are tried first, so the
 	// first hit is not necessarily the REPLY. Prefer a block that is one; otherwise fall back
 	// to the first, which processReplyIcs will then correctly refuse as not a reply.
-	const blocks: string[] = [];
-
-	for (const candidate of candidates) {
-		for (const match of candidate.matchAll(new RegExp(VCALENDAR.source, 'g'))) blocks.push(match[0]);
-	}
+	const blocks = candidates.flatMap(vcalendarBlocks);
 
 	return blocks.find((b) => /^METHOD:REPLY\s*$/mi.test(b)) ?? blocks[0] ?? null;
 };
+
+// node-ical yields an attendee as a plain value or as { val, params }.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const attendeeEmail = (att: any): string => String(typeof att === 'string' ? att : (att?.val ?? ''))
+	.replace(/^MAILTO:/i, '')
+	.trim()
+	.toLowerCase();
 
 export interface ReplyOutcome {
 	isReply: boolean;
@@ -113,12 +175,13 @@ export interface ReplyOutcome {
 	updated: number;
 }
 
-export const processReplyIcs = async (app: Application, icsSource: string): Promise<ReplyOutcome> => {
+export const processReplyIcs = async (app: Application, icsSource: string, sender: string | undefined): Promise<ReplyOutcome> => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let parsed: any;
 
 	try {
-		parsed = ical.sync.parseICS(icsSource);
+		// A reply needs no recurrence rule; dropping RRULE lines keeps the parser from building one.
+		parsed = ical.sync.parseICS(icsSource.replace(/^RRULE[:;].*$/gim, ''));
 	} catch (err) {
 		logger.warn('[invites/replyPoller] failed to parse ICS body:', err);
 
@@ -144,10 +207,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 	let claimed = 0;
 	let updated = 0;
 
+	let events = 0;
+
 	for (const key of Object.keys(parsed)) {
 		const ev = parsed[key];
 
 		if (!ev || ev.type !== 'VEVENT' || !ev.uid) continue;
+		// A reply answers one meeting, maybe one occurrence of it: a few VEVENTs at most.
+		if (++events > MAX_REPLY_EVENTS) break;
 		const uid = String(ev.uid);
 		const attendeeEntry = ev.attendee;
 		// node-ical yields attendee as object or array
@@ -172,12 +239,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 
 		logger.debug(`[invites/replyPoller] VEVENT uid=${uid} attendees=${attendees.length} seq=${evSequence} dtstamp=${evDtstampMs} recurrenceId=${recurrenceId ?? 'none'}`);
 
-		for (const att of attendees) {
-			const rawVal = typeof att === 'string' ? att : (att?.val ?? '');
-			const email = String(rawVal)
-				.replace(/^MAILTO:/i, '')
-				.trim()
-				.toLowerCase();
+		// RFC 5546: a REPLY carries the one attendee who answers, but some clients list more.
+		// Each would cost database lookups, so only one is read: the one that sent the message,
+		// otherwise the first, which the sender check below then refuses.
+		const sending = sender?.trim().toLowerCase();
+		const answering = attendees.find((att) => attendeeEmail(att) === sending) ?? attendees[0];
+
+		for (const att of answering === undefined ? [] : [ answering ]) {
+			const email = attendeeEmail(att);
 
 			if (!email) {
 				logger.warn('[invites/replyPoller] attendee has empty email, skipping:', att);
@@ -194,7 +263,7 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 				query: { uid }
 			});
 			const list = Array.isArray(meetingsRes) ? meetingsRes : (meetingsRes as { data: unknown[] }).data;
-			const meeting = (list as Array<{ id: number }>)[0];
+			const meeting = (list as Array<{ id: number, sequence?: number | string }>)[0];
 
 			if (!meeting) {
 				// Debug, not warn: with deployments sharing a mailbox this is the normal outcome on
@@ -218,6 +287,19 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 
 			claimed++;
 
+			// Anyone holding the invitation can name any attendee in the ICS. Only the attendee's
+			// own address answers for them; the receiving mail server checks that address for
+			// domains that enforce DMARC.
+			if (email !== sender?.trim().toLowerCase()) {
+				logger.warn(`[invites/replyPoller] REPLY for attendee id=${attendeeRow.id} was not sent from the attendee's address, ignored`);
+				continue;
+			}
+
+			// A reply cannot be newer than the invitation it answers, nor than now. Otherwise one
+			// reply with a huge SEQUENCE or a future DTSTAMP makes every later reply look stale.
+			const sequence = Math.min(evSequence, Number(meeting.sequence) || 0);
+			const dtstamp = Math.min(evDtstampMs, Date.now());
+
 			// Per-occurrence exception: write to meetingOccurrenceRsvps; leave series partstat alone.
 			if (recurrenceId != null) {
 				// Coerce — Postgres bigint columns deserialize as strings and the schema validator rejects non-numbers.
@@ -234,14 +316,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 					const rStamp = rsvpRow.replyDtstamp != null ? Number(rsvpRow.replyDtstamp) : null;
 
 					if (rSeq != null && rStamp != null &&
-						(evSequence < rSeq || (evSequence === rSeq && evDtstampMs <= rStamp))) {
+						(sequence < rSeq || (sequence === rSeq && dtstamp <= rStamp))) {
 						logger.info(`[invites/replyPoller] stale occurrence REPLY for attendee id=${attendeeIdNum} recurrenceId=${recurrenceId}, skipping`);
 						continue;
 					}
 
 					await app.service('meetingOccurrenceRsvps').patch(
 						Number(rsvpRow.id),
-						{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+						{ partstat, replyDtstamp: dtstamp, replySequence: sequence },
 						{ provider: undefined }
 					);
 				} else {
@@ -250,14 +332,14 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 							meetingAttendeeId: attendeeIdNum,
 							recurrenceId,
 							partstat,
-							replyDtstamp: evDtstampMs,
-							replySequence: evSequence
+							replyDtstamp: dtstamp,
+							replySequence: sequence
 						},
 						{ provider: undefined }
 					);
 				}
 				updated++;
-				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${evSequence})`);
+				logger.info(`[invites/replyPoller] occurrence RSVP attendee id=${attendeeIdNum} recurrenceId=${recurrenceId} -> ${partstat} (seq=${sequence})`);
 				continue;
 			}
 
@@ -268,19 +350,19 @@ export const processReplyIcs = async (app: Application, icsSource: string): Prom
 			const storedDtstamp = attendeeRow.replyDtstamp != null ? Number(attendeeRow.replyDtstamp) : null;
 
 			if (storedSeq != null && storedDtstamp != null) {
-				if (evSequence < storedSeq || (evSequence === storedSeq && evDtstampMs <= storedDtstamp)) {
-					logger.info(`[invites/replyPoller] stale REPLY for attendee id=${attendeeRow.id} (incoming seq=${evSequence} dtstamp=${evDtstampMs} <= stored seq=${storedSeq} dtstamp=${storedDtstamp}), skipping`);
+				if (sequence < storedSeq || (sequence === storedSeq && dtstamp <= storedDtstamp)) {
+					logger.info(`[invites/replyPoller] stale REPLY for attendee id=${attendeeRow.id} (incoming seq=${sequence} dtstamp=${dtstamp} <= stored seq=${storedSeq} dtstamp=${storedDtstamp}), skipping`);
 					continue;
 				}
 			}
 
 			await app.service('meetingAttendees').patch(
 				attendeeRow.id,
-				{ partstat, replyDtstamp: evDtstampMs, replySequence: evSequence },
+				{ partstat, replyDtstamp: dtstamp, replySequence: sequence },
 				{ provider: undefined }
 			);
 			updated++;
-			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${evSequence})`);
+			logger.info(`[invites/replyPoller] updated partstat for attendee id=${attendeeRow.id} to ${partstat} (seq=${sequence})`);
 		}
 	}
 
@@ -341,7 +423,8 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 			let unclaimedCount = 0;
 			const uidsToMarkSeen: number[] = [];
 
-			for await (const msg of client.fetch({ seen: false }, { source: true, envelope: true, uid: true })) {
+			// A reply is a few kilobytes; only the start of a larger message is fetched and parsed.
+			for await (const msg of client.fetch({ seen: false }, { source: { maxLength: MAX_REPLY_BYTES }, envelope: true, uid: true })) {
 				unseenCount++;
 				if (!msg.source) continue;
 
@@ -359,7 +442,8 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 				// batch was re-fetched next cycle and a permanently unprocessable one stalled the
 				// mailbox for good. Unmarked on failure, so a transient error still retries.
 				try {
-					const outcome = await processReplyIcs(app, ics);
+					const from = msg.envelope?.from ?? [];
+					const outcome = await processReplyIcs(app, ics, from.length === 1 ? from[0].address : undefined);
 
 					if (!outcome.isReply) continue;
 

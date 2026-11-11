@@ -36,8 +36,19 @@ app.use(parseAuthentication());
 app.use(bodyParser());
 
 // Configure services and transports
+// The client's TCP address, which Feathers does not put into params. The login throttle
+// counts failures per address (hooks/loginThrottle.ts); without it every client shared one.
+app.use(async (ctx, next) => {
+	ctx.feathers = { ...ctx.feathers, ip: ctx.req.socket.remoteAddress } as typeof ctx.feathers;
+	await next();
+});
 app.configure(rest());
-app.configure(socketio({ cors: { origin: app.get('origins') } }));
+app.configure(socketio({ cors: { origin: app.get('origins') } }, (io) => {
+	io.use((socket, next) => {
+		(socket as unknown as { feathers: Record<string, unknown> }).feathers.ip = socket.handshake.address;
+		next();
+	});
+}));
 app.configure(channels);
 app.configure(postgresql);
 app.configure(authentication);

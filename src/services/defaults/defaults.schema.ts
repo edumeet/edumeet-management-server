@@ -4,6 +4,7 @@ import { Type, getValidator, querySyntax } from '@feathersjs/typebox';
 import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
+import { IMAGE_URL_MAX_LENGTH, IMAGE_URL_PATTERN } from '../../hooks/imageUrl';
 import { dataValidator, queryValidator } from '../../validators';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 
@@ -43,8 +44,8 @@ export const defaultSchema = Type.Object(
 		// room sensitive feature settings (override)
 		tracker: Type.Optional(Type.String()),
 		maxFileSize: Type.Optional(Type.Number()),
-		background: Type.Optional(Type.String()),
-		logo: Type.Optional(Type.String()),
+		background: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),
+		logo: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),
 		// # defaults
 		// roleid for default role used as a fallback 
 		defaultRoleId: Type.Optional(Type.Number()),

@@ -191,19 +191,11 @@ describe('gainRules hook', () => {
 		}
 	});
 
-	it('promotes to super-admin only when the user is not one already', async () => {
+	it('never makes anyone super admin, even from a rule stored earlier', async () => {
 		const { context, collections } = makeContext({ rules: [ rule({ action: 'superAdmin' }) ] });
 
 		await gainRules(context);
-		assert.deepStrictEqual(collections.users.rows, [ { id: 5, roles: [ 'super-admin' ] } ]);
-
-		const already = makeContext({
-			rules: [ rule({ action: 'superAdmin' }) ],
-			result: { id: 5, roles: [ 'super-admin' ] }
-		});
-
-		await gainRules(already.context);
-		assert.strictEqual(already.collections.users.rows.length, 0);
+		assert.deepStrictEqual(collections.users.rows, []);
 	});
 
 	it('does not grant a group when accessId is unusable', async () => {

@@ -28,6 +28,11 @@ export const tenantOAuthSchema = Type.Object(
 		end_session_endpoint: Type.Optional(Type.String()),
 		// eslint-disable-next-line camelcase
 		name_parameter: Type.Optional(Type.String()),
+		// Use the provider's e-mail address for access and gain rules and account linking
+		// even when it is not marked verified (email_verified). Only for providers whose
+		// addresses come from a managed directory.
+		// eslint-disable-next-line camelcase
+		trust_email: Type.Optional(Type.Boolean()),
 	},
 	{ $id: 'TenantOAuth', additionalProperties: false }
 );

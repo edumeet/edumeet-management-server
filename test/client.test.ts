@@ -36,7 +36,7 @@ describe('application client tests', () => {
 
 		const userData: UserData = {
 			email: 'someone@example.com',
-			password: 'supersecret',
+			password: 'test-password-1234',
 			// the tenant created above; its id is only 1 in a freshly created test database
 			tenantId: Number(tenant.id)
 		};

@@ -35,8 +35,8 @@ describe('isMeetingOver', () => {
 		assert.strictEqual(isMeetingOver(running, now + HOUR), true);
 	});
 
-	it('an open-ended series is never over', () => {
-		assert.strictEqual(isMeetingOver({ startsAt: now - (365 * DAY), endsAt: now - (365 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1' }, now), false);
+	it('counts a series without an end, stored before that was refused, as a single meeting', () => {
+		assert.strictEqual(isMeetingOver({ startsAt: now - (365 * DAY), endsAt: now - (365 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1' }, now), true);
 	});
 
 	it('falls back to the end date when the rule cannot be parsed', () => {
@@ -66,5 +66,46 @@ describe('isMeetingOver', () => {
 		assert.strictEqual(isMeetingOver({ ...series, timezone: null }, now + (HOUR / 2)), false);
 		assert.strictEqual(isMeetingOver({ ...series, timezone: 'Mars/Olympus' }, now + (2 * HOUR)), true);
 		assert.strictEqual(isMeetingOver({ ...series, timezone: 'Mars/Olympus' }, now + (HOUR / 2)), false);
+	});
+});
+
+describe('isMeetingOver on rules with very many occurrences', () => {
+	// Stored before the schema refused them: one occurrence per second since 1970, and
+	// the same through BY* lists on a daily rule.
+	for (const rrule of [ 'FREQ=SECONDLY', 'FREQ=DAILY;BYHOUR=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23;BYMINUTE=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59' ]) {
+		it(`returns quickly for ${rrule.slice(0, 40)}`, () => {
+			const started = Date.now();
+
+			assert.strictEqual(isMeetingOver({ startsAt: 0, endsAt: 1000, rrule }, now), true);
+			assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+		});
+	}
+
+	it('still finds the next occurrence of a daily meeting from years ago', () => {
+		const start = now - (20 * 365 * DAY) - HOUR;
+
+		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + (2 * HOUR), rrule: 'FREQ=DAILY;INTERVAL=1;UNTIL=20991231' }, now), false);
+	});
+
+	it('returns quickly for a rule that never matches', () => {
+		const started = Date.now();
+		const start = now - (365 * DAY);
+
+		assert.strictEqual(isMeetingOver({ startsAt: start, endsAt: start + HOUR, rrule: 'FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30' }, now), true);
+		assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+	});
+
+	it('returns quickly for a stored daily weekday rule whose interval stays on a weekday it leaves out', () => {
+		const started = Date.now();
+		const monday = Date.UTC(2026, 10, 9, 10);
+
+		assert.strictEqual(isMeetingOver({ startsAt: monday, endsAt: monday + HOUR, rrule: 'FREQ=DAILY;INTERVAL=7;BYDAY=TU;COUNT=5', timezone: 'Europe/Oslo' }, Date.UTC(2026, 10, 10)), true);
+		assert.ok(Date.now() - started < 100, `took ${Date.now() - started} ms`);
+	});
+
+	it('treats a stored rule or start the schema refuses as a single meeting', () => {
+		assert.strictEqual(isMeetingOver({ startsAt: now - HOUR, endsAt: now + HOUR, rrule: 'FREQ=SECONDLY' }, now), false, 'still running');
+		assert.strictEqual(isMeetingOver({ startsAt: now - (2 * HOUR), endsAt: now - HOUR, rrule: 'FREQ=DAILY\r\nX:Y' }, now), true);
+		assert.strictEqual(isMeetingOver({ startsAt: -1e12, endsAt: -1e12 + HOUR, rrule: 'FREQ=DAILY' }, now), true);
 	});
 });

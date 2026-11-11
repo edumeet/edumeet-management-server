@@ -24,6 +24,11 @@ yarn compile
 yarn migrate
 yarn start
 ```
+The first migration creates the super-admin `edumeet-admin@localhost`. Its initial password is publicly known and is refused at sign in, so set your own (it is read from standard input):
+```
+yarn set-password edumeet-admin@localhost
+```
+With edumeet-docker: `docker compose exec -it edumeet-management-server yarn set-password <email>`.
 
 ## Testing
 

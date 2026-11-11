@@ -1,5 +1,4 @@
 import Router from '@koa/router';
-import DOMPurify from 'isomorphic-dompurify';
 import { consumeCallbackCode } from './auth/callbackCodes';
 
 export interface AuthCallbackContext {
@@ -24,6 +23,14 @@ const page = (content: string) =>
 
 const scriptString = (value: string) => JSON.stringify(value).replace(/</g, '\\u003c');
 
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' };
+
+// The error text comes from the URL, so anyone can make this page show what they want under
+// this server's address. Shown as text only, it cannot add a form or a link.
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+
+const NO_ACTIVE_CONTENT = 'default-src \'none\'; form-action \'none\'; base-uri \'none\'';
+
 export const handleAuthCallback = (ctx: AuthCallbackContext): void => {
 	const { code, error } = ctx.request.query;
 
@@ -31,7 +38,8 @@ export const handleAuthCallback = (ctx: AuthCallbackContext): void => {
 
 	if (error) {
 		ctx.status = 200;
-		ctx.body = page(`${DOMPurify.sanitize(String(error))}!`);
+		ctx.set('Content-Security-Policy', NO_ACTIVE_CONTENT);
+		ctx.body = page(`${escapeHtml(String(error))}!`);
 
 		return;
 	}
@@ -40,6 +48,7 @@ export const handleAuthCallback = (ctx: AuthCallbackContext): void => {
 
 	if (!entry) {
 		ctx.status = 400;
+		ctx.set('Content-Security-Policy', NO_ACTIVE_CONTENT);
 		ctx.body = page('This sign in link has expired. Close this tab and sign in again.');
 
 		return;

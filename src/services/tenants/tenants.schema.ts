@@ -5,6 +5,7 @@ import type { Static } from '@feathersjs/typebox';
 
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
+import { jsonColumn } from '../../hooks/jsonColumn';
 
 // Main data model schema
 export const tenantSchema = Type.Object(
@@ -36,7 +37,9 @@ export const tenantDataSchema = Type.Pick(tenantSchema, [ 'name', 'description',
 });
 export type TenantData = Static<typeof tenantDataSchema>
 export const tenantDataValidator = getValidator(tenantDataSchema, dataValidator);
-export const tenantDataResolver = resolve<Tenant, HookContext>({});
+export const tenantDataResolver = resolve<Tenant, HookContext>({
+	allowedMediaNodeRegions: jsonColumn
+});
 
 // Schema for updating existing entries
 export const tenantPatchSchema = Type.Partial(tenantDataSchema, {
@@ -44,7 +47,9 @@ export const tenantPatchSchema = Type.Partial(tenantDataSchema, {
 });
 export type TenantPatch = Static<typeof tenantPatchSchema>
 export const tenantPatchValidator = getValidator(tenantPatchSchema, dataValidator);
-export const tenantPatchResolver = resolve<Tenant, HookContext>({});
+export const tenantPatchResolver = resolve<Tenant, HookContext>({
+	allowedMediaNodeRegions: jsonColumn
+});
 
 // Schema for allowed query properties
 export const tenantQueryProperties = Type.Pick(tenantSchema, [ 'id', 'name' ]);

@@ -6,6 +6,9 @@ import type { Static } from '@feathersjs/typebox';
 import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { generateMeetingToken } from './meetingToken';
+import { MEETING_TIME_MAX, MEETING_TIME_MIN, RRULE_MAX_LENGTH, RRULE_PATTERN, isExpandableMeeting } from '../../invites/rrulePolicy';
+
+export { RRULE_PATTERN };
 
 export const MeetingStatus = StringEnum([ 'CONFIRMED', 'CANCELLED' ]);
 
@@ -17,15 +20,15 @@ export const meetingSchema = Type.Object(
 		organizerId: Type.Number(),
 		title: Type.String(),
 		description: Type.Optional(Type.String()),
-		startsAt: Type.Number(),
-		endsAt: Type.Number(),
+		startsAt: Type.Number({ minimum: MEETING_TIME_MIN, maximum: MEETING_TIME_MAX }),
+		endsAt: Type.Number({ minimum: MEETING_TIME_MIN, maximum: MEETING_TIME_MAX }),
 		timezone: Type.String(),
 		locale: Type.String(),
 		uid: Type.String(),
 		meetingToken: Type.String(),
 		sequence: Type.Number(),
 		status: MeetingStatus,
-		rrule: Type.Optional(Type.String()),
+		rrule: Type.Optional(Type.String({ maxLength: RRULE_MAX_LENGTH, pattern: RRULE_PATTERN })),
 		recurrenceEnd: Type.Optional(Type.Number()),
 		recurrenceCount: Type.Optional(Type.Number()),
 		createdAt: Type.Number(),
@@ -58,7 +61,11 @@ export const meetingResolver = resolve<Meeting, HookContext>({
 	}),
 });
 
-export const meetingExternalResolver = resolve<Meeting, HookContext>({});
+export const meetingExternalResolver = resolve<Meeting, HookContext>({
+	// The clients expand the rule themselves; one stored before the limits (rrulePolicy) could
+	// hang their browser, so it is not handed out and the meeting shows as a single one.
+	rrule: async (value, meeting) => (isExpandableMeeting(meeting) ? value : undefined)
+});
 
 // A bare UUID with no "@domain" part. RFC 5545 leaves the UID form open and RFC 7986
 // recommends exactly this. A domain suffix is actively harmful in practice: Thunderbird
