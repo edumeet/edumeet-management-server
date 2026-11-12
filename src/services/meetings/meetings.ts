@@ -70,7 +70,9 @@ export const scopeFindVisibility = async (context: HookContext): Promise<void> =
 
 			query.id = visibleIds.includes(n) ? n : -1;
 		} else if (existing && typeof existing === 'object' && Array.isArray(existing.$in)) {
-			const intersect = (existing.$in as number[]).filter((i) => visibleIds.includes(i));
+			// a set: the list is as long as the request made it
+			const visible = new Set(visibleIds);
+			const intersect = (existing.$in as number[]).filter((i) => visible.has(i));
 
 			query.id = intersect.length > 0 ? { $in: intersect } : -1;
 		} else {

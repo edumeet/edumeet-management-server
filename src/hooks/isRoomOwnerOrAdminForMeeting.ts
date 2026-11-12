@@ -1,22 +1,60 @@
+import { BadRequest, NotFound } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
 import { strictId } from './strictId';
 
 type MeetingPath = 'meetings' | 'meetingAttendees' | 'meetingOccurrenceRsvps';
 
-type Getter = { get: (id: number, params: unknown) => Promise<Record<string, unknown>> };
+// The most ids one request may name. The UI asks for the exceptions of all attendees of a
+// meeting at once, so this must stay above the longest attendee list. The check costs the
+// same few queries whatever the number.
+export const MAX_IDS = 5000;
 
-const internalGet = (context: HookContext, path: MeetingPath, id: unknown) =>
-	(context.app.service(path) as unknown as Getter).get(strictId(id), {
-		...context.params,
-		provider: undefined,
-		query: {}
-	});
+/**
+ * The distinct ids of a list a request sent. The length is checked first: a request must
+ * not be able to make the check itself expensive, by many ids or by one id many times.
+ */
+const distinctIds = (values: unknown[], name: string): number[] => {
+	if (values.length > MAX_IDS) throw new BadRequest(`At most ${MAX_IDS} ${name} values`);
 
-const roomOfMeeting = async (context: HookContext, meetingId: unknown): Promise<string> =>
-	String((await internalGet(context, 'meetings', meetingId)).roomId);
+	return [ ...new Set(values.map((value) => strictId(value, name))) ];
+};
 
-const roomOfAttendee = async (context: HookContext, attendeeId: unknown): Promise<string> =>
-	roomOfMeeting(context, (await internalGet(context, 'meetingAttendees', attendeeId)).meetingId);
+/**
+ * One column of the rows with the given ids, read in one query. The services' get would
+ * also load each room with its owners and roles and each meeting's attendees, which a
+ * check of the room does not need.
+ */
+const parentsOf = async (context: HookContext, table: MeetingPath, column: string, ids: number[]): Promise<unknown[]> => {
+	if (ids.length === 0) return [];
+
+	const query = context.app.get('postgresqlClient')(table).select('id', column)
+		.whereIn('id', ids);
+	const tenantId = context.params.user?.tenantId;
+
+	// As the meetings service does for every call of a user: a meeting of another tenant is
+	// not there, whatever the room check would say.
+	if (table === 'meetings' && tenantId != null) query.where({ tenantId: parseInt(String(tenantId)) });
+
+	const found: Array<Record<string, unknown>> = await query;
+
+	// ids are distinct, so a shorter answer means one of them names no row. The message does
+	// not say at which level: that would tell which attendees exist in other tenants.
+	if (found.length !== ids.length) throw new NotFound('No record found');
+
+	return found.map((row) => row[column]);
+};
+
+const roomsOfMeetings = async (context: HookContext, meetingIds: unknown[]): Promise<string[]> =>
+	(await parentsOf(context, 'meetings', 'roomId', distinctIds(meetingIds, 'meetingId'))).map(String);
+
+const roomsOfAttendees = async (context: HookContext, attendeeIds: unknown[]): Promise<string[]> =>
+	roomsOfMeetings(context, await parentsOf(context, 'meetingAttendees', 'meetingId', distinctIds(attendeeIds, 'meetingAttendeeId')));
+
+const roomsOfRsvps = async (context: HookContext, rsvpIds: unknown[]): Promise<string[]> =>
+	roomsOfAttendees(context, await parentsOf(context, 'meetingOccurrenceRsvps', 'meetingAttendeeId', distinctIds(rsvpIds, 'id')));
+
+const roomsNamed = async (_context: HookContext, roomIds: unknown[]): Promise<string[]> =>
+	distinctIds(roomIds, 'roomId').map(String);
 
 // The ids of a query value: a plain id, or every id of {$in: [...]} (the UI fetches
 // exceptions for all attendees at once). Anything else names no id.
@@ -40,47 +78,49 @@ const resolveRoomIds = async (context: HookContext, path: MeetingPath): Promise<
 		throw new Error('Only one row at a time');
 
 	const parentKey = { meetings: 'roomId', meetingAttendees: 'meetingId', meetingOccurrenceRsvps: 'meetingAttendeeId' }[path];
-	const roomOfParent = { meetings: async (_context: HookContext, roomId: unknown) => String(strictId(roomId, 'roomId')), meetingAttendees: roomOfMeeting, meetingOccurrenceRsvps: roomOfAttendee }[path];
+	const roomsOfSelf = { meetings: roomsOfMeetings, meetingAttendees: roomsOfAttendees, meetingOccurrenceRsvps: roomsOfRsvps }[path];
+	const roomsOfParents = { meetings: roomsNamed, meetingAttendees: roomsOfMeetings, meetingOccurrenceRsvps: roomsOfAttendees }[path];
 	const rows: Array<Record<string, unknown>> = Array.isArray(context.data) ? context.data : context.data ? [ context.data ] : [];
 	const rooms: string[] = [];
 
-	if (context.id !== undefined && context.id !== null) {
-		if (path === 'meetings') rooms.push(await roomOfMeeting(context, context.id));
-		else if (path === 'meetingAttendees') rooms.push(await roomOfAttendee(context, context.id));
-		else rooms.push(await roomOfAttendee(context, (await internalGet(context, path, context.id)).meetingAttendeeId));
-	}
+	if (rows.length > MAX_IDS) throw new BadRequest(`At most ${MAX_IDS} rows`);
+
+	if (context.id !== undefined && context.id !== null) rooms.push(...await roomsOfSelf(context, [ context.id ]));
 
 	const named = rows.map((row) => row[parentKey]).filter((value) => value !== undefined && value !== null);
 
-	for (const value of named) rooms.push(await roomOfParent(context, value));
+	rooms.push(...await roomsOfParents(context, named));
 
-	if (rooms.length === 0) {
-		for (const value of queryIds(context.params?.query?.[parentKey])) rooms.push(await roomOfParent(context, value));
-	}
+	if (rooms.length === 0) rooms.push(...await roomsOfParents(context, queryIds(context.params?.query?.[parentKey])));
 
 	return [ ...new Set(rooms) ];
 };
 
-const assertRoomAccess = async (context: HookContext, roomId: string): Promise<void> => {
+// All rooms in one query, like the lookups above: a request can name many.
+const assertRoomAccess = async (context: HookContext, roomIds: string[]): Promise<void> => {
 	const { user } = context.params;
+	const ids = roomIds.map((roomId) => strictId(roomId, 'roomId'));
+	const knex = context.app.get('postgresqlClient');
 
 	if (user?.tenantAdmin || user?.tenantOwner) {
-		const { tenantId } = await context.app.service('rooms').get(roomId);
+		const rooms: Array<{ tenantId: unknown }> = await knex('rooms').select('id', 'tenantId')
+			.whereIn('id', ids);
 
-		if (tenantId && tenantId != parseInt(String(context.params.user.tenantId)))
+		if (rooms.length !== ids.length) throw new NotFound('No record found');
+
+		// A room without a tenant is no tenant's: it used to pass for the admins of all.
+		if (rooms.some(({ tenantId }) => String(tenantId ?? '') !== String(user.tenantId ?? '')))
 			throw new Error('You are not an owner of this room');
 
 		return;
 	}
 
-	const { total } = await context.app.service('roomOwners').find({
-		query: {
-			roomId: strictId(roomId, 'roomId'),
-			userId: context.params.user.id
-		}
-	});
+	const owned: Array<{ roomId: unknown }> = await knex('roomOwners').select('roomId')
+		.where({ userId: user.id })
+		.whereIn('roomId', ids);
+	const ownedIds = new Set(owned.map(({ roomId }) => String(roomId)));
 
-	if (total === 0)
+	if (ids.some((id) => !ownedIds.has(String(id))))
 		throw new Error('You are not an owner of this room');
 };
 
@@ -95,7 +135,7 @@ export const isRoomOwnerOrAdminForMeeting = async (context: HookContext): Promis
 		throw new Error('No room id provided');
 	}
 
-	for (const roomId of roomIds) await assertRoomAccess(context, roomId);
+	await assertRoomAccess(context, roomIds);
 };
 
 export const isRoomOwnerOrAdminForMeetingAttendee = async (context: HookContext): Promise<void> => {
@@ -106,7 +146,7 @@ export const isRoomOwnerOrAdminForMeetingAttendee = async (context: HookContext)
 	if (roomIds.length === 0)
 		throw new Error('meetingId required');
 
-	for (const roomId of roomIds) await assertRoomAccess(context, roomId);
+	await assertRoomAccess(context, roomIds);
 };
 
 export const isRoomOwnerOrAdminForMeetingOccurrenceRsvp = async (context: HookContext): Promise<void> => {
@@ -117,5 +157,5 @@ export const isRoomOwnerOrAdminForMeetingOccurrenceRsvp = async (context: HookCo
 	if (roomIds.length === 0)
 		throw new Error('meetingAttendeeId required');
 
-	for (const roomId of roomIds) await assertRoomAccess(context, roomId);
+	await assertRoomAccess(context, roomIds);
 };
