@@ -50,7 +50,8 @@
 		"rsvpTokenSecret": "",
 		"imapPollIntervalMs": 60000,
 		"imapPollBootDelayMs": 5000,
-		"imapRetentionDays": 30
+		"imapRetentionDays": 30,
+		"maxAttendeesPerMeeting": 300
 	},
 	"bots": {
 		"encryptionKey": ""

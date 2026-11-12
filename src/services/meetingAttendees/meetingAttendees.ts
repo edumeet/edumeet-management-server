@@ -19,6 +19,8 @@ import { isRoomOwnerOrAdminForMeetingAttendee } from '../../hooks/isRoomOwnerOrA
 import { referencesInCallerTenant } from '../../hooks/referencesInCallerTenant';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
+import { limitAttendeesPerMeeting } from '../../hooks/limitAttendeesPerMeeting';
+import { transaction } from '@feathersjs/knex';
 
 export * from './meetingAttendees.class';
 export * from './meetingAttendees.schema';
@@ -49,7 +51,11 @@ export const meetingAttendee = (app: Application) => {
 				schemaHooks.validateData(meetingAttendeeDataValidator),
 				// an attendee who is a user must be one of the caller's tenant
 				iff(notSuperAdmin(), referencesInCallerTenant([ 'userId' ])),
-				schemaHooks.resolveData(meetingAttendeeDataResolver)
+				schemaHooks.resolveData(meetingAttendeeDataResolver),
+				// Last: inside the transaction only its own connection is used. A hook that took a
+				// second one would wait for the pool while holding the lock the others wait for.
+				transaction.start(),
+				limitAttendeesPerMeeting
 			],
 			patch: [
 				isRoomOwnerOrAdminForMeetingAttendee,
@@ -60,10 +66,12 @@ export const meetingAttendee = (app: Application) => {
 			remove: [ isRoomOwnerOrAdminForMeetingAttendee ]
 		},
 		after: {
-			all: []
+			all: [],
+			create: [ transaction.end() ]
 		},
 		error: {
-			all: []
+			all: [],
+			create: [ transaction.rollback() ]
 		}
 	});
 };

@@ -11,7 +11,9 @@ export const inviteConfigSchema = Type.Object({
 	rsvpTokenSecret: Type.Optional(Type.String()),
 	imapPollIntervalMs: Type.Optional(Type.Number()),
 	imapPollBootDelayMs: Type.Optional(Type.Number()),
-	imapRetentionDays: Type.Optional(Type.Number())
+	imapRetentionDays: Type.Optional(Type.Number()),
+	// Guests per meeting, the organizer included; every change re-sends to all of them.
+	maxAttendeesPerMeeting: Type.Optional(Type.Number({ minimum: 1 }))
 });
 
 // Kept apart from the invites key so either can be rotated on its own.
