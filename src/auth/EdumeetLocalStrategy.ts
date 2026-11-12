@@ -15,7 +15,7 @@ export class EdumeetLocalStrategy extends LocalStrategy {
 	// a local account's address, could then lock that account (the super admin, the room server's
 	// service account) out of password login. All rows with the address are looked at instead.
 	async getEntityQuery(query: Record<string, unknown>, _params: Params) {
-		return { ...query, $limit: MAX_ACCOUNTS_PER_EMAIL };
+		return { ...query, $sort: { id: 1 }, $limit: MAX_ACCOUNTS_PER_EMAIL };
 	}
 
 	// Refuse a publicly known password before looking up the account, for every e-mail
@@ -31,27 +31,30 @@ export class EdumeetLocalStrategy extends LocalStrategy {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { provider, ...paramsWithoutProvider } = params;
 		const accounts = await this.findAccounts(username, paramsWithoutProvider);
-		const matching: Account[] = [];
+		let match: Account | undefined;
 
-		// Only accounts with a password take part; exactly one of them must accept it.
+		// Only accounts with a password take part, oldest first; whoever knows the password of
+		// two of them may use either, so the first that accepts it is signed in.
 		for (const account of accounts.filter((a) => Boolean(a[this.configuration.entityPasswordField]))) {
 			try {
-				matching.push(await this.comparePassword(account, password));
+				match = await this.comparePassword(account, password);
+				break;
 			} catch {
 				// Not this one.
 			}
 		}
 
-		if (matching.length !== 1) throw new NotAuthenticated(errorMessage);
+		if (!match) throw new NotAuthenticated(errorMessage);
 
 		return {
 			authentication: { strategy: this.name as string },
-			[entity]: await this.getEntity(matching[0], params)
+			[entity]: await this.getEntity(match, params)
 		};
 	}
 
 	private async findAccounts(username: unknown, params: Params): Promise<Account[]> {
-		if (!username) throw new NotAuthenticated(this.configuration.errorMessage);
+		// A query object ({ $ne: '' }) would make one login try the password on many accounts.
+		if (!username || typeof username !== 'string') throw new NotAuthenticated(this.configuration.errorMessage);
 
 		const query = await this.getEntityQuery({ [this.configuration.entityUsernameField]: username }, params);
 		const result = await this.entityService.find({ ...params, query });

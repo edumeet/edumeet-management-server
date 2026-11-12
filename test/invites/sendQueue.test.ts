@@ -107,7 +107,10 @@ describe('attendees per meeting', () => {
 		app: {
 			get: (key: string) => (key === 'invites'
 				? { maxAttendeesPerMeeting: max }
-				: () => ({ where: () => ({ count: async () => [ { total: String(existing) } ] }) }))
+				: () => ({ where: () => ({
+					forUpdate: () => ({ first: async () => ({ id: 5 }) }),
+					count: async () => [ { total: String(existing) } ]
+				}) }))
 		}
 	}) as unknown as HookContext;
 

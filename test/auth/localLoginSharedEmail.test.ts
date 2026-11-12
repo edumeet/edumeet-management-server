@@ -62,9 +62,24 @@ describe('password login with an address that several accounts share', () => {
 		await assert.rejects(login('a-long-unique-password-2'));
 	});
 
-	it('refuses when two accounts with a password accept it, rather than picking one', async () => {
+	it('refuses an e-mail that is not text, which would try the password on many accounts', async () => {
+		const strategy = app.service('authentication').getStrategy('local')!;
+
+		for (const query of [ { $in: [ email ] }, { $ne: 'nobody' } ])
+			await assert.rejects(strategy.authenticate!({ strategy: 'local', email: query, password }, {}));
+	});
+
+	it('looks at the oldest accounts first', async () => {
+		const strategy = app.service('authentication').getStrategy('local') as unknown as { getEntityQuery: (q: object, p: object) => Promise<object> };
+
+		assert.deepStrictEqual((await strategy.getEntityQuery({ email }, {})), { email, $sort: { id: 1 }, $limit: 50 });
+	});
+
+	it('signs in the oldest of two accounts that accept the password', async () => {
 		await insertUser({ tenantId: await newTenant(), password: bcrypt.hashSync(password, 10) });
 
-		await assert.rejects(login());
+		const result = await login();
+
+		assert.strictEqual(Number((result as { user: { id: number } }).user.id), localId);
 	});
 });
