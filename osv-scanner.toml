@@ -1,0 +1,49 @@
+# Advisories ignored by OSV-Scanner. Every entry must say why it does not
+# affect the server and carry an ignoreUntil date so it gets re-checked.
+#
+# uuid (GHSA-w5hq-g745-h8pq) is not listed here: the "resolutions" entry in
+# package.json moves request-oauth from uuid 8.3.2 to the fixed 11.1.1.
+
+[[IgnoredVulns]]
+id = "GHSA-mrhx-c7xc-m3w5"
+# zod memory exhaustion on oversized arrays. zod 3.25.76 is reached via
+# @feathersjs/authentication-oauth > koa-session@7, which declares zod ^3 while
+# the fix exists only in zod 4.6.6 (our own zod is 4.6.7). koa-session only
+# uses zod to validate its own options object (SessionOptions) once at
+# startup; no request data is ever parsed with it, and it has no array schema.
+ignoreUntil = 2027-02-18
+reason = "zod 3.25.76 is only used by koa-session to validate its own options at startup, never request data; the fix exists only in zod 4, which koa-session does not accept yet."
+
+[[IgnoredVulns]]
+id = "GHSA-848j-6mx2-7j84"
+# elliptic ECDSA signatures with truncated k. No patched version exists
+# (last_affected 6.6.1). Reached via @feathersjs/authentication-oauth > grant >
+# jwk-to-pem, which only uses elliptic to turn an EC JWK into a PEM key
+# (keyFromPrivate/keyFromPublic) and never signs with it.
+ignoreUntil = 2027-02-18
+reason = "elliptic has no fixed release; jwk-to-pem only uses it for JWK to PEM key conversion, not for ECDSA signing, so the faulty signature path is not reached."
+
+# glob, minimatch and picomatch below are not in the production dependency
+# tree. They come only from build, test, lint and install tooling (mocha,
+# eslint, typescript-eslint, nodemon, node-gyp), which only matches patterns
+# from our own config and source tree, never input from clients.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+# picomatch ReDoS. No patched version exists (last_affected 4.0.7, the latest).
+ignoreUntil = 2027-02-18
+reason = "picomatch has no fixed release; only reached via dev/install tooling (nodemon, typescript-eslint, node-gyp) matching our own patterns, not in the production dependency tree."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+# minimatch DoS. Fixed only in minimatch 11, a new major that eslint,
+# typescript-eslint, mocha, nodemon and glob do not accept yet.
+ignoreUntil = 2027-02-18
+reason = "minimatch fix needs major 11, not yet accepted by eslint/typescript-eslint/mocha/nodemon/glob; only reached via dev tooling, not in the production dependency tree."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+# glob AbortSignal bypass. Fixed only in glob 14, a new major. Reached via
+# mocha and node-gyp > make-fetch-happen > cacache.
+ignoreUntil = 2027-02-18
+reason = "glob fix needs major 14, not yet accepted by mocha or node-gyp's cacache; only reached via test/install tooling, not in the production dependency tree."

@@ -101,5 +101,8 @@
 		"ts-node": "^10.9.2",
 		"typescript": "^5.0.4"
 	},
-	"packageManager": "yarn@4.13.0"
+	"packageManager": "yarn@4.13.0",
+	"resolutions": {
+		"request-oauth/uuid": "^11.1.1"
+	}
 }
