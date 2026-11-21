@@ -6,10 +6,19 @@ import type { AddressInfo } from 'net';
 import { app } from '../../src/app';
 import type { Application } from '../../src/declarations';
 import { isOwnNetworkAddress, oauthLookup, oauthUrlProblem } from '../../src/auth/oauthEgress';
+import { answerReservedNamesLocally } from './reservedNames';
 
 const withHosts = (oauthPrivateHosts: string[]) => ({ get: (name: string) => (name === 'oauthPrivateHosts' ? oauthPrivateHosts : undefined) }) as unknown as Application;
 
 describe('tenant identity provider addresses', () => {
+	let restoreDns: () => void;
+
+	before(() => {
+		restoreDns = answerReservedNamesLocally();
+	});
+
+	after(() => restoreDns());
+
 	it('counts loopback, private, link-local and mapped addresses as the server\'s own', () => {
 		for (const address of [ '127.0.0.1', '10.1.2.3', '172.20.0.5', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', '::', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '64:ff9b::a00:1', 'not-an-ip' ])
 			assert.strictEqual(isOwnNetworkAddress(address), true, address);

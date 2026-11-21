@@ -7,6 +7,7 @@ import { app } from '../../src/app';
 import type OAuthTenantStrategy from '../../src/auth/strategies/OAuthTenantStrategy';
 import { refreshAccessCheck } from '../../src/hooks/refreshAccessCheck';
 import type { HookContext } from '../../src/declarations';
+import { answerReservedNamesLocally } from './reservedNames';
 
 // MySQL stores the flag as 0 or 1.
 const flag = (value: unknown): boolean | null => (value === null || value === undefined ? null : Boolean(Number(value)));
@@ -41,7 +42,10 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 		(await app.service('tenantAdmins').find({ ...internal, query: { tenantId, userId }, paginate: false } as unknown as Params) as unknown as unknown[]).length > 0;
 	const setTrust = (trust_email: boolean) => app.service('tenantOAuths').patch(oauthId, { trust_email }, internal);
 
+	let restoreDns: () => void;
+
 	before(async () => {
+		restoreDns = answerReservedNamesLocally();
 		tenantId = Number((await app.service('tenants').create({ name: `unverified-${stamp}`, description: 'unverified e-mail' }, internal)).id);
 		oauthId = Number((await app.service('tenantOAuths').create({
 			tenantId,
@@ -72,6 +76,7 @@ describe('OAuth tenant login with an unverified e-mail', () => {
 	});
 
 	after(async () => {
+		restoreDns?.();
 		for (const id of ruleIds) await app.service('rules').remove(id, internal);
 		if (oauthId) await app.service('tenantOAuths').remove(oauthId, internal);
 		if (tenantId) await app.service('tenants').remove(tenantId, internal);
