@@ -1,6 +1,6 @@
 import assert from 'assert';
 
-import { isMeetingOver } from '../../src/invites/meetingWindow';
+import { isMeetingOver, meetingTokenWindow } from '../../src/invites/meetingWindow';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -107,5 +107,131 @@ describe('isMeetingOver on rules with very many occurrences', () => {
 		assert.strictEqual(isMeetingOver({ startsAt: now - HOUR, endsAt: now + HOUR, rrule: 'FREQ=SECONDLY' }, now), false, 'still running');
 		assert.strictEqual(isMeetingOver({ startsAt: now - (2 * HOUR), endsAt: now - HOUR, rrule: 'FREQ=DAILY\r\nX:Y' }, now), true);
 		assert.strictEqual(isMeetingOver({ startsAt: -1e12, endsAt: -1e12 + HOUR, rrule: 'FREQ=DAILY' }, now), true);
+	});
+});
+
+describe('meetingTokenWindow', () => {
+	const MIN = 60_000;
+
+	it('opens a one-off meeting from an hour before its start until an hour after its end', () => {
+		const meeting = oneOff(3 * HOUR);
+
+		assert.deepStrictEqual(meetingTokenWindow(meeting, now), { state: 'early', startsAt: now + (3 * HOUR), endsAt: now + (4 * HOUR) });
+		assert.strictEqual(meetingTokenWindow(meeting, now + (2 * HOUR) + MIN).state, 'open', '59 minutes before the start');
+		assert.strictEqual(meetingTokenWindow(meeting, now + (3.5 * HOUR)).state, 'open', 'running');
+		assert.strictEqual(meetingTokenWindow(meeting, now + (5 * HOUR) - MIN).state, 'open', '59 minutes after the end');
+		assert.deepStrictEqual(meetingTokenWindow(meeting, now + (5 * HOUR) + MIN), { state: 'over', startsAt: now + (3 * HOUR), endsAt: now + (4 * HOUR) });
+	});
+
+	it('reads the bigint strings Postgres returns', () => {
+		assert.strictEqual(meetingTokenWindow({ startsAt: String(now + (3 * HOUR)), endsAt: String(now + (4 * HOUR)) }, now).state, 'early');
+	});
+
+	it('between the occurrences of a series it gives the next one', () => {
+		const weekly = { startsAt: now - (3 * DAY), endsAt: now - (3 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=5' };
+
+		assert.deepStrictEqual(meetingTokenWindow(weekly, now), { state: 'early', startsAt: now + (4 * DAY), endsAt: now + (4 * DAY) + HOUR });
+	});
+
+	it('opens an occurrence of a series an hour before it starts', () => {
+		const weekly = { startsAt: now - (7 * DAY) + (HOUR / 2), endsAt: now - (7 * DAY) + (1.5 * HOUR), rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=3' };
+
+		assert.deepStrictEqual(meetingTokenWindow(weekly, now), { state: 'open', startsAt: now + (HOUR / 2), endsAt: now + (1.5 * HOUR) });
+	});
+
+	it('after the last occurrence of a series it gives that occurrence as over', () => {
+		const weekly = { startsAt: now - (3 * 7 * DAY), endsAt: now - (3 * 7 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=3' };
+
+		assert.deepStrictEqual(meetingTokenWindow(weekly, now), { state: 'over', startsAt: now - (7 * DAY), endsAt: now - (7 * DAY) + HOUR });
+	});
+
+	it('keeps an occurrence at its local time across a DST change', () => {
+		// Weekly at 12:00 Warsaw from 5 Oct 2026 (CEST, 10:00Z): on 26 Oct, after the clocks went
+		// back, the occurrence starts at 11:00Z.
+		const series = {
+			startsAt: Date.UTC(2026, 9, 5, 10, 0, 0),
+			endsAt: Date.UTC(2026, 9, 5, 11, 0, 0),
+			rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=4',
+			timezone: 'Europe/Warsaw'
+		};
+
+		assert.deepStrictEqual(meetingTokenWindow(series, Date.UTC(2026, 9, 26, 10, 30, 0)),
+			{ state: 'open', startsAt: Date.UTC(2026, 9, 26, 11, 0, 0), endsAt: Date.UTC(2026, 9, 26, 12, 0, 0) });
+	});
+
+	it('keeps a token open for a series stored before the rules, as before the window', () => {
+		assert.strictEqual(meetingTokenWindow({ startsAt: now - (365 * DAY), endsAt: now - (365 * DAY) + HOUR, rrule: 'FREQ=WEEKLY;INTERVAL=1' }, now).state, 'open');
+		assert.strictEqual(meetingTokenWindow({ ...oneOff(3 * HOUR), rrule: 'FREQ=NEVERMIND' }, now).state, 'open');
+	});
+
+	it('still closes a single meeting without a rule', () => {
+		assert.strictEqual(meetingTokenWindow({ ...oneOff(-(3 * HOUR)), rrule: null }, now).state, 'over');
+	});
+
+	describe('with the room\'s last activity', () => {
+		const meeting = oneOff(0);
+		const end = now + HOUR;
+
+		it('counts the hour from when the room emptied after a meeting that ran over', () => {
+			const ranOver = { ...meeting, lastActiveAt: end + (40 * MIN) };
+
+			assert.strictEqual(meetingTokenWindow(ranOver, end + (99 * MIN)).state, 'open', '59 minutes after the room emptied');
+			assert.deepStrictEqual(meetingTokenWindow(ranOver, end + (101 * MIN)), { state: 'over', startsAt: now, endsAt: end + (40 * MIN) });
+		});
+
+		it('keeps the token until an hour after the scheduled end when everyone left early', () => {
+			const leftEarly = { ...meeting, lastActiveAt: now + (20 * MIN) };
+
+			assert.strictEqual(meetingTokenWindow(leftEarly, end + (59 * MIN)).state, 'open');
+			assert.deepStrictEqual(meetingTokenWindow(leftEarly, end + (61 * MIN)), { state: 'over', startsAt: now, endsAt: end });
+		});
+
+		it('starts the hour again when someone came back during it', () => {
+			// Emptied at 13:30, back at 14:20 and gone at 14:25: the token now lasts until 15:25.
+			const cameBack = { ...meeting, lastActiveAt: end + (85 * MIN) };
+
+			assert.strictEqual(meetingTokenWindow(cameBack, end + (140 * MIN)).state, 'open');
+			assert.deepStrictEqual(meetingTokenWindow(cameBack, end + (146 * MIN)), { state: 'over', startsAt: now, endsAt: end + (85 * MIN) });
+		});
+
+		it('ignores activity from before the meeting opened, as from an earlier date of a moved meeting', () => {
+			const moved = { ...meeting, lastActiveAt: now - (2 * HOUR) };
+
+			assert.deepStrictEqual(meetingTokenWindow(moved, end + (61 * MIN)), { state: 'over', startsAt: now, endsAt: end });
+			assert.strictEqual(meetingTokenWindow({ ...meeting, lastActiveAt: now - HOUR }, end + (61 * MIN)).state, 'over', 'opening time, before the scheduled end');
+		});
+
+		it('does not open a meeting early because of activity', () => {
+			assert.strictEqual(meetingTokenWindow({ ...oneOff(3 * HOUR), lastActiveAt: now }, now).state, 'early');
+		});
+
+		it('reads bigint strings and treats null as no activity', () => {
+			assert.strictEqual(meetingTokenWindow({ ...meeting, lastActiveAt: String(end + (40 * MIN)) }, end + (99 * MIN)).state, 'open');
+			assert.strictEqual(meetingTokenWindow({ ...meeting, lastActiveAt: null }, end + (61 * MIN)).state, 'over');
+			assert.strictEqual(meetingTokenWindow({ ...meeting, lastActiveAt: 'garbage' }, end + (61 * MIN)).state, 'over');
+		});
+
+		it('keeps the occurrence of a series that ran over open before giving the next one', () => {
+			// Today's occurrence ended two hours ago; its room emptied 30 minutes ago.
+			const weekly = { startsAt: now - (7 * DAY) - (3 * HOUR), endsAt: now - (7 * DAY) - (2 * HOUR), rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=5' };
+
+			assert.deepStrictEqual(meetingTokenWindow({ ...weekly, lastActiveAt: now - (30 * MIN) }, now),
+				{ state: 'open', startsAt: now - (3 * HOUR), endsAt: now - (2 * HOUR) });
+			assert.deepStrictEqual(meetingTokenWindow(weekly, now),
+				{ state: 'early', startsAt: now + (7 * DAY) - (3 * HOUR), endsAt: now + (7 * DAY) - (2 * HOUR) });
+			assert.deepStrictEqual(meetingTokenWindow({ ...weekly, lastActiveAt: now - (30 * MIN) }, now + (31 * MIN)),
+				{ state: 'early', startsAt: now + (7 * DAY) - (3 * HOUR), endsAt: now + (7 * DAY) - (2 * HOUR) }, 'the hour after it emptied has passed');
+		});
+
+		it('does not reopen the last occurrence of a series with activity from an older one', () => {
+			const weekly = { startsAt: now - (14 * DAY) - (3 * HOUR), endsAt: now - (14 * DAY) - (2 * HOUR), rrule: 'FREQ=WEEKLY;INTERVAL=1;COUNT=3' };
+
+			assert.deepStrictEqual(meetingTokenWindow({ ...weekly, lastActiveAt: now - (7 * DAY) }, now),
+				{ state: 'over', startsAt: now - (3 * HOUR), endsAt: now - (2 * HOUR) });
+			assert.deepStrictEqual(meetingTokenWindow({ ...weekly, lastActiveAt: now - (30 * MIN) }, now),
+				{ state: 'open', startsAt: now - (3 * HOUR), endsAt: now - (2 * HOUR) });
+			assert.deepStrictEqual(meetingTokenWindow({ ...weekly, lastActiveAt: now - (30 * MIN) }, now + (31 * MIN)),
+				{ state: 'over', startsAt: now - (3 * HOUR), endsAt: now - (30 * MIN) });
+		});
 	});
 });

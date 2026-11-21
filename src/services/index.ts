@@ -5,6 +5,7 @@ import { tenantInviteConfig } from './tenantInviteConfigs/tenantInviteConfigs';
 import { tenantFqdn } from './tenantFQDNs/tenantFQDNs';
 import { tenantBotCredential } from './tenantBotCredentials/tenantBotCredentials';
 import { botVerify } from './botVerify/botVerify';
+import { meetingActivity } from './meetingActivity/meetingActivity';
 import { botProviders } from './botProviders/botProviders';
 import { tenantAdmin } from './tenantAdmins/tenantAdmins';
 import { meeting } from './meetings/meetings';
@@ -39,6 +40,7 @@ export const services = (app: Application) => {
 	app.configure(botProviders);
 	app.configure(tenantAdmin);
 	app.configure(meeting);
+	app.configure(meetingActivity);
 	app.configure(meetingAttendee);
 	app.configure(meetingOccurrenceRsvp);
 	app.configure(inviteTest);
