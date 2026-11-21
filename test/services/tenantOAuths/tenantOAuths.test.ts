@@ -2,6 +2,7 @@
 import assert from 'assert';
 import type { Params } from '@feathersjs/feathers';
 import { app } from '../../../src/app';
+import { answerReservedNamesLocally } from '../../auth/reservedNames';
 
 const internal = { provider: undefined, query: {} };
 
@@ -15,6 +16,14 @@ const idp = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('tenantOAuths service', () => {
+	let restoreDns: () => void;
+
+	before(() => {
+		restoreDns = answerReservedNamesLocally();
+	});
+
+	after(() => restoreDns());
+
 	describe('as a tenant admin over the API', () => {
 		let tenantA: number;
 		let tenantB: number;
