@@ -7,6 +7,7 @@ import type { HookContext } from '../../declarations';
 import { dataValidator, queryValidator } from '../../validators';
 import { generateMeetingToken } from './meetingToken';
 import { MEETING_TIME_MAX, MEETING_TIME_MIN, RRULE_MAX_LENGTH, RRULE_PATTERN, isExpandableMeeting } from '../../invites/rrulePolicy';
+import { meetingTokenWindow } from '../../invites/meetingWindow';
 
 export { RRULE_PATTERN };
 
@@ -31,12 +32,14 @@ export const meetingSchema = Type.Object(
 		rrule: Type.Optional(Type.String({ maxLength: RRULE_MAX_LENGTH, pattern: RRULE_PATTERN })),
 		recurrenceEnd: Type.Optional(Type.Number()),
 		recurrenceCount: Type.Optional(Type.Number()),
+		lastActiveAt: Type.Optional(Type.Union([ Type.Number(), Type.Null() ])),
 		createdAt: Type.Number(),
 		updatedAt: Type.Number(),
 
 		// virtuals
 		room: Type.Optional(Type.Any()),
 		attendees: Type.Optional(Type.Array(Type.Any())),
+		tokenWindow: Type.Optional(Type.Any()),
 	},
 	{ $id: 'Meeting', additionalProperties: false }
 );
@@ -59,12 +62,20 @@ export const meetingResolver = resolve<Meeting, HookContext>({
 
 		return result as unknown[];
 	}),
+	// Only for a lookup by token: the room server asks whether the meeting is open now.
+	// Only for a lookup by one token: a query operator on meetingToken would expand every
+	// visible series on the page.
+	tokenWindow: virtual(async (meeting, context) => (typeof context.params?.query?.meetingToken === 'string'
+		? meetingTokenWindow(meeting, Date.now())
+		: undefined)),
 });
 
 export const meetingExternalResolver = resolve<Meeting, HookContext>({
 	// The clients expand the rule themselves; one stored before the limits (rrulePolicy) could
 	// hang their browser, so it is not handed out and the meeting shows as a single one.
-	rrule: async (value, meeting) => (isExpandableMeeting(meeting) ? value : undefined)
+	rrule: async (value, meeting) => (isExpandableMeeting(meeting) ? value : undefined),
+	// When the room was last in use is bookkeeping for the token window, not meeting data.
+	lastActiveAt: async () => undefined
 });
 
 // A bare UUID with no "@domain" part. RFC 5545 leaves the UID form open and RFC 7986
@@ -78,7 +89,7 @@ const buildMeetingUid = (): string => randomUUID();
 
 export const meetingDataSchema = Type.Omit(
 	meetingSchema,
-	[ 'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'sequence', 'status', 'createdAt', 'updatedAt', 'room', 'attendees' ],
+	[ 'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'sequence', 'status', 'lastActiveAt', 'createdAt', 'updatedAt', 'room', 'attendees', 'tokenWindow' ],
 	{ $id: 'MeetingData', additionalProperties: false }
 );
 export type MeetingData = Static<typeof meetingDataSchema>
@@ -102,7 +113,7 @@ export const meetingDataResolver = resolve<Meeting, HookContext>({
 
 export const meetingPatchSchema = Type.Partial(
 	Type.Omit(meetingSchema, [
-		'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'createdAt', 'room', 'attendees'
+		'id', 'tenantId', 'organizerId', 'uid', 'meetingToken', 'lastActiveAt', 'createdAt', 'room', 'attendees', 'tokenWindow'
 	]),
 	{ $id: 'MeetingPatch' }
 );
