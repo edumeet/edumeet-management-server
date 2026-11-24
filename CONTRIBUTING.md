@@ -84,7 +84,8 @@ The Edumeet project uses Mocha for testing. After implementing your contribution
 
 ### Documentation
 
-Our documentation lives in README.md. Be sure to document any changes you implement.
+The README is the documentation index; feature guides live under `docs/`. Update
+the relevant guide when your changes affect documented behavior.
 
 ## License
 
