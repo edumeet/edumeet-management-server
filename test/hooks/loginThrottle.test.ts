@@ -4,7 +4,7 @@ import type { AddressInfo } from 'net';
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import { app } from '../../src/app';
-import { addressKey, loginThrottle } from '../../src/hooks/loginThrottle';
+import { addressKey, checkRoomServerAddresses, loginThrottle } from '../../src/hooks/loginThrottle';
 import type { HookContext } from '../../src/declarations';
 
 const MAX = 10;
@@ -20,6 +20,7 @@ const codeOf = (error: unknown) => (error as { code?: number }).code;
 // One login through the hook alone; `outcome` is what the rest of the login does.
 const attempt = async (ip: string | undefined, outcome: number | 'ok' = 401, onRun?: () => void) => {
 	const context = {
+		app,
 		params: { provider: 'rest', ip, headers: {} },
 		data: { strategy: 'local', email: 'someone@example.org', password: 'wrong' },
 	} as unknown as HookContext;
@@ -131,7 +132,7 @@ describe('login throttle', () => {
 });
 
 // The whole login, as a client outside reaches it: hook, strategy and database.
-describe('login throttle per account', () => {
+describe('login throttle on a whole login', () => {
 	const password = 'a-long-unique-password-1';
 	const users: number[] = [];
 	const strategy = () => app.service('authentication').getStrategy('local') as unknown as {
@@ -139,10 +140,12 @@ describe('login throttle per account', () => {
 		comparePassword: (entity: unknown, password: string) => Promise<unknown>;
 	};
 
-	const newAccount = async () => {
+	const newAccount = async (roles?: string[]) => {
 		const email = `throttle-${Date.now()}-${++serial}@throttle.example`;
+		const mysql = [ 'mysql', 'mysql2' ].includes(app.get('postgresql')?.client ?? '');
+		const roleColumn = roles ? { roles: mysql ? JSON.stringify(roles) : roles } : {};
 		const [ created ] = await app.get('postgresqlClient')('users')
-			.insert({ email, name: 'User', tenantId: null, password: bcrypt.hashSync(password, 4) })
+			.insert({ email, name: 'User', tenantId: null, password: bcrypt.hashSync(password, 4), ...roleColumn })
 			.returning('id');
 
 		users.push(Number(created.id ?? created));
@@ -150,9 +153,11 @@ describe('login throttle per account', () => {
 		return email;
 	};
 
-	const login = async (email: string, ip: string, pw = 'a-wrong-password-of-some-length') => {
+	const login = async (email: string, ip: string, pw = 'a-wrong-password-of-some-length', forwardedFor?: string) => {
+		const headers = forwardedFor ? { 'x-forwarded-for': forwardedFor } : {};
+
 		try {
-			await app.service('authentication').create({ strategy: 'local', email, password: pw }, { provider: 'rest', ip, headers: {} });
+			await app.service('authentication').create({ strategy: 'local', email, password: pw }, { provider: 'rest', ip, headers });
 
 			return 200;
 		} catch (error) {
@@ -189,103 +194,126 @@ describe('login throttle per account', () => {
 		}
 	}).timeout(10000);
 
-	it('limits the guesses at one account from many addresses', async () => {
-		const email = await newAccount();
-		const local = strategy();
-		const compare = local.comparePassword;
-		let compared = 0;
+	const strangersUseUpTheirLimits = async (email: string) => {
+		for (let i = 0; i < 3; i++) {
+			const stranger = freshV4();
+			const codes = await Promise.all(Array.from({ length: 15 }, () => login(email, stranger)));
 
-		local.comparePassword = function(...args) {
-			compared++;
-
-			return compare.apply(this, args);
-		};
-
-		try {
-			const codes = await Promise.all(Array.from({ length: 40 }, () => login(email, freshV4())));
-
-			assert.strictEqual(compared, MAX);
 			assert.strictEqual(count(codes, 401), MAX);
-			assert.strictEqual(count(codes, 429), 30);
-
-			// Blocked now, for the right password too: the answer must not tell a guess was right.
-			assert.strictEqual(await login(email, freshV4(), password), 429);
-			assert.strictEqual(await login(email, `${freshV6Net()}::1`, password), 429);
-			assert.strictEqual(compared, MAX);
-		} finally {
-			local.comparePassword = compare;
 		}
-	}).timeout(10000);
+	};
 
-	it('does not let the spelling of the address start a new count, or tell that it has an account', async () => {
+	it('does not shut the owner of an ordinary account out after others used up their limits on it', async () => {
 		const email = await newAccount();
 
-		await Promise.all(Array.from({ length: MAX }, () => login(email, freshV4())));
-
-		// Whether these find the account is up to the database. If they do it is the same account,
-		// and if they do not the answer is still the one an address without an account gets.
-		for (const spelling of [ email.toUpperCase(), `${email} `, email.replace('throttle-', 'thrôttle-') ]) {
-			assert.strictEqual(await login(spelling, freshV4(), password), 429, spelling);
-		}
+		await strangersUseUpTheirLimits(email);
+		assert.strictEqual(await login(email, freshV4(), password), 200);
 	}).timeout(10000);
 
-	it('still signs the owner in from an address that signed in before', async () => {
-		const email = await newAccount();
-		const home = freshV4();
-
-		assert.strictEqual(await login(email, home, password), 200);
+	const lockedSuperAdmin = async () => {
+		const email = await newAccount([ 'super-admin' ]);
 
 		await Promise.all(Array.from({ length: MAX }, () => login(email, freshV4())));
-
 		assert.strictEqual(await login(email, freshV4(), password), 429);
-		assert.strictEqual(await login(email, home, password), 200);
 
-		// That address has its own limit left, nothing more.
-		const codes = await Promise.all(Array.from({ length: 15 }, () => login(email, home)));
+		return email;
+	};
 
-		assert.strictEqual(count(codes, 401), MAX);
-		assert.strictEqual(await login(email, home, password), 429);
+	for (const role of [ 'super-admin', 'edumeet-server' ]) {
+		it(`compares the password of a ${role} account for at most ten of a burst from many addresses`, async () => {
+			const email = await newAccount([ role ]);
+			const local = strategy();
+			const compare = local.comparePassword;
+			let compared = 0;
+
+			local.comparePassword = function(...args) {
+				compared++;
+
+				return compare.apply(this, args);
+			};
+
+			try {
+				const codes = await Promise.all(Array.from({ length: 40 }, () => login(email, freshV4())));
+
+				assert.strictEqual(compared, MAX);
+				assert.strictEqual(count(codes, 401), MAX);
+				assert.strictEqual(count(codes, 429), 30);
+			} finally {
+				local.comparePassword = compare;
+			}
+
+			assert.strictEqual(await login(email, freshV4(), password), 429);
+		}).timeout(10000);
+	}
+
+	it('lets a room server on the same machine or network sign in to a super admin account others have locked', async () => {
+		const email = await lockedSuperAdmin();
+
+		for (const address of [ '172.20.0.5', '::ffff:172.20.0.5', '10.1.2.3', '192.168.1.1', '127.0.0.1', '::1', 'fd00::5' ]) {
+			assert.strictEqual(await login(email, address, password), 200, address);
+		}
 	}).timeout(10000);
 
-	it('knows an address for the account it signed in to only', async () => {
-		const email = await newAccount();
-		const other = await newAccount();
-		const home = freshV4();
+	it('gives the place on a super admin account back after each login', async () => {
+		const email = await newAccount([ 'super-admin' ]);
 
-		assert.strictEqual(await login(other, home, password), 200);
-
-		await Promise.all(Array.from({ length: MAX }, () => login(email, freshV4())));
-
-		assert.strictEqual(await login(email, home, password), 429);
+		for (let i = 0; i < 12; i++) assert.strictEqual(await login(email, freshV4(), password), 200);
 	}).timeout(10000);
 
-	it('answers for an address without an account as for one with', async () => {
-		const email = `nobody-${Date.now()}@throttle.example`;
+	it('behind a proxy, takes the address the proxy saw and not one the client wrote', async () => {
+		const email = await lockedSuperAdmin();
+		const trustProxy = process.env.TRUST_PROXY;
 
-		const codes = await Promise.all(Array.from({ length: 25 }, () => login(email, freshV4())));
-
-		assert.strictEqual(count(codes, 401), MAX);
-		assert.strictEqual(count(codes, 429), 15);
-		assert.strictEqual(await login(email.toUpperCase(), freshV4()), 429);
+		process.env.TRUST_PROXY = 'true';
+		try {
+			assert.strictEqual(await login(email, '10.0.0.5', password, `10.0.0.1, ${freshV4()}`), 429);
+			assert.strictEqual(await login(email, freshV4(), password, `${freshV4()}, 10.0.0.1`), 200);
+		} finally {
+			if (trustProxy === undefined) delete process.env.TRUST_PROXY;
+			else process.env.TRUST_PROXY = trustProxy;
+		}
 	}).timeout(10000);
 
-	it('tries the password only on the accounts of an address that take another guess', async () => {
-		const email = await newAccount();
-		const second = 'another-long-unique-password-2';
-		const home = freshV4();
-		const [ created ] = await app.get('postgresqlClient')('users')
-			.insert({ email, name: 'User', tenantId: null, password: bcrypt.hashSync(second, 4) })
-			.returning('id');
+	it('counts attempts on a locked account against their address', async () => {
+		const email = await lockedSuperAdmin();
+		const ordinary = await newAccount();
+		const client = freshV4();
 
-		users.push(Number(created.id ?? created));
+		const codes = await Promise.all(Array.from({ length: MAX }, () => login(email, client, password)));
 
-		// Known for the second account only; strangers then use up the limit of both.
-		assert.strictEqual(await login(email, home, second), 200);
-		await Promise.all(Array.from({ length: MAX }, () => login(email, freshV4())));
-
-		assert.strictEqual(await login(email, home, second), 200);
-		assert.strictEqual(await login(email, home, password), 401);
+		assert.strictEqual(count(codes, 429), MAX);
+		assert.strictEqual(await login(ordinary, client, password), 429);
 	}).timeout(10000);
+
+	describe('with room server addresses set', () => {
+		const roomServer = freshV4();
+
+		before(() => {
+			process.env.ROOM_SERVER_ADDRESSES = `${roomServer}, 2001:db8:ffff::/48`;
+		});
+		after(() => {
+			delete process.env.ROOM_SERVER_ADDRESSES;
+		});
+
+		it('lets the listed room servers sign in to a super admin account others have locked', async () => {
+			const email = await lockedSuperAdmin();
+
+			for (const address of [ roomServer, `::ffff:${roomServer}`, '2001:db8:ffff:1::5' ]) {
+				assert.strictEqual(await login(email, address, password), 200, address);
+			}
+		}).timeout(10000);
+
+		it('refuses an entry that is not an address or a range', () => {
+			try {
+				for (const value of [ 'rooms.example.org', '198.51.100.7/', '198.51.100.0/33', '2001:db8::/129', '198.51.100.0/24/1' ]) {
+					process.env.ROOM_SERVER_ADDRESSES = value;
+					assert.throws(() => checkRoomServerAddresses(), /ROOM_SERVER_ADDRESSES/, value);
+				}
+			} finally {
+				process.env.ROOM_SERVER_ADDRESSES = `${roomServer}, 2001:db8:ffff::/48`;
+			}
+		});
+	});
 
 	it('signs in when nothing is wrong', async () => {
 		const email = await newAccount();

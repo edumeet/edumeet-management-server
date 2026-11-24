@@ -7,7 +7,7 @@ import type { Application } from './declarations';
 import OAuthTenantStrategy from './auth/strategies/OAuthTenantStrategy';
 import { OAuthCallbackService, OAuthService } from '@feathersjs/authentication-oauth/lib/service';
 import { oauthCallbackHooks, oauthServiceHooks } from './hooks/dynamicOAuth';
-import { loginThrottle } from './hooks/loginThrottle';
+import { checkRoomServerAddresses, loginThrottle } from './hooks/loginThrottle';
 import { refreshAccessCheck } from './hooks/refreshAccessCheck';
 import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
 import { EdumeetLocalStrategy } from './auth/EdumeetLocalStrategy';
@@ -35,7 +35,10 @@ export const authentication = (app: Application) => {
 
 	app.use('authentication', authenticationService);
 
-	// Brute-force throttle (per client address and per account) + timing pad for the local strategy.
+	// Brute-force throttle (per address, an IPv6 /64 is one address, and per super-admin or
+	// edumeet-server account outside the room servers' addresses) + timing pad for the local
+	// strategy. A wrong ROOM_SERVER_ADDRESSES entry stops the start, not the first password login.
+	checkRoomServerAddresses();
 	app.service('authentication').hooks({
 		around: { create: [ loginThrottle ] }
 	});

@@ -3,7 +3,6 @@ import type { AuthenticationRequest } from '@feathersjs/authentication';
 import type { Params } from '@feathersjs/feathers';
 import { NotAuthenticated } from '@feathersjs/errors';
 import { isKnownPassword, KNOWN_PASSWORD_MESSAGE } from './knownPasswords';
-import { loginAttemptOf } from '../hooks/loginThrottle';
 
 // More rows than one address has in practice: it is unique per tenant, and few tenants share one.
 const MAX_ACCOUNTS_PER_EMAIL = 50;
@@ -31,25 +30,12 @@ export class EdumeetLocalStrategy extends LocalStrategy {
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { provider, ...paramsWithoutProvider } = params;
-		const accounts = (await this.findAccounts(username, paramsWithoutProvider))
-			.filter((a) => Boolean(a[this.configuration.entityPasswordField]));
-		const attempt = loginAttemptOf(params);
-		const idField: string = this.configuration.entityId ?? (this.entityService as { id?: string }).id ?? 'id';
-		let candidates = accounts;
+		const accounts = await this.findAccounts(username, paramsWithoutProvider);
 		let match: Account | undefined;
-
-		// The login throttle counts failures per account as well as per client address
-		// (hooks/loginThrottle.ts). It is asked here, between the lookup and the first password
-		// comparison, because only the lookup tells which accounts an address stands for.
-		if (attempt) {
-			const admitted = new Set(attempt.admitAccounts(accounts.map((a) => a[idField] as string | number), username));
-
-			candidates = accounts.filter((a) => admitted.has(a[idField] as string | number));
-		}
 
 		// Only accounts with a password take part, oldest first; whoever knows the password of
 		// two of them may use either, so the first that accepts it is signed in.
-		for (const account of candidates) {
+		for (const account of accounts.filter((a) => Boolean(a[this.configuration.entityPasswordField]))) {
 			try {
 				match = await this.comparePassword(account, password);
 				break;
@@ -59,8 +45,6 @@ export class EdumeetLocalStrategy extends LocalStrategy {
 		}
 
 		if (!match) throw new NotAuthenticated(errorMessage);
-
-		attempt?.signedIn(match[idField] as string | number);
 
 		return {
 			authentication: { strategy: this.name as string },
