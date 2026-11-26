@@ -10,10 +10,10 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 // Main data model schema
 export const groupSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
 		description: Type.String(),
-		tenantId: Type.Number(),
+		tenantId: Type.Integer(),
 		// creator id so the owner can delete it
 	},
 	{ $id: 'Group', additionalProperties: false }

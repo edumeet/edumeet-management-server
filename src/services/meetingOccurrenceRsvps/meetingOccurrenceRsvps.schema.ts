@@ -8,8 +8,8 @@ import { Partstat } from '../meetingAttendees/meetingAttendees.schema';
 
 export const meetingOccurrenceRsvpSchema = Type.Object(
 	{
-		id: Type.Number(),
-		meetingAttendeeId: Type.Number(),
+		id: Type.Integer(),
+		meetingAttendeeId: Type.Integer(),
 		// Epoch ms of the original occurrence start — equivalent to iCal RECURRENCE-ID
 		recurrenceId: Type.Number(),
 		partstat: Partstat,

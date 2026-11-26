@@ -175,7 +175,9 @@ export interface ReplyOutcome {
 	updated: number;
 }
 
-export const processReplyIcs = async (app: Application, icsSource: string, sender: string | undefined): Promise<ReplyOutcome> => {
+// tenantIds: the tenants the mailbox the reply was read from belongs to. A reply answers
+// only for their meetings: what a mailbox holds is vouched for by its own tenants alone.
+export const processReplyIcs = async (app: Application, icsSource: string, sender: string | undefined, tenantIds: number[]): Promise<ReplyOutcome> => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let parsed: any;
 
@@ -260,7 +262,7 @@ export const processReplyIcs = async (app: Application, icsSource: string, sende
 			// find meeting by uid, then attendee by email
 			const meetingsRes = await app.service('meetings').find({
 				paginate: false,
-				query: { uid }
+				query: { uid, tenantId: { $in: tenantIds } }
 			});
 			const list = Array.isArray(meetingsRes) ? meetingsRes : (meetingsRes as { data: unknown[] }).data;
 			const meeting = (list as Array<{ id: number, sequence?: number | string }>)[0];
@@ -371,7 +373,7 @@ export const processReplyIcs = async (app: Application, icsSource: string, sende
 	return { isReply: true, claimed, updated };
 };
 
-export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig): Promise<void> => {
+export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfig, tenantIds: number[] = [ Number(tenantConfig.tenantId) ]): Promise<void> => {
 	if (!tenantConfig.imapHost) return;
 	const invites = app.get('invites');
 
@@ -443,7 +445,7 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 				// mailbox for good. Unmarked on failure, so a transient error still retries.
 				try {
 					const from = msg.envelope?.from ?? [];
-					const outcome = await processReplyIcs(app, ics, from.length === 1 ? from[0].address : undefined);
+					const outcome = await processReplyIcs(app, ics, from.length === 1 ? from[0].address : undefined, tenantIds);
 
 					if (!outcome.isReply) continue;
 
@@ -525,7 +527,7 @@ export const pollOnce = async (app: Application, tenantConfig: TenantInviteConfi
 	}
 };
 
-const startPoller = (app: Application, key: string, cfg: TenantInviteConfig): void => {
+const startPoller = (app: Application, key: string, cfg: TenantInviteConfig, tenantIds: number[]): void => {
 	const invites = app.get('invites');
 	const intervalMs = invites?.imapPollIntervalMs ?? DEFAULT_POLL_MS;
 	const bootDelayMs = invites?.imapPollBootDelayMs ?? POLLER_BOOT_DELAY_MS;
@@ -537,7 +539,7 @@ const startPoller = (app: Application, key: string, cfg: TenantInviteConfig): vo
 	const tick = async () => {
 		if (state.stopped) return;
 		try {
-			await pollOnce(app, cfg);
+			await pollOnce(app, cfg, tenantIds);
 		} catch (err) {
 			logger.error(`[invites/replyPoller] mailbox ${mailboxLabel(cfg)} poll cycle threw:`, err);
 		} finally {
@@ -581,11 +583,28 @@ export const desiredMailboxes = (configs: TenantInviteConfig[]): Map<string, Ten
 	return desired;
 };
 
+// The tenants that have a mailbox configured and enabled, by mailbox. Replies read from a
+// mailbox are applied to the meetings of these tenants only.
+export const mailboxTenants = (configs: TenantInviteConfig[]): Map<string, number[]> => {
+	const tenants = new Map<string, number[]>();
+
+	for (const cfg of configs) {
+		if (!cfg.enabled || !cfg.imapHost || !cfg.imapUser || !cfg.imapPass) continue;
+		const key = mailboxKey(cfg);
+
+		tenants.set(key, [ ...(tenants.get(key) ?? []), Number(cfg.tenantId) ]);
+	}
+
+	return tenants;
+};
+
 export const reconcilePollers = (app: Application, configs: TenantInviteConfig[]): void => {
 	stopAllPollers();
 
+	const tenants = mailboxTenants(configs);
+
 	for (const [ key, cfg ] of desiredMailboxes(configs)) {
-		startPoller(app, key, cfg);
+		startPoller(app, key, cfg, tenants.get(key) ?? []);
 	}
 };
 

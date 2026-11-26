@@ -9,8 +9,8 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const tenantOAuthSchema = Type.Object(
 	{
-		id: Type.Number(),
-		tenantId: Type.Number(),
+		id: Type.Integer(),
+		tenantId: Type.Integer(),
 		key: Type.String(),
 		secret: Type.String(),
 		// eslint-disable-next-line camelcase

@@ -17,20 +17,20 @@ export const VideoResolution = StringEnum([ 'low', 'medium', 'high', 'veryhigh',
 // Main data model schema
 export const roomSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
 		description: Type.String(),
 		createdAt: Type.Number(),
 		updatedAt: Type.Number(),
-		creatorId: Type.Number(), // User ID of the creator
-		tenantId: Type.Number(),
+		creatorId: Type.Integer(), // User ID of the creator
+		tenantId: Type.Integer(),
 
 		// Roles and permissions
 		owners: Type.Array(Type.Ref(roomOwnerSchema)),
 		groupRoles: Type.Array(Type.Ref(roomGroupRoleSchema)), // Group roles in this room
 		userRoles: Type.Array(Type.Ref(roomUserRoleSchema)), // User roles in this room
 		defaultRole: Type.Optional(Type.Ref(roleSchema)),
-		defaultRoleId: Type.Optional(Type.Number()), // Default role for users without a role in this room
+		defaultRoleId: Type.Optional(Type.Integer()), // Default role for users without a role in this room
 
 		// Look and feel
 		logo: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),

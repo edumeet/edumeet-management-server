@@ -9,7 +9,7 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const permissionSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
 	},

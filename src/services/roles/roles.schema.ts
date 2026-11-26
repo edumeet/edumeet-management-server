@@ -12,11 +12,11 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 // Main data model schema
 export const roleSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
 		permissions: Type.Array(Type.Ref(permissionSchema)), // Array of permissions
-		tenantId: Type.Number(),
+		tenantId: Type.Integer(),
 	},
 	{ $id: 'Role', additionalProperties: false }
 );

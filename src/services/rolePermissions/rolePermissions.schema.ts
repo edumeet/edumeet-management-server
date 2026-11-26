@@ -10,9 +10,9 @@ import { permissionSchema } from '../permissions/permissions.schema';
 // Main data model schema
 export const rolePermissionSchema = Type.Object(
 	{
-		id: Type.Number(),
-		roleId: Type.Number(),
-		permissionId: Type.Number(),
+		id: Type.Integer(),
+		roleId: Type.Integer(),
+		permissionId: Type.Integer(),
 		permission: Type.Ref(permissionSchema),
 	},
 	{ $id: 'RolePermission', additionalProperties: false }

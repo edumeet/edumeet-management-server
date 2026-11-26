@@ -54,7 +54,6 @@ export const defaults = (app: Application) => {
 			get: [],
 			create: [
 				iff(notSuperAdmin(), isTenantAdmin),
-				// iff(notSuperAdmin(), notInSameTenant),
 				// numberLimit is super-admin only — strip it from create requests by tenant admins
 				iff(notSuperAdmin(), (context) => { delete context.data['numberLimit']; }),
 				iff(notSuperAdmin(), stripLocks),

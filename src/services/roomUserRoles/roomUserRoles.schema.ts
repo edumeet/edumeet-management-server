@@ -10,10 +10,10 @@ import { roleSchema } from '../roles/roles.schema';
 // Main data model schema
 export const roomUserRoleSchema = Type.Object(
 	{
-		id: Type.Number(),
-		roomId: Type.Number(),
-		userId: Type.Number(),
-		roleId: Type.Number(),
+		id: Type.Integer(),
+		roomId: Type.Integer(),
+		userId: Type.Integer(),
+		roleId: Type.Integer(),
 		role: Type.Ref(roleSchema),
 	},
 	{ $id: 'RoomUserRole', additionalProperties: false }

@@ -9,10 +9,10 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const tenantFqdnSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		fqdn: Type.String(),
 		description: Type.Optional(Type.String()),
-		tenantId: Type.Number(),
+		tenantId: Type.Integer(),
 	},
 	{ $id: 'TenantFqdn', additionalProperties: false }
 );

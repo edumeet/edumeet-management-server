@@ -8,8 +8,8 @@ import { encrypt } from '../../invites/crypto';
 
 export const tenantInviteConfigSchema = Type.Object(
 	{
-		id: Type.Number(),
-		tenantId: Type.Number(),
+		id: Type.Integer(),
+		tenantId: Type.Integer(),
 		enabled: Type.Boolean(),
 		organizerAddress: Type.String(),
 		organizerName: Type.Optional(Type.String()),
