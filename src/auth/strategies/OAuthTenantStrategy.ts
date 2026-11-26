@@ -13,7 +13,7 @@ import { logger } from '../../logger';
 // super-admin and edumeet-server (the room servers' service account) pass every tenant check.
 const PRIVILEGED_ROLES = [ 'super-admin', 'edumeet-server' ];
 
-const hasSuperAdminRole = (roles: unknown): boolean => {
+export const hasSuperAdminRole = (roles: unknown): boolean => {
 	let list = roles;
 
 	if (typeof list === 'string') {
