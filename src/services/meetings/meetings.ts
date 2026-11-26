@@ -18,6 +18,7 @@ import { MeetingService, getOptions } from './meetings.class';
 import { meetingPath, meetingMethods } from './meetings.shared';
 import { isRoomOwnerOrAdminForMeeting } from '../../hooks/isRoomOwnerOrAdminForMeeting';
 import { limitMeetingsPerRoom } from '../../hooks/limitMeetingsPerRoom';
+import { transaction } from '@feathersjs/knex';
 import { beforeMeetingRemoveDispatch } from '../../invites/dispatcher';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { logger } from '../../logger';
@@ -205,13 +206,15 @@ export const meeting = (app: Application) => {
 			create: [
 				isRoomOwnerOrAdminForMeeting,
 				schemaHooks.validateData(meetingDataValidator),
-				limitMeetingsPerRoom,
-				schemaHooks.resolveData(meetingDataResolver)
+				schemaHooks.resolveData(meetingDataResolver),
+				// Last: inside the transaction only its own connection is used. A hook that took a
+				// second one would wait for the pool while holding the lock the others wait for.
+				transaction.start(),
+				limitMeetingsPerRoom
 			],
 			patch: [
 				isRoomOwnerOrAdminForMeeting,
 				schemaHooks.validateData(meetingPatchValidator),
-				limitMeetingsPerRoom,
 				async (context) => {
 					// bump sequence on every patch so attendees get iTIP REQUEST/CANCEL updates
 					const current = await context.app.service('meetings').get(context.id as number);
@@ -219,16 +222,22 @@ export const meeting = (app: Application) => {
 
 					data.sequence = (current.sequence ?? 0) + 1;
 				},
-				schemaHooks.resolveData(meetingPatchResolver)
+				schemaHooks.resolveData(meetingPatchResolver),
+				transaction.start(),
+				limitMeetingsPerRoom
 			],
 			remove: [ isRoomOwnerOrAdminForMeeting, beforeMeetingRemoveDispatch ]
 		},
 		after: {
 			all: [],
-			create: [ addOrganizerAsAttendee ]
+			// The organizer is added through other services, after the meeting is committed.
+			create: [ transaction.end(), addOrganizerAsAttendee ],
+			patch: [ transaction.end() ]
 		},
 		error: {
-			all: []
+			all: [],
+			create: [ transaction.rollback() ],
+			patch: [ transaction.rollback() ]
 		}
 	});
 };

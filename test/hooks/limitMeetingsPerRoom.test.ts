@@ -93,6 +93,29 @@ describe('the meetings of a room that may still take place', () => {
 		await assert.rejects(app.service('meetings').patch(elsewhere, { roomId: roomA } as never, asOwner() as never), { code: 400 });
 	});
 
+	it('holds the limit for creates that arrive together', async () => {
+		const results = await Promise.allSettled(Array.from({ length: 6 }, () => create(roomA)));
+		const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+		assert.strictEqual(results.length - refused.length, 2);
+		assert.ok(refused.every((r) => (r.reason as { code?: number })?.code === 400), String(refused[0]?.reason));
+	}).timeout(20000);
+
+	it('holds the limit for meetings moved into a room together', async () => {
+		await create(roomA);
+		const elsewhere = [];
+
+		// Past ones, so they do not count in room B; the move makes them upcoming in room A.
+		for (let i = 0; i < 4; i++) elsewhere.push(await create(roomB, past));
+
+		const upcoming = { roomId: roomA, startsAt: Date.now() + HOUR, endsAt: Date.now() + (2 * HOUR) };
+		const results = await Promise.allSettled(elsewhere.map((id) => app.service('meetings').patch(id, upcoming as never, asOwner() as never)));
+		const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+		assert.strictEqual(results.length - refused.length, 1);
+		assert.ok(refused.every((r) => (r.reason as { code?: number })?.code === 400), String(refused[0]?.reason));
+	}).timeout(20000);
+
 	it('lets a meeting that already counts be changed in a full room', async () => {
 		const first = await create(roomA);
 

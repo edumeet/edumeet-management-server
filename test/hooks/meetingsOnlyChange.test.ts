@@ -190,31 +190,21 @@ describe('meetingsOnly change on a room re-sends its invites', () => {
 	});
 
 	it('gives the server back between meetings, so long recurrences do not block it', async () => {
-		const longSeries = { notified: true, rrule: 'FREQ=DAILY;INTERVAL=1;UNTIL=20991231T000000Z', startsAt: Date.UTC(2000, 0, 1, 9), endsAt: Date.UTC(2000, 0, 1, 10) };
-		const h = harness(false, Array.from({ length: 8 }, (_, i) => ({ id: 30 + i, ...longSeries })));
+		const h = harness(false, Array.from({ length: 8 }, (_, i) => ({ id: 30 + i, notified: false })));
 		const { app, id } = h.context({});
-		let last = performance.now();
-		let longest = 0;
+		let turns = 0;
 		let ticking = true;
 		const tick = () => {
-			const now = performance.now();
-
-			longest = Math.max(longest, now - last);
-			last = now;
-			if (ticking) setImmediate(tick);
+			if (!ticking) return;
+			turns++;
+			setImmediate(tick);
 		};
 
 		setImmediate(tick);
-		const start = performance.now();
-
 		await rescheduleRoomMeetings(app, id as number);
-		const end = performance.now();
-		const total = end - start;
-
 		ticking = false;
-		// Also the time since the last tick: without a pause, no tick runs until the end.
-		longest = Math.max(longest, end - last);
-		assert.ok(total > 40, `expanding took ${total} ms`);
-		assert.ok(longest < total / 2, `the server was held for ${longest} ms of ${total} ms`);
-	}).timeout(15000);
+
+		// Without a pause the meetings are processed in one go and the ticker gets no turn at all.
+		assert.ok(turns >= 7, `the server got ${turns} turns while 8 meetings were processed`);
+	});
 });
