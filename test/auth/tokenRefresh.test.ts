@@ -98,6 +98,21 @@ describe('token-refresh wiring', () => {
 		assert.strictEqual(thirdPayload.sub, '1');
 	});
 
+	// The room servers compare it with the tenant of the address; a token without it counts
+	// there as a guest.
+	it('writes the user\'s tenant into the token at sign in and keeps it through refreshes', async () => {
+		const { app } = makeApp();
+		const verify = (token: string) => app.service('authentication').verifyAccessToken(token);
+		const tenantUser = await signIn(app, '1');
+		const superAdmin = await signIn(app, '2');
+
+		assert.strictEqual((await verify(tenantUser)).tenantId, 1);
+		assert.strictEqual((await verify(await refresh(app, tenantUser))).tenantId, 1);
+		assert.ok('tenantId' in await verify(superAdmin));
+		assert.strictEqual((await verify(superAdmin)).tenantId, null);
+		assert.strictEqual((await verify(await refresh(app, superAdmin))).tenantId, null);
+	});
+
 	it('refuses a refresh without a token before any rule is looked at', async () => {
 		const { app } = makeApp();
 

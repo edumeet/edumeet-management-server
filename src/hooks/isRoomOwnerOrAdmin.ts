@@ -40,7 +40,8 @@ const assertRoomOwnerOrAdmin = async (context: HookContext, roomIdText: string):
 		// is tenant admin but still might be from an other tenant
 		const { tenantId } = await context.app.service('rooms').get(roomId);
 
-		if (tenantId && tenantId != parseInt(context.params.user.tenantId))
+		// A room without a tenant is no tenant's: it used to pass for the admins of all.
+		if (String(tenantId ?? '') !== String(user.tenantId ?? ''))
 			throw new Forbidden('You are not an owner of this room');
 
 		return;

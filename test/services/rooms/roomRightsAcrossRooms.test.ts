@@ -97,6 +97,37 @@ describe('room rights across rooms and tenants', () => {
 		});
 	});
 
+	describe('a room without a tenant', () => {
+		let noTenantRoom: number;
+
+		before(async () => {
+			noTenantRoom = Number((await svc('rooms').create({ name: `${stamp}-none`, tenantId: tenantA }, internal)).id);
+			await app.get('postgresqlClient')('rooms').where({ id: noTenantRoom })
+				.update({ tenantId: null });
+		});
+
+		after(async () => {
+			if (noTenantRoom) await svc('rooms').remove(noTenantRoom, internal);
+		});
+
+		it('does not take owners from the admins of a tenant', async () => {
+			await assert.rejects(svc('roomOwners').create({ roomId: noTenantRoom, userId: userA }, asAdmin()), /not an owner/);
+		});
+
+		it('does not take role holders or group roles from the admins of a tenant', async () => {
+			await assert.rejects(svc('roomUserRoles').create({ roomId: noTenantRoom, userId: userA, roleId: roleA }, asAdmin()), /not an owner/);
+			await assert.rejects(svc('roomGroupRoles').create({ roomId: noTenantRoom, groupId: groupA, roleId: roleA }, asAdmin()), /not an owner/);
+		});
+
+		it('keeps its settings from the admins of a tenant', async () => {
+			await assert.rejects(svc('rooms').patch(noTenantRoom, { description: 'taken' }, asAdmin()));
+		});
+
+		it('leaves the admins their own tenant\'s rooms', async () => {
+			await svc('rooms').patch(otherRoom, { description: 'by the admin' }, asAdmin());
+		});
+	});
+
 	describe('rights handed out', () => {
 		it('must name a group, role and user of the own tenant', async () => {
 			await assert.rejects(svc('roomGroupRoles').create({ roomId: ownRoom, groupId: groupB, roleId: roleA }, asAdmin()), /groupId must belong/);
