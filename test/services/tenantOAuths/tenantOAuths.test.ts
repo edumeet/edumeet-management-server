@@ -98,6 +98,40 @@ describe('tenantOAuths service', () => {
 			assert.strictEqual(row.scope, 'openid email');
 		});
 
+		it('holds a tenant owner to the same rules as a tenant admin', async () => {
+			const ownerOfA = (): Params => ({
+				provider: 'rest',
+				authenticated: true,
+				user: { id: 903, tenantId: tenantA, tenantOwner: true, roles: [] as string[] },
+				query: {},
+			}) as unknown as Params;
+
+			await assert.rejects(app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, ownerOfA()), { code: 403 });
+			assert.strictEqual((await rowsOf(tenantA)).length, 0);
+
+			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp({ end_session_endpoint: 'https://idp.example/logout' }) }, superAdmin());
+
+			for (const key of [ 'authorize_url', 'access_url', 'profile_url', 'end_session_endpoint' ]) {
+				await assert.rejects(app.service('tenantOAuths').patch(created.id, { [key]: 'https://attacker.example/x' }, ownerOfA()), { code: 403 }, key);
+			}
+
+			await app.service('tenantOAuths').patch(created.id, { key: 'client-owner' }, ownerOfA());
+
+			const row = await rowOf(created.id);
+
+			assert.strictEqual(row.key, 'client-owner');
+			assert.strictEqual(row.access_url, 'https://idp.example/token');
+			assert.strictEqual(row.end_session_endpoint, 'https://idp.example/logout');
+		});
+
+		it('refuses a tenant admin an address change sent without an id', async () => {
+			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, superAdmin());
+
+			await assert.rejects(app.service('tenantOAuths').patch(null, { access_url: 'https://attacker.example/token' }, adminOfA()));
+
+			assert.strictEqual((await rowOf(created.id)).access_url, 'https://idp.example/token');
+		});
+
 		it('lets a super admin set where the sign-in goes', async () => {
 			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, superAdmin());
 
