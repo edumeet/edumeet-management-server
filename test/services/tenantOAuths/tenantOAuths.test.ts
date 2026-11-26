@@ -127,7 +127,7 @@ describe('tenantOAuths service', () => {
 		it('refuses a tenant admin an address change sent without an id', async () => {
 			const created = await app.service('tenantOAuths').create({ tenantId: tenantA, ...idp() }, superAdmin());
 
-			await assert.rejects(app.service('tenantOAuths').patch(null, { access_url: 'https://attacker.example/token' }, adminOfA()));
+			await assert.rejects(app.service('tenantOAuths').patch(null, { access_url: 'https://attacker.example/token' }, adminOfA()), { code: 404 });
 
 			assert.strictEqual((await rowOf(created.id)).access_url, 'https://idp.example/token');
 		});

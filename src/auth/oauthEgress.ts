@@ -1,6 +1,6 @@
 import dns from 'dns';
 import { BlockList, isIP } from 'net';
-import { BadRequest, Forbidden } from '@feathersjs/errors';
+import { BadRequest, Forbidden, NotFound } from '@feathersjs/errors';
 import { getGrantConfig } from '@feathersjs/authentication-oauth/lib/utils';
 import type { Application, HookContext } from '../declarations';
 
@@ -116,7 +116,8 @@ export const lockOAuthAddresses = async (context: HookContext): Promise<HookCont
 		.where({ id: context.id, ...(tenantId !== undefined ? { tenantId } : {}) })
 		.first(...OAUTH_ADDRESS_KEYS);
 
-	if (!current) return context;
+	// Not left to the patch itself: without an id or in another tenant there is no entry to change.
+	if (!current) throw new NotFound(`No record found for id '${context.id}'`);
 
 	if (sent.some((key) => (data[key] ?? '') !== (current[key] ?? ''))) throw new Forbidden(ADDRESSES_LOCKED);
 
