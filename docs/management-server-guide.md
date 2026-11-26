@@ -38,6 +38,10 @@ yarn start
 ```
 With edumeet-docker: `docker compose exec -it edumeet-management-server yarn set-password edumeet-admin@localhost`.
 
+An address is unique per tenant only. Without a tenant, `set-password` changes the account
+that belongs to no tenant, such as the super-admin. For the account of a tenant, add the
+tenant's id: `yarn set-password someone@example.edu 3`.
+
 ## Testing
 
 Configure a separate test database first: `yarn test` runs migrations and changes
