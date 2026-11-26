@@ -51,7 +51,8 @@
 		"imapPollIntervalMs": 60000,
 		"imapPollBootDelayMs": 5000,
 		"imapRetentionDays": 30,
-		"maxAttendeesPerMeeting": 300
+		"maxAttendeesPerMeeting": 300,
+		"maxMeetingsPerRoom": 100
 	},
 	"bots": {
 		"encryptionKey": ""

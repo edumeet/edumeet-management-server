@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { rememberMeetingsOnly, resendInvitesOnMeetingsOnlyChange } from '../../src/hooks/meetingsOnlyChange';
-import { DISPATCH_DEBOUNCE_MS } from '../../src/invites/dispatcher';
+import { DISPATCH_DEBOUNCE_MS, rescheduleRoomMeetings } from '../../src/invites/dispatcher';
 import type { HookContext } from '../../src/declarations';
 import { logger } from '../../src/logger';
 
@@ -12,6 +12,9 @@ interface MeetingRow {
 	id: number;
 	notified: boolean;
 	ended?: boolean;
+	rrule?: string;
+	startsAt?: number;
+	endsAt?: number;
 }
 
 interface Harness {
@@ -22,8 +25,12 @@ interface Harness {
 	increments: number[];
 }
 
+// A room of its own for every harness, so that no test waits for another one's round.
+let nextRoomId = 1000;
+
 const harness = (stored: boolean | number, meetings: MeetingRow[]): Harness => {
 	const state = { roomReads: 0, meetingLookups: 0, increments: [] as number[] };
+	const roomId = nextRoomId++;
 
 	const knex = (table: string) => {
 		if (table === 'rooms') {
@@ -38,19 +45,22 @@ const harness = (stored: boolean | number, meetings: MeetingRow[]): Harness => {
 			};
 		}
 		if (table === 'meetings') {
+			const rows = async () => {
+				state.meetingLookups++;
+
+				return meetings.map((m) => ({
+					id: m.id,
+					startsAt: m.startsAt ?? (m.ended ? Date.now() - 7_200_000 : Date.now() + 3_600_000),
+					endsAt: m.endsAt ?? (m.ended ? Date.now() - 3_600_000 : Date.now() + 7_200_000),
+					rrule: m.rrule ?? null,
+					timezone: 'UTC'
+				}));
+			};
+
 			return {
 				where: (arg: { id?: number, roomId?: number }) => ({
-					select: async () => {
-						state.meetingLookups++;
-
-						return meetings.map((m) => ({
-							id: m.id,
-							startsAt: m.ended ? Date.now() - 7_200_000 : Date.now() + 3_600_000,
-							endsAt: m.ended ? Date.now() - 3_600_000 : Date.now() + 7_200_000,
-							rrule: null,
-							timezone: 'UTC'
-						}));
-					},
+					andWhere: () => ({ select: rows }),
+					select: rows,
 					increment: async () => {
 						state.increments.push(arg.id as number);
 					}
@@ -79,7 +89,7 @@ const harness = (stored: boolean | number, meetings: MeetingRow[]): Harness => {
 	};
 
 	return {
-		context: (over) => ({ app, id: 7, params: {}, data: {}, ...over } as unknown as HookContext),
+		context: (over) => ({ app, id: roomId, params: {}, data: {}, ...over } as unknown as HookContext),
 		get roomReads() { return state.roomReads; },
 		get meetingLookups() { return state.meetingLookups; },
 		get increments() { return state.increments; }
@@ -165,4 +175,46 @@ describe('meetingsOnly change on a room re-sends its invites', () => {
 
 		assert.strictEqual(h.meetingLookups, 0, 'tinyint 1 is the same as true, nothing changed');
 	});
+
+	it('queues changes while the room is still being re-sent, with one more round for all of them', async () => {
+		const h = harness(false, [ { id: 21, notified: true } ]);
+		const { app, id } = h.context({});
+
+		await Promise.all([ 1, 2, 3, 4 ].map(() => rescheduleRoomMeetings(app, id as number)));
+
+		assert.strictEqual(h.meetingLookups, 2, 'the first round and one more for the three changes during it');
+
+		await rescheduleRoomMeetings(app, id as number);
+
+		assert.strictEqual(h.meetingLookups, 3, 'a later change gets its own round at once');
+	});
+
+	it('gives the server back between meetings, so long recurrences do not block it', async () => {
+		const longSeries = { notified: true, rrule: 'FREQ=DAILY;INTERVAL=1;UNTIL=20991231T000000Z', startsAt: Date.UTC(2000, 0, 1, 9), endsAt: Date.UTC(2000, 0, 1, 10) };
+		const h = harness(false, Array.from({ length: 8 }, (_, i) => ({ id: 30 + i, ...longSeries })));
+		const { app, id } = h.context({});
+		let last = performance.now();
+		let longest = 0;
+		let ticking = true;
+		const tick = () => {
+			const now = performance.now();
+
+			longest = Math.max(longest, now - last);
+			last = now;
+			if (ticking) setImmediate(tick);
+		};
+
+		setImmediate(tick);
+		const start = performance.now();
+
+		await rescheduleRoomMeetings(app, id as number);
+		const end = performance.now();
+		const total = end - start;
+
+		ticking = false;
+		// Also the time since the last tick: without a pause, no tick runs until the end.
+		longest = Math.max(longest, end - last);
+		assert.ok(total > 40, `expanding took ${total} ms`);
+		assert.ok(longest < total / 2, `the server was held for ${longest} ms of ${total} ms`);
+	}).timeout(15000);
 });

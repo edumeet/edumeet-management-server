@@ -13,7 +13,9 @@ export const inviteConfigSchema = Type.Object({
 	imapPollBootDelayMs: Type.Optional(Type.Number()),
 	imapRetentionDays: Type.Optional(Type.Number()),
 	// Guests per meeting, the organizer included; every change re-sends to all of them.
-	maxAttendeesPerMeeting: Type.Optional(Type.Number({ minimum: 1 }))
+	maxAttendeesPerMeeting: Type.Optional(Type.Number({ minimum: 1 })),
+	// Recurring or upcoming meetings per room; a change of the room's meetingsOnly re-sends to all.
+	maxMeetingsPerRoom: Type.Optional(Type.Number({ minimum: 1 }))
 });
 
 // Kept apart from the invites key so either can be rotated on its own.

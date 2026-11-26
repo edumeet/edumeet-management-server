@@ -17,6 +17,7 @@ import type { Application, HookContext } from '../../declarations';
 import { MeetingService, getOptions } from './meetings.class';
 import { meetingPath, meetingMethods } from './meetings.shared';
 import { isRoomOwnerOrAdminForMeeting } from '../../hooks/isRoomOwnerOrAdminForMeeting';
+import { limitMeetingsPerRoom } from '../../hooks/limitMeetingsPerRoom';
 import { beforeMeetingRemoveDispatch } from '../../invites/dispatcher';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { logger } from '../../logger';
@@ -204,11 +205,13 @@ export const meeting = (app: Application) => {
 			create: [
 				isRoomOwnerOrAdminForMeeting,
 				schemaHooks.validateData(meetingDataValidator),
+				limitMeetingsPerRoom,
 				schemaHooks.resolveData(meetingDataResolver)
 			],
 			patch: [
 				isRoomOwnerOrAdminForMeeting,
 				schemaHooks.validateData(meetingPatchValidator),
+				limitMeetingsPerRoom,
 				async (context) => {
 					// bump sequence on every patch so attendees get iTIP REQUEST/CANCEL updates
 					const current = await context.app.service('meetings').get(context.id as number);
