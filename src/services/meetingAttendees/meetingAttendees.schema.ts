@@ -10,9 +10,9 @@ export const Partstat = StringEnum([ 'NEEDS-ACTION', 'ACCEPTED', 'DECLINED', 'TE
 
 export const meetingAttendeeSchema = Type.Object(
 	{
-		id: Type.Number(),
-		meetingId: Type.Number(),
-		userId: Type.Optional(Type.Number()),
+		id: Type.Integer(),
+		meetingId: Type.Integer(),
+		userId: Type.Optional(Type.Integer()),
 		email: Type.String({ format: 'email', maxLength: 254 }),
 		name: Type.Optional(Type.String({ maxLength: 200 })),
 		partstat: Partstat,

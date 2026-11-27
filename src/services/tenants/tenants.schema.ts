@@ -10,7 +10,7 @@ import { jsonColumn } from '../../hooks/jsonColumn';
 // Main data model schema
 export const tenantSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
 		description: Type.Optional(Type.String()),
 		hideUserDetails: Type.Optional(Type.Boolean()),

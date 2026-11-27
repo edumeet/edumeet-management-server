@@ -1,12 +1,13 @@
 import { HookContext } from '../declarations';
+import { strictId } from './strictId';
 
-export const notInSameTenant = (context: HookContext) => {
-	if (parseInt(context.data.tenantId) !== parseInt(context.params.user.tenantId))
-		throw new Error('You are not in the same tenant');
-};
 export const notInSameTenantByContextId = async (context: HookContext) => {
+	// The row that is checked here is the row the database then acts on: the same id, in
+	// the one form every database reads alike.
+	context.id = strictId(context.id);
+
 	const userValidator = context.service;
-	const validationRecord = await userValidator.get(parseInt(context.arguments[0]));
+	const validationRecord = await userValidator.get(context.id);
 
 	if (validationRecord) {
 		// TODO context.params.user.id (creator id could be an additional check)

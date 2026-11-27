@@ -35,14 +35,21 @@ const validateInviteConfigComplete = async (context: HookContext): Promise<HookC
 	let existing: Record<string, unknown> = {};
 
 	if (context.method === 'patch' && context.id != null) {
-		try {
-			existing = await context.app.service('tenantInviteConfigs').get(context.id, { provider: undefined }) as Record<string, unknown>;
-		} catch { /* row may not exist yet — treat as empty */ }
+		// Only the row the patch itself will reach: the query is limited to the caller's tenant
+		// by now. A row of another tenant is not found here, as it is not found by the patch,
+		// so the answer says nothing about it.
+		const { tenantId } = context.params.query ?? {};
+
+		existing = await context.app.service('tenantInviteConfigs').get(context.id, {
+			provider: undefined,
+			query: tenantId === undefined ? {} : { tenantId }
+		}) as Record<string, unknown>;
 	}
 	const merged = { ...existing, ...data };
 
-	// Only enforce completeness when the effective config is enabled.
-	if (merged.enabled !== true) return context;
+	// Only enforce completeness when the effective config is enabled. A stored row has true
+	// on PostgreSQL and 1 on MySQL.
+	if (!merged.enabled) return context;
 
 	const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 	const missing: string[] = [];

@@ -11,8 +11,8 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 // Main data model schema
 export const defaultSchema = Type.Object(
 	{
-		id: Type.Number(),
-		tenantId: Type.Number(),
+		id: Type.Integer(),
+		tenantId: Type.Integer(),
 		// # OVERRIDE
 		// tenant limits (should require super admin)
 		numberLimit: Type.Optional(Type.Number()), // (number of managed rooms that can be created by tenant), -unlimited-
@@ -48,21 +48,21 @@ export const defaultSchema = Type.Object(
 		logo: Type.Optional(Type.String({ maxLength: IMAGE_URL_MAX_LENGTH, pattern: IMAGE_URL_PATTERN })),
 		// # defaults
 		// roleid for default role used as a fallback 
-		defaultRoleId: Type.Optional(Type.Number()),
+		defaultRoleId: Type.Optional(Type.Integer()),
 		defaultRole: Type.Object(
 			{
-				id: Type.Number(),
+				id: Type.Integer(),
 				name: Type.String(),
 				description: Type.Optional(Type.String()),
 				permissions: Type.Array(Type.Object(
 					{
-						id: Type.Number(),
+						id: Type.Integer(),
 						name: Type.String(),
 						description: Type.Optional(Type.String()),
 					},
 					{ $id: 'Permission', additionalProperties: false }
 				)), // Array of permissions
-				tenantId: Type.Number(),
+				tenantId: Type.Integer(),
 			},
 			{ $id: 'Role', additionalProperties: false }
 		),

@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { encrypt } from '../../src/invites/crypto';
-import { pollOnce, desiredMailboxes } from '../../src/invites/replyPoller';
+import { pollOnce, desiredMailboxes, mailboxTenants } from '../../src/invites/replyPoller';
 import type { Application } from '../../src/declarations';
 import type { TenantInviteConfig } from '../../src/services/tenantInviteConfigs/tenantInviteConfigs.schema';
 import { logger } from '../../src/logger';
@@ -510,6 +510,41 @@ describe('poll cycle', () => {
 			]);
 
 			assert.strictEqual(desired.size, 1, 'racing pollers on one inbox consume each others replies');
+		});
+
+		it('looks a reply up among the meetings of the mailbox\'s tenants only', async () => {
+			const asked: unknown[] = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const base = app() as any;
+			const recording = {
+				...base,
+				service: (name: string) => (name === 'meetings'
+					? { find: async (params: { query: { tenantId: unknown } }) => {
+						asked.push(params.query.tenantId);
+
+						return [];
+					} }
+					: base.service(name))
+			} as Application;
+
+			installImap([ replyMessage(1, 'uid-1@meet.example.edu') ]);
+			await pollOnce(recording, cfg({ tenantId: 4 }), [ 4, 9 ]);
+			installImap([ replyMessage(1, 'uid-1@meet.example.edu') ]);
+			await pollOnce(recording, cfg({ tenantId: 4 }));
+
+			assert.deepStrictEqual(asked, [ { $in: [ 4, 9 ] }, { $in: [ 4 ] } ]);
+		});
+
+		it('knows the tenants of each mailbox: those with an enabled, complete configuration for it', () => {
+			const tenants = mailboxTenants([
+				mailbox({ id: 1, tenantId: 1 }),
+				mailbox({ id: 2, tenantId: 2 }),
+				mailbox({ id: 3, tenantId: 3, enabled: false }),
+				mailbox({ id: 4, tenantId: 4, imapPass: '' }),
+				mailbox({ id: 5, tenantId: 5, imapUser: 'other@example.com' })
+			]);
+
+			assert.deepStrictEqual([ ...tenants.values() ], [ [ 1, 2 ], [ 5 ] ]);
 		});
 
 		it('keeps the first enabled config as the representative', () => {

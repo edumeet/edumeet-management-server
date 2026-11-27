@@ -9,9 +9,9 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const groupUserSchema = Type.Object(
 	{
-		id: Type.Number(),
-		groupId: Type.Number(),
-		userId: Type.Number(),
+		id: Type.Integer(),
+		groupId: Type.Integer(),
+		userId: Type.Integer(),
 	},
 	{ $id: 'GroupUser', additionalProperties: false }
 );

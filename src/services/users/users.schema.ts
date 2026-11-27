@@ -11,11 +11,11 @@ import { jsonColumn } from '../../hooks/jsonColumn';
 // Main data model schema
 export const userSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		ssoId: Type.Optional(Type.String()),
 		// false when the stored address is an unverified claim of the identity provider
 		emailVerified: Type.Optional(Type.Union([ Type.Boolean(), Type.Null() ])),
-		tenantId: Type.Optional(Type.Number()),
+		tenantId: Type.Optional(Type.Integer()),
 		email: Type.String(),
 		password: Type.Optional(Type.String()),
 		name: Type.Optional(Type.String()),

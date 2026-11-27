@@ -9,9 +9,9 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const tenantOwnerSchema = Type.Object(
 	{
-		id: Type.Number(),
-		tenantId: Type.Number(),
-		userId: Type.Number(),
+		id: Type.Integer(),
+		tenantId: Type.Integer(),
+		userId: Type.Integer(),
 	},
 	{ $id: 'TenantOwner', additionalProperties: false }
 );

@@ -1,4 +1,5 @@
 import { HookContext } from '../declarations';
+import { strictId } from './strictId';
 
 export const roleIdTenantCheck = async (context: HookContext): Promise<void> => {
 	// If the user is not logged in, throw an error.
@@ -20,8 +21,12 @@ export const roleIdTenantCheck = async (context: HookContext): Promise<void> => 
 };
 
 export const roleIdTenantCheckOnDelete = async (context: HookContext) => {
+	// The row that is checked here is the row the database then removes: the same id, in
+	// the one form every database reads alike.
+	context.id = strictId(context.id);
+
 	const userValidator = context.service;
-	const validationRecord = await userValidator.get(parseInt(context.arguments[0]));
+	const validationRecord = await userValidator.get(context.id);
 
 	if (validationRecord) {
 		const roleId = validationRecord.roleId;

@@ -8,9 +8,9 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const resolvedUserSchema = Type.Object(
 	{
-		id: Type.Number(),
-		userId: Type.Number(),
-		resolvedUserId: Type.Number(),
+		id: Type.Integer(),
+		userId: Type.Integer(),
+		resolvedUserId: Type.Integer(),
 	},
 	{ $id: 'ResolvedUser', additionalProperties: false }
 );

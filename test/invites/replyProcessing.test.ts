@@ -15,12 +15,16 @@ interface Fixture {
 	rec: Recorded;
 }
 
+// The tenant of the meeting, and the tenants of the mailbox the reply was read from.
+const TENANT = 7;
+const TENANTS = [ TENANT ];
+
 const fixture = (opts: {
-	meeting?: { id: number, sequence?: number };
+	meeting?: { id: number, sequence?: number, tenantId?: number };
 	attendee?: Record<string, unknown>;
 	rsvp?: Record<string, unknown>;
 } = {}): Fixture => {
-	const meeting = 'meeting' in opts ? opts.meeting : { id: 11, sequence: 9 };
+	const meeting = 'meeting' in opts ? opts.meeting : { id: 11, sequence: 9, tenantId: TENANT };
 	const attendee = 'attendee' in opts
 		? opts.attendee
 		: { id: 22, meetingId: 11, email: 'guest@example.org', partstat: 'NEEDS-ACTION' };
@@ -29,7 +33,13 @@ const fixture = (opts: {
 	const app = {
 		get: () => undefined,
 		service: (name: string) => {
-			if (name === 'meetings') return { find: async () => (meeting ? [ meeting ] : []) };
+			if (name === 'meetings') {
+				return {
+					// as the database answers: only a meeting of one of the tenants asked for
+					find: async ({ query }: { query: { tenantId: { $in: number[] } } }) =>
+						(meeting && query.tenantId.$in.includes(meeting.tenantId ?? TENANT) ? [ meeting ] : [])
+				};
+			}
 			if (name === 'meetingAttendees') {
 				return {
 					find: async () => (attendee ? [ attendee ] : []),
@@ -100,7 +110,7 @@ describe('reply processing', () => {
 	it('records an accepted reply with its sequence and dtstamp', async () => {
 		const f = fixture();
 
-		const outcome = await processReplyIcs(f.app, reply(), GUEST);
+		const outcome = await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 		assert.deepStrictEqual(outcome, { isReply: true, claimed: 1, updated: 1 });
 		assert.strictEqual(f.rec.attendeePatches.length, 1);
@@ -113,7 +123,7 @@ describe('reply processing', () => {
 	it('ignores anything that is not a REPLY', async () => {
 		const f = fixture();
 
-		const outcome = await processReplyIcs(f.app, reply({ METHOD: 'REQUEST' }), GUEST);
+		const outcome = await processReplyIcs(f.app, reply({ METHOD: 'REQUEST' }), GUEST, TENANTS);
 
 		assert.strictEqual(outcome.isReply, false, 'a REQUEST must not be treated as a reply');
 		assert.strictEqual(outcome.claimed, 0);
@@ -123,7 +133,7 @@ describe('reply processing', () => {
 	it('normalizes an unrecognized partstat to NEEDS-ACTION', async () => {
 		const f = fixture();
 
-		await processReplyIcs(f.app, reply({ PARTSTAT: 'DELEGATED' }), GUEST);
+		await processReplyIcs(f.app, reply({ PARTSTAT: 'DELEGATED' }), GUEST, TENANTS);
 
 		assert.strictEqual(f.rec.attendeePatches[0].data.partstat, 'NEEDS-ACTION');
 	});
@@ -131,7 +141,7 @@ describe('reply processing', () => {
 	it('matches the attendee regardless of MAILTO case', async () => {
 		const f = fixture();
 
-		await processReplyIcs(f.app, reply({ MAILTO: 'MAILTO:Guest@Example.org' }), GUEST);
+		await processReplyIcs(f.app, reply({ MAILTO: 'MAILTO:Guest@Example.org' }), GUEST, TENANTS);
 
 		assert.strictEqual(f.rec.attendeePatches.length, 1);
 	});
@@ -142,7 +152,7 @@ describe('reply processing', () => {
 		it('drops a reply with a lower sequence', async () => {
 			const f = fixture({ attendee: stored });
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '3' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '3' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 0, 'a late ACCEPT must not overwrite a newer DECLINE');
 		});
@@ -150,7 +160,7 @@ describe('reply processing', () => {
 		it('drops a reply with an equal sequence and an older dtstamp', async () => {
 			const f = fixture({ attendee: { ...stored, replyDtstamp: Date.UTC(2026, 8, 10, 12, 0, 0) } });
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '5', DTSTAMP: '20260910T090000Z' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '5', DTSTAMP: '20260910T090000Z' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 0);
 		});
@@ -158,7 +168,7 @@ describe('reply processing', () => {
 		it('applies a reply with an equal sequence and a newer dtstamp', async () => {
 			const f = fixture({ attendee: { ...stored, replyDtstamp: Date.UTC(2026, 8, 10, 8, 0, 0) } });
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '5', DTSTAMP: '20260910T090000Z' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '5', DTSTAMP: '20260910T090000Z' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 1);
 		});
@@ -166,7 +176,7 @@ describe('reply processing', () => {
 		it('applies a higher sequence even when its dtstamp is older', async () => {
 			const f = fixture({ attendee: { ...stored, replySequence: 4, replyDtstamp: Date.UTC(2026, 8, 10, 12, 0, 0) } });
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '9', DTSTAMP: '20260910T090000Z' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '9', DTSTAMP: '20260910T090000Z' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 1, 'SEQUENCE outranks DTSTAMP');
 		});
@@ -174,7 +184,7 @@ describe('reply processing', () => {
 		it('accepts the first reply when nothing is stored yet', async () => {
 			const f = fixture({ attendee: { id: 22, meetingId: 11, email: 'guest@example.org' } });
 
-			await processReplyIcs(f.app, reply(), GUEST);
+			await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 1);
 		});
@@ -183,7 +193,7 @@ describe('reply processing', () => {
 	describe('ownership, which decides whether the message may be consumed', () => {
 		it('claims a reply it applied', async () => {
 			const f = fixture();
-			const outcome = await processReplyIcs(f.app, reply(), GUEST);
+			const outcome = await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.strictEqual(outcome.claimed, 1);
 			assert.strictEqual(outcome.updated, 1);
@@ -195,7 +205,7 @@ describe('reply processing', () => {
 			const f = fixture({
 				attendee: { id: 22, meetingId: 11, email: 'guest@example.org', replySequence: 9, replyDtstamp: 5000 }
 			});
-			const outcome = await processReplyIcs(f.app, reply({ SEQUENCE: '3' }), GUEST);
+			const outcome = await processReplyIcs(f.app, reply({ SEQUENCE: '3' }), GUEST, TENANTS);
 
 			assert.strictEqual(outcome.claimed, 1, 'a stale duplicate still belongs to this deployment');
 			assert.strictEqual(outcome.updated, 0);
@@ -204,7 +214,7 @@ describe('reply processing', () => {
 
 		it('claims an occurrence reply it applied', async () => {
 			const f = fixture();
-			const outcome = await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }), GUEST);
+			const outcome = await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }), GUEST, TENANTS);
 
 			assert.strictEqual(outcome.claimed, 1);
 			assert.strictEqual(outcome.updated, 1);
@@ -212,14 +222,14 @@ describe('reply processing', () => {
 
 		it('claims nothing when the meeting belongs to another deployment', async () => {
 			const f = fixture({ meeting: undefined });
-			const outcome = await processReplyIcs(f.app, reply(), GUEST);
+			const outcome = await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.deepStrictEqual(outcome, { isReply: true, claimed: 0, updated: 0 });
 		});
 
 		it('claims nothing when the replier is on no guest list here', async () => {
 			const f = fixture({ attendee: undefined });
-			const outcome = await processReplyIcs(f.app, reply(), GUEST);
+			const outcome = await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.strictEqual(outcome.claimed, 0);
 		});
@@ -229,7 +239,7 @@ describe('reply processing', () => {
 		it('writes nothing when no meeting has that uid', async () => {
 			const f = fixture({ meeting: undefined });
 
-			await processReplyIcs(f.app, reply(), GUEST);
+			await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 0);
 		});
@@ -237,7 +247,7 @@ describe('reply processing', () => {
 		it('writes nothing when the replier is not on the guest list', async () => {
 			const f = fixture({ attendee: undefined });
 
-			await processReplyIcs(f.app, reply(), GUEST);
+			await processReplyIcs(f.app, reply(), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 0);
 		});
@@ -247,7 +257,7 @@ describe('reply processing', () => {
 		it('never stores NaN for an unparseable DTSTAMP', async () => {
 			const f = fixture();
 
-			await processReplyIcs(f.app, reply({ DTSTAMP: 'not-a-date' }), GUEST);
+			await processReplyIcs(f.app, reply({ DTSTAMP: 'not-a-date' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 1);
 
@@ -259,7 +269,7 @@ describe('reply processing', () => {
 		it('treats an unparseable RECURRENCE-ID as a series reply, not a NaN occurrence', async () => {
 			const f = fixture();
 
-			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': 'not-a-date' }), GUEST);
+			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': 'not-a-date' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.rsvpCreates.length, 0, 'must not write an occurrence keyed by NaN');
 			assert.strictEqual(f.rec.attendeePatches.length, 1);
@@ -276,7 +286,7 @@ describe('reply processing', () => {
 				'DTSTART;TZID=Europe/Warsaw:20260910T120000\r\nRECURRENCE-ID;TZID=Europe/Warsaw:20260917T120000'
 			);
 
-			await processReplyIcs(f.app, ics, GUEST);
+			await processReplyIcs(f.app, ics, GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.rsvpCreates.length, 1);
 			assert.strictEqual(f.rec.rsvpCreates[0].recurrenceId, Date.UTC(2026, 8, 17, 10, 0, 0));
@@ -285,7 +295,7 @@ describe('reply processing', () => {
 		it('creates an occurrence rsvp and leaves the series partstat alone', async () => {
 			const f = fixture();
 
-			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z', PARTSTAT: 'DECLINED' }), GUEST);
+			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z', PARTSTAT: 'DECLINED' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 0);
 			assert.strictEqual(f.rec.rsvpCreates.length, 1);
@@ -297,7 +307,7 @@ describe('reply processing', () => {
 		it('patches an existing occurrence rsvp', async () => {
 			const f = fixture({ rsvp: { id: 33, replySequence: 1, replyDtstamp: 1000 } });
 
-			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }), GUEST);
+			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.rsvpPatches.length, 1);
 			assert.strictEqual(f.rec.rsvpPatches[0].id, 33);
@@ -306,7 +316,7 @@ describe('reply processing', () => {
 		it('drops a stale occurrence reply', async () => {
 			const f = fixture({ rsvp: { id: 33, replySequence: 9, replyDtstamp: 1000 } });
 
-			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z', SEQUENCE: '3' }), GUEST);
+			await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z', SEQUENCE: '3' }), GUEST, TENANTS);
 
 			assert.strictEqual(f.rec.rsvpPatches.length, 0);
 			assert.strictEqual(f.rec.rsvpCreates.length, 0);
@@ -318,8 +328,8 @@ describe('reply processing', () => {
 			const f = fixture({ attendee: { id: 22, meetingId: 11, email: GUEST, partstat: 'ACCEPTED', replySequence: 2, replyDtstamp: 1000 } });
 
 			for (const sender of [ 'other.guest@example.org', undefined ]) {
-				const series = await processReplyIcs(f.app, reply({ PARTSTAT: 'DECLINED', SEQUENCE: '999999' }), sender);
-				const occurrence = await processReplyIcs(f.app, reply({ PARTSTAT: 'DECLINED', 'RECURRENCE-ID': '20260917T100000Z' }), sender);
+				const series = await processReplyIcs(f.app, reply({ PARTSTAT: 'DECLINED', SEQUENCE: '999999' }), sender, TENANTS);
+				const occurrence = await processReplyIcs(f.app, reply({ PARTSTAT: 'DECLINED', 'RECURRENCE-ID': '20260917T100000Z' }), sender, TENANTS);
 
 				assert.deepStrictEqual(series, { isReply: true, claimed: 1, updated: 0 });
 				assert.deepStrictEqual(occurrence, { isReply: true, claimed: 1, updated: 0 });
@@ -353,7 +363,7 @@ describe('reply processing', () => {
 			};
 
 			const ics = reply().replace('ATTENDEE;', 'ATTENDEE;PARTSTAT=DECLINED:mailto:other.guest@example.org\r\nATTENDEE;');
-			const outcome = await processReplyIcs(f.app, ics, GUEST);
+			const outcome = await processReplyIcs(f.app, ics, GUEST, TENANTS);
 
 			assert.deepStrictEqual(asked, [ GUEST ]);
 			assert.deepStrictEqual(outcome, { isReply: true, claimed: 1, updated: 1 });
@@ -363,7 +373,7 @@ describe('reply processing', () => {
 		it('accepts the attendee\'s own address in any case', async () => {
 			const f = fixture();
 
-			await processReplyIcs(f.app, reply(), ' Guest@Example.ORG ');
+			await processReplyIcs(f.app, reply(), ' Guest@Example.ORG ', TENANTS);
 
 			assert.strictEqual(f.rec.attendeePatches.length, 1);
 		});
@@ -374,11 +384,11 @@ describe('reply processing', () => {
 			const attendee: Record<string, unknown> = { id: 22, meetingId: 11, email: GUEST, partstat: 'NEEDS-ACTION' };
 			const f = fixture({ meeting: { id: 11, sequence: 3 }, attendee });
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '999999', DTSTAMP: '20260910T090000Z', PARTSTAT: 'DECLINED' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '999999', DTSTAMP: '20260910T090000Z', PARTSTAT: 'DECLINED' }), GUEST, TENANTS);
 			assert.strictEqual(f.rec.attendeePatches[0].data.replySequence, 3);
 			Object.assign(attendee, f.rec.attendeePatches[0].data);
 
-			await processReplyIcs(f.app, reply({ SEQUENCE: '3', DTSTAMP: '20260910T100000Z', PARTSTAT: 'ACCEPTED' }), GUEST);
+			await processReplyIcs(f.app, reply({ SEQUENCE: '3', DTSTAMP: '20260910T100000Z', PARTSTAT: 'ACCEPTED' }), GUEST, TENANTS);
 			assert.strictEqual(f.rec.attendeePatches.length, 2);
 			assert.strictEqual(f.rec.attendeePatches[1].data.partstat, 'ACCEPTED');
 		});
@@ -387,11 +397,47 @@ describe('reply processing', () => {
 			const f = fixture();
 			const before = Date.now();
 
-			await processReplyIcs(f.app, reply({ DTSTAMP: '20991231T000000Z' }), GUEST);
+			await processReplyIcs(f.app, reply({ DTSTAMP: '20991231T000000Z' }), GUEST, TENANTS);
 
 			const written = f.rec.attendeePatches[0].data.replyDtstamp as number;
 
 			assert.ok(written >= before && written <= Date.now(), `replyDtstamp ${written}`);
+		});
+	});
+
+	describe('the mailbox the reply was read from', () => {
+		it('does not answer for a meeting of a tenant it does not belong to', async () => {
+			const f = fixture({ meeting: { id: 11, sequence: 9, tenantId: 8 } });
+
+			const outcome = await processReplyIcs(f.app, reply({ PARTSTAT: 'DECLINED' }), GUEST, TENANTS);
+
+			// Not claimed: the message stays unread, as any reply this mailbox has no meeting for.
+			assert.deepStrictEqual(outcome, { isReply: true, claimed: 0, updated: 0 });
+			assert.deepStrictEqual(f.rec.attendeePatches, []);
+			assert.deepStrictEqual(f.rec.rsvpCreates, []);
+		});
+
+		it('does not answer for one occurrence of such a meeting either', async () => {
+			const f = fixture({ meeting: { id: 11, sequence: 9, tenantId: 8 } });
+
+			const outcome = await processReplyIcs(f.app, reply({ 'RECURRENCE-ID': '20260917T100000Z' }), GUEST, TENANTS);
+
+			assert.strictEqual(outcome.claimed, 0);
+			assert.deepStrictEqual(f.rec.rsvpCreates, []);
+		});
+
+		it('answers for the meetings of every tenant that shares it', async () => {
+			const f = fixture({ meeting: { id: 11, sequence: 9, tenantId: 8 } });
+
+			const outcome = await processReplyIcs(f.app, reply(), GUEST, [ TENANT, 8 ]);
+
+			assert.deepStrictEqual(outcome, { isReply: true, claimed: 1, updated: 1 });
+		});
+
+		it('answers for no meeting when it belongs to no tenant', async () => {
+			const f = fixture();
+
+			assert.strictEqual((await processReplyIcs(f.app, reply(), GUEST, [])).claimed, 0);
 		});
 	});
 
@@ -418,7 +464,7 @@ describe('reply processing', () => {
 		const event = (i: number) => [ 'BEGIN:VEVENT', `UID:uid-${i}@x`, 'DTSTAMP:20260910T090000Z', 'DTSTART:20260910T100000Z', ...attendees, 'END:VEVENT' ];
 		const ics = [ 'BEGIN:VCALENDAR', 'VERSION:2.0', 'METHOD:REPLY', ...Array.from({ length: 50 }, (_, i) => event(i)).flat(), 'END:VCALENDAR' ].join('\r\n');
 
-		await processReplyIcs(f.app, ics, GUEST);
+		await processReplyIcs(f.app, ics, GUEST, TENANTS);
 		assert.ok(lookups <= 10, `${lookups} meeting lookups`);
 	});
 });

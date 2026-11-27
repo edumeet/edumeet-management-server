@@ -19,7 +19,8 @@ import { RoleService, getOptions } from './roles.class';
 import { rolePath, roleMethods } from './roles.shared';
 import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
-import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
 
 export * from './roles.class';
@@ -49,14 +50,14 @@ export const role = (app: Application) => {
 			get: [],
 			create: [ 
 				iff(notSuperAdmin(), isTenantAdmin),
-				// iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(roleDataValidator),
 				schemaHooks.resolveData(roleDataResolver)
 			],
 			patch: [ 
 				iff(notSuperAdmin(), isTenantAdmin),
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rolePatchValidator),
+				// A tenant admin's role stays in the admin's tenant, whatever the request names.
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(rolePatchResolver)
 			],
 			remove: [

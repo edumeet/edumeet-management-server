@@ -21,7 +21,8 @@ import { iff } from 'feathers-hooks-common';
 import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { noSuperAdminRules } from '../../hooks/adminOnlyData';
 import { isTenantAdmin } from '../../hooks/isTenantAdmin';
-import { notInSameTenant, notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
+import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 import { logRuleShape } from '../../hooks/logRuleShape';
 
 export * from './rules.class';
@@ -63,9 +64,10 @@ export const rule = (app: Application) => {
 			],
 			patch: [ 
 				noSuperAdminRules,
-				iff(notSuperAdmin(), notInSameTenant),
 				schemaHooks.validateData(rulePatchValidator),
 				logRuleShape,
+				// A tenant admin's rule stays in the admin's tenant, whatever the request names.
+				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(rulePatchResolver)
 			],
 			remove: [

@@ -15,10 +15,10 @@ export const MeetingStatus = StringEnum([ 'CONFIRMED', 'CANCELLED' ]);
 
 export const meetingSchema = Type.Object(
 	{
-		id: Type.Number(),
-		roomId: Type.Number(),
-		tenantId: Type.Number(),
-		organizerId: Type.Number(),
+		id: Type.Integer(),
+		roomId: Type.Integer(),
+		tenantId: Type.Integer(),
+		organizerId: Type.Integer(),
 		title: Type.String(),
 		description: Type.Optional(Type.String()),
 		startsAt: Type.Number({ minimum: MEETING_TIME_MIN, maximum: MEETING_TIME_MAX }),

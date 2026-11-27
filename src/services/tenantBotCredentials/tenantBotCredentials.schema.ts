@@ -9,8 +9,8 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const tenantBotCredentialSchema = Type.Object(
 	{
-		id: Type.Number(),
-		tenantId: Type.Number(),
+		id: Type.Integer(),
+		tenantId: Type.Integer(),
 		label: Type.String({ minLength: 1, maxLength: 128 }),
 		// SHA-256 hex of the token; hashed by the form, the token never reaches the server.
 		tokenHash: Type.String({ pattern: '^[0-9a-f]{64}$' }),

@@ -67,6 +67,8 @@ export const rolePermission = (app: Application) => {
 			remove: [
 				iff(notSuperAdmin(), isTenantAdmin),
 				iff(notSuperAdmin(), roleIdTenantCheckOnDelete),
+				// and the statement itself only reaches rows of roles of the caller's tenant
+				iff(notSuperAdmin(), scopeToTenantByParent({ key: 'roleId', parentService: 'roles' })),
 			]
 		},
 		after: {

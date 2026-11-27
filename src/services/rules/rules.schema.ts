@@ -9,9 +9,9 @@ import { dataValidator, queryValidator } from '../../validators';
 // Main data model schema
 export const ruleSchema = Type.Object(
 	{
-		id: Type.Number(),
+		id: Type.Integer(),
 		name: Type.String(),
-		tenantId: Type.Number(),
+		tenantId: Type.Integer(),
 		parameter: Type.String(), // user parameter to check for method (like: email)
 		method: Type.String(), // contains, equals, startswith, endswith
 		negate: Type.Boolean(), // true/false  negates method
