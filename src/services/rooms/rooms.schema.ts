@@ -144,10 +144,13 @@ export const roomExternalResolver = resolve<Room, HookContext>({
 });
 
 // Schema for creating new entries
+// The id is left out: the database assigns it. The room server keeps live rooms by id, so a
+// chosen id could be the one of a room that was deleted while its meeting was still running.
 export const roomDataSchema = Type.Intersect([
 	Type.Pick(roomSchema, [ 'name' ], { additionalProperties: false }),
 	// Add additional query properties here
 	Type.Partial(Type.Omit(roomSchema, [
+		'id',
 		'name',
 		'owners',
 		'groupRoles',
@@ -185,6 +188,7 @@ export const roomDataSuperAdminSchema = Type.Intersect([
 	Type.Pick(roomSchema, [ 'name', 'tenantId' ], { additionalProperties: false }),
 	// Allow all other fields, including tenantId
 	Type.Partial(Type.Omit(roomSchema, [
+		'id',
 		'name',
 		'owners',
 		'groupRoles',
