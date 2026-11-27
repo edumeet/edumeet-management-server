@@ -23,7 +23,7 @@ import { notSuperAdmin } from '../../hooks/notSuperAdmin';
 import { pinTenantToCaller } from '../../hooks/pinTenantToCaller';
 import { notInSameTenantByContextId } from '../../hooks/notSameTenant';
 import { rememberOAuthTenants, reloadTenantOAuth } from '../../hooks/dynamicOAuth';
-import { checkOAuthUrls } from '../../auth/oauthEgress';
+import { checkOAuthUrls, lockOAuthAddresses } from '../../auth/oauthEgress';
 
 export * from './tenantOAuths.class';
 export * from './tenantOAuths.schema';
@@ -55,6 +55,7 @@ export const tenantOAuth = (app: Application) => {
 			get: [],
 			create: [
 				schemaHooks.validateData(tenantOAuthDataValidator),
+				iff(notSuperAdmin(), lockOAuthAddresses),
 				checkOAuthUrls,
 				// a tenant admin may only configure the login of their own tenant
 				iff(notSuperAdmin(), pinTenantToCaller),
@@ -62,6 +63,7 @@ export const tenantOAuth = (app: Application) => {
 			],
 			patch: [
 				schemaHooks.validateData(tenantOAuthPatchValidator),
+				iff(notSuperAdmin(), lockOAuthAddresses),
 				checkOAuthUrls,
 				iff(notSuperAdmin(), pinTenantToCaller),
 				schemaHooks.resolveData(tenantOAuthPatchResolver),

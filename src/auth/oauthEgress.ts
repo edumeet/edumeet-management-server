@@ -1,6 +1,6 @@
 import dns from 'dns';
 import { BlockList, isIP } from 'net';
-import { BadRequest } from '@feathersjs/errors';
+import { BadRequest, Forbidden, NotFound } from '@feathersjs/errors';
 import { getGrantConfig } from '@feathersjs/authentication-oauth/lib/utils';
 import type { Application, HookContext } from '../declarations';
 
@@ -89,6 +89,37 @@ export const checkOAuthUrls = async (context: HookContext): Promise<HookContext>
 
 		if (problem) throw new BadRequest(`${key} ${problem}`);
 	}
+
+	return context;
+};
+
+// Every tenant's identity provider sends its codes to the same callback, where a code is
+// exchanged at the token address of the tenant whose sign-in was started. With a token address
+// of their own, a tenant's admins would receive the codes of other tenants' users, so only a
+// super admin sets where a tenant's sign-in goes. Client id, secret and scope stay theirs.
+const OAUTH_ADDRESS_KEYS = [ ...OAUTH_URL_KEYS, 'end_session_endpoint' ] as const;
+
+const ADDRESSES_LOCKED = 'Only a super admin can set the addresses of a tenant\'s identity provider';
+
+// tenantOAuths before hook for create and patch, after validateData, as iff(notSuperAdmin(), ...).
+export const lockOAuthAddresses = async (context: HookContext): Promise<HookContext> => {
+	if (context.method === 'create') throw new Forbidden(ADDRESSES_LOCKED);
+
+	const data = (context.data ?? {}) as Record<string, unknown>;
+	const sent = OAUTH_ADDRESS_KEYS.filter((key) => data[key] !== undefined);
+
+	if (sent.length === 0) return context;
+
+	// The admin UI sends the addresses along unchanged; only a change is refused.
+	const tenantId = (context.params.query as { tenantId?: unknown } | undefined)?.tenantId;
+	const current = await context.app.get('postgresqlClient')('tenantOAuths')
+		.where({ id: context.id, ...(tenantId !== undefined ? { tenantId } : {}) })
+		.first(...OAUTH_ADDRESS_KEYS);
+
+	// Not left to the patch itself: without an id or in another tenant there is no entry to change.
+	if (!current) throw new NotFound(`No record found for id '${context.id}'`);
+
+	if (sent.some((key) => (data[key] ?? '') !== (current[key] ?? ''))) throw new Forbidden(ADDRESSES_LOCKED);
 
 	return context;
 };
