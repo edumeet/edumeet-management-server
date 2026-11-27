@@ -15,8 +15,10 @@ const rows: Record<string, Record<number, Record<string, unknown>>> = {
 	meetings: { 10: { roomId: 1, tenantId: 1 }, 20: { roomId: 2, tenantId: 1 }, 30: { roomId: 3, tenantId: 2 } },
 	meetingAttendees: { 100: { meetingId: 10 }, 200: { meetingId: 20 }, 300: { meetingId: 30 } },
 	meetingOccurrenceRsvps: { 1000: { meetingAttendeeId: 100 }, 2000: { meetingAttendeeId: 200 } },
-	rooms: { 1: { tenantId: 1 }, 2: { tenantId: 1 }, 3: { tenantId: null }, 4: { tenantId: 2 } },
-	roomOwners: { 1: { roomId: 1, userId: 9 }, 2: { roomId: 3, userId: 9 } }
+	rooms: { 1: { tenantId: 1 }, 2: { tenantId: 1 }, 3: { tenantId: null }, 4: { tenantId: 2 }, 5: { tenantId: null } },
+	// user 11 has no tenant and owns room 5, as on an installation without tenants; user 12 is
+	// a super admin (no tenant) who owns room 1 of tenant 1
+	roomOwners: { 1: { roomId: 1, userId: 9 }, 2: { roomId: 3, userId: 9 }, 3: { roomId: 5, userId: 11 }, 4: { roomId: 1, userId: 12 } }
 };
 
 // every lookup by a list of ids the hook made, to count them
@@ -88,6 +90,20 @@ describe('meeting room access', () => {
 		it('still allows a find without a room', async () => {
 			await isRoomOwnerOrAdminForMeeting(makeContext('find'));
 		});
+
+		// Tenant admins could add owners to rooms without a tenant until such rooms were refused to them.
+		it('gives an owner row of a room without a tenant no rights, unless the owner has no tenant either', async () => {
+			await assert.rejects(isRoomOwnerOrAdminForMeeting(makeContext('create', { data: { roomId: 3 } })), /not an owner/);
+			await isRoomOwnerOrAdminForMeeting(makeContext('create', { data: { roomId: 5 }, user: { id: 11, tenantId: undefined } }));
+		});
+
+		it('leaves a super admin the rooms they own in a tenant', async () => {
+			await isRoomOwnerOrAdminForMeeting(makeContext('create', { data: { roomId: 1 }, user: { id: 12, tenantId: undefined, roles: [ 'super-admin' ] } }));
+			await assert.rejects(
+				isRoomOwnerOrAdminForMeeting(makeContext('create', { data: { roomId: 1 }, user: { id: 12, tenantId: undefined, roles: [] } })),
+				/not an owner/
+			);
+		});
 	});
 
 	describe('meetingAttendees', () => {
@@ -117,7 +133,7 @@ describe('meeting room access', () => {
 		it('looks one id up once, however often the query repeats it', async () => {
 			lookups.length = 0;
 			await isRoomOwnerOrAdminForMeetingOccurrenceRsvp(makeContext('find', { query: { meetingAttendeeId: { $in: Array(MAX_IDS).fill(100) } } }));
-			assert.deepStrictEqual(lookups, [ { table: 'meetingAttendees', ids: [ 100 ] }, { table: 'meetings', ids: [ 10 ] }, { table: 'roomOwners', ids: [ 1 ] } ]);
+			assert.deepStrictEqual(lookups, [ { table: 'meetingAttendees', ids: [ 100 ] }, { table: 'meetings', ids: [ 10 ] }, { table: 'roomOwners', ids: [ 1 ] }, { table: 'rooms', ids: [ 1 ] } ]);
 		});
 
 		it('reads the parents of many ids in one query per table', async () => {

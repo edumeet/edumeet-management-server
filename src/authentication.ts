@@ -9,7 +9,7 @@ import { OAuthCallbackService, OAuthService } from '@feathersjs/authentication-o
 import { oauthCallbackHooks, oauthServiceHooks } from './hooks/dynamicOAuth';
 import { checkRoomServerAddresses, loginThrottle } from './hooks/loginThrottle';
 import { refreshAccessCheck } from './hooks/refreshAccessCheck';
-import { EdumeetAuthenticationService } from './auth/EdumeetAuthenticationService';
+import { EdumeetAuthenticationService, tokenTenant } from './auth/EdumeetAuthenticationService';
 import { EdumeetLocalStrategy } from './auth/EdumeetLocalStrategy';
 import { assertSigningKeyNotPublished } from './auth/publishedKeys';
 import { restrictOAuthRequests } from './auth/oauthEgress';
@@ -67,7 +67,7 @@ export const authentication = (app: Application) => {
 			const jwtOptions = app.get('authentication')?.jwtOptions ?? {};
 			const accessToken = await authenticationService.createAccessToken(
 				// eslint-disable-next-line camelcase
-				{ sub: String(_params?.user?.id), auth_time: _params?.authentication?.payload?.auth_time },
+				{ sub: String(_params?.user?.id), auth_time: _params?.authentication?.payload?.auth_time, tenantId: tokenTenant(_params?.user) },
 				jwtOptions
 			);
 

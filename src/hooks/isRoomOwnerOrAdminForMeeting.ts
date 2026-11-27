@@ -1,6 +1,7 @@
 import { BadRequest, NotFound } from '@feathersjs/errors';
 import { HookContext } from '../declarations';
 import { strictId } from './strictId';
+import { isSuperAdmin } from './accessDecision';
 
 type MeetingPath = 'meetings' | 'meetingAttendees' | 'meetingOccurrenceRsvps';
 
@@ -121,6 +122,17 @@ const assertRoomAccess = async (context: HookContext, roomIds: string[]): Promis
 	const ownedIds = new Set(owned.map(({ roomId }) => String(roomId)));
 
 	if (ids.some((id) => !ownedIds.has(String(id))))
+		throw new Error('You are not an owner of this room');
+
+	// A super admin belongs to no tenant and keeps the rooms they own.
+	if (isSuperAdmin(user.roles)) return;
+
+	// An owner row of a room without a tenant, or of another tenant's room, gives no rights:
+	// tenant admins could add such rows until rooms without a tenant were refused to them.
+	const rooms: Array<{ tenantId: unknown }> = await knex('rooms').select('id', 'tenantId')
+		.whereIn('id', ids);
+
+	if (rooms.some(({ tenantId }) => String(tenantId ?? '') !== String(user.tenantId ?? '')))
 		throw new Error('You are not an owner of this room');
 };
 

@@ -96,7 +96,7 @@ export const loadAccessRules = async (app: Application, tenantId: number, hookNa
 
 // roles is a VARCHAR[] on Postgres and a json column on MySQL, and has been seen as
 // a JSON string. Mirrors the parsing in hooks/notSuperAdmin.ts.
-const isSuperAdmin = (roles: unknown): boolean => {
+export const isSuperAdmin = (roles: unknown): boolean => {
 	if (roles == null) return false;
 
 	let list: unknown = roles;

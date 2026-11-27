@@ -4,13 +4,15 @@ import { feathers } from '@feathersjs/feathers';
 import { AuthenticationBaseStrategy } from '@feathersjs/authentication';
 import { Forbidden, NotAuthenticated } from '@feathersjs/errors';
 import { authentication } from '../../src/authentication';
+import { tokenTenant } from '../../src/auth/EdumeetAuthenticationService';
 import { logger } from '../../src/logger';
 import defaults from '../../config/default.json';
 
 const USERS: Record<string, Record<string, unknown>> = {
 	1: { id: 1, tenantId: 1, email: 'someone@acme.edu', ssoId: 'sub-1', name: 'Someone', roles: [] },
 	2: { id: 2, email: 'admin@gmail.com', roles: [ 'super-admin' ] },
-	3: { id: 3, tenantId: 1, email: 'local@acme.edu', name: 'Local', roles: [] }
+	3: { id: 3, tenantId: 1, email: 'local@acme.edu', name: 'Local', roles: [] },
+	4: { id: 4, email: 'no-tenant@acme.edu', name: 'No tenant', roles: [] }
 };
 
 class TestStrategy extends AuthenticationBaseStrategy {
@@ -96,6 +98,34 @@ describe('token-refresh wiring', () => {
 
 		assert.strictEqual(thirdPayload.auth_time, firstPayload.auth_time);
 		assert.strictEqual(thirdPayload.sub, '1');
+	});
+
+	// The room servers compare it with the tenant of the address; a token without it counts
+	// there as a guest.
+	it('writes the user\'s tenant into the token at sign in and keeps it through refreshes', async () => {
+		const { app } = makeApp();
+		const verify = (token: string) => app.service('authentication').verifyAccessToken(token);
+		const tenantUser = await signIn(app, '1');
+		const superAdmin = await signIn(app, '2');
+
+		assert.strictEqual((await verify(tenantUser)).tenantId, 1);
+		assert.strictEqual((await verify(await refresh(app, tenantUser))).tenantId, 1);
+		assert.ok('tenantId' in await verify(superAdmin));
+		assert.strictEqual((await verify(superAdmin)).tenantId, null);
+		assert.strictEqual((await verify(await refresh(app, superAdmin))).tenantId, null);
+	});
+
+	// null is taken at every tenant, so only the privileged roles get it.
+	it('gives any other user without a tenant 0, and writes no tenant without a user', async () => {
+		const { app } = makeApp();
+		const verify = (token: string) => app.service('authentication').verifyAccessToken(token);
+		const noTenant = await signIn(app, '4');
+
+		assert.strictEqual((await verify(noTenant)).tenantId, 0);
+		assert.strictEqual((await verify(await refresh(app, noTenant))).tenantId, 0);
+		assert.strictEqual(tokenTenant(undefined), undefined);
+		assert.strictEqual(tokenTenant({ roles: '["super-admin"]' }), null);
+		assert.strictEqual(tokenTenant({ tenantId: '7', roles: [ 'super-admin' ] }), 7);
 	});
 
 	it('refuses a refresh without a token before any rule is looked at', async () => {
