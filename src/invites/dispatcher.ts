@@ -1,3 +1,4 @@
+import type { Knex } from 'knex';
 import type { Application, HookContext } from '../declarations';
 import type { Meeting } from '../services/meetings/meetings.schema';
 import type { MeetingAttendee } from '../services/meetingAttendees/meetingAttendees.schema';
@@ -217,14 +218,47 @@ const scheduleDispatch = (app: Application, meetingId: number, bumpSequence = fa
 	pendingDispatches.set(meetingId, timer);
 };
 
-export const rescheduleRoomMeetings = async (app: Application, roomId: number | string): Promise<void> => {
+// The meetings that may still take place: single ones that have not ended, and every recurring
+// one, whose end is only known by expanding it.
+export const whereMaybeUpcoming = (qb: Knex.QueryBuilder, now: number): Knex.QueryBuilder =>
+	qb.whereNotNull('rrule').orWhere('endsAt', '>', now);
+
+// A change of a room's meetingsOnly re-sends the invites of its meetings that are not over.
+// Expanding one recurrence can take tens of milliseconds, so the work is bounded: at most
+// invites.maxMeetingsPerRoom meetings qualify, and the server is given back between meetings.
+// A change while the room is still being re-sent is queued: one more round follows, built
+// from the room as it is then.
+const resendingRooms = new Map<string, boolean>();
+
+const resendRoom = async (app: Application, roomId: number | string): Promise<void> => {
 	const knex = app.get('postgresqlClient');
-	const rows: Array<MeetingWindow & { id: number | string }> = await knex('meetings').where({ roomId })
-		.select('id', 'startsAt', 'endsAt', 'rrule', 'timezone');
 	const now = Date.now();
+	const rows: Array<MeetingWindow & { id: number | string }> = await knex('meetings').where({ roomId })
+		.andWhere((qb: Knex.QueryBuilder) => whereMaybeUpcoming(qb, now))
+		.select('id', 'startsAt', 'endsAt', 'rrule', 'timezone');
 
 	for (const row of rows) {
 		if (!isMeetingOver(row, now)) scheduleDispatch(app, Number(row.id), true);
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+};
+
+export const rescheduleRoomMeetings = async (app: Application, roomId: number | string): Promise<void> => {
+	const key = String(roomId);
+
+	if (resendingRooms.has(key)) {
+		resendingRooms.set(key, true);
+
+		return;
+	}
+
+	try {
+		do {
+			resendingRooms.set(key, false);
+			await resendRoom(app, roomId);
+		} while (resendingRooms.get(key));
+	} finally {
+		resendingRooms.delete(key);
 	}
 };
 

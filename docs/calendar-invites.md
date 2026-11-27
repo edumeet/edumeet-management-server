@@ -6,6 +6,9 @@ edumeet rooms. See
 for deploy/config: the required `invites.encryptionKey`, the optional
 `invites.rsvpTokenSecret` (reserved for a future token flow), and optional knobs
 (`imapPollIntervalMs`, `imapRetentionDays`), and the per-tenant UI walkthrough.
+`invites.maxMeetingsPerRoom` (default `100`) limits the recurring or upcoming meetings of a
+room; past single meetings do not count. A recurring meeting counts until it is deleted, also
+after its series has ended, so deleting old series makes room.
 
 ### Relevant API surface
 

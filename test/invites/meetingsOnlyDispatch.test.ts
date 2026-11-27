@@ -48,10 +48,12 @@ const harness = (meetingsOnly: boolean | number, notified: boolean): Harness => 
 	const attendees = [ { id: 1, email: 'guest@example.org', lastNotifiedSequence: notified ? 0 : -1 } ];
 	const state = { sequence: 0 };
 
+	const meetings = async () => [ { id: 1, startsAt: Date.UTC(2099, 8, 10, 10, 0, 0), endsAt: Date.UTC(2099, 8, 10, 11, 0, 0), rrule: null, timezone: 'UTC' } ];
 	const knex = () => ({
 		where: () => ({
 			increment: async () => { state.sequence++; },
-			select: async () => [ { id: 1, startsAt: Date.UTC(2099, 8, 10, 10, 0, 0), endsAt: Date.UTC(2099, 8, 10, 11, 0, 0), rrule: null, timezone: 'UTC' } ],
+			andWhere: () => ({ select: meetings }),
+			select: meetings,
 			first: async () => ({ meetingsOnly: room.meetingsOnly })
 		})
 	});
